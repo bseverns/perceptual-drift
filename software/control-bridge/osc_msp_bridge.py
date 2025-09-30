@@ -36,7 +36,7 @@ def clamp(value, lower, upper):
 
 
 def map_float_to_rc(value, gain=1.0, center=1500, span=400):
-    """Map normalized [-1, 1] values into Betaflight-friendly RC microseconds."""
+    """Map [-1, 1] floats into Betaflight-friendly RC microseconds."""
 
     return int(clamp(center + value * span * gain, 1100, 1900))
 
@@ -77,14 +77,17 @@ class Mapper:
 
         rc_roll = map_float_to_rc(lat, gain=lat_gain)
         # Pitch tips forward proportional to lateral magnitude so sideways
-        # slides keep their swagger.  Yank or reshape it if that's not your jam.
+        # slides keep their swagger.  Yank or reshape it if that's not your
+        # jam.
         rc_pitch = map_float_to_rc(-abs(lat) * 0.2)
-        # Throttle squishes [-1, 1] into [0, 1] before mapping into microseconds.
+        # Throttle squishes [-1, 1] into [0, 1] before mapping into
+        # microseconds.
         rc_thr = map_float_to_rc(
             (alt + 1) / 2 - 0.5,
             gain=self.cfg["mapping"]["altitude"]["gain"],
         )
-        # Yaw bias lets you trim out mechanical drift without touching hardware.
+        # Yaw bias lets you trim out mechanical drift without touching
+        # hardware.
         rc_yaw = map_float_to_rc(yaw + yaw_bias)
 
         return [rc_roll, rc_pitch, rc_thr, rc_yaw]
@@ -178,6 +181,7 @@ def main():
     finally:
         # Close the serial port so the next run doesn't start with a fight.
         ser.close()
+
 
 if __name__ == "__main__":
     main()
