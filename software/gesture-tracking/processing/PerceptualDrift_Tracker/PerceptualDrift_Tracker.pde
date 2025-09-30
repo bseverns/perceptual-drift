@@ -1,6 +1,17 @@
+// -----------------------------------------------------------------------------
 // PerceptualDrift_Tracker — Processing sketch
 // Webcam-based coarse gesture → OSC
 // Sends: /pd/alt, /pd/lat, /pd/yaw, /pd/crowd, /pd/consent
+//
+// Required libraries (install via Sketch → Import Library... → Add Library):
+// * video (Processing core) — https://processing.org/reference/libraries/video/
+// * oscP5 — https://www.sojamo.de/libraries/oscP5/
+// * netP5 — ships with oscP5
+//
+// Inspiration: Kyle McDonald’s ofxCv optical flow experiments and the cult-classic
+// Golan Levin crowd interaction sketches.  This version purposely keeps the math
+// simple so you can explain it to safety officers in a pinch.
+// -----------------------------------------------------------------------------
 
 import processing.video.*;
 import oscP5.*;
@@ -18,6 +29,8 @@ PImage prev;
 void setup(){
   size(960,540);
   String[] cams = Capture.list();
+  // Pick the first camera unless you override in code.  Replace with an index
+  // or name from ``cams`` if you have multiple USB cameras attached.
   cam = new Capture(this, cams.length>0? cams[0]: 0);
   cam.start();
   osc = new OscP5(this, 0);
@@ -30,7 +43,8 @@ void draw(){
   if (cam.available()) cam.read();
   image(cam, 0,0, width, height);
 
-  // optical flow proxy: frame diff magnitude
+  // optical flow proxy: frame diff magnitude.  We compare the current frame to
+  // the previous frame and count pixels above ``threshold`` as "motion".
   PImage diff = createImage(width, height, RGB);
   cam.loadPixels(); prev.loadPixels(); diff.loadPixels();
   int motionCount=0;
@@ -62,7 +76,8 @@ void draw(){
   yaw = constrain(lat*0.2, -1, 1);
   crowd = constrain(motionCount / float(pixels.length) * 5.0, 0, 1);
 
-  // consent toggle
+  // consent toggle — space bar flips on/off.  Consider mapping this to a foot
+  // switch or physical button in the gallery so the facilitator controls arming.
   if (keyPressed && key==' ') consent = !consent;
 
   sendOSC("/pd/lat", lat);
@@ -71,7 +86,8 @@ void draw(){
   sendOSC("/pd/crowd", crowd);
   sendOSC("/pd/consent", consent?1:0);
 
-  // HUD
+  // HUD overlay helps with calibration / explaining to the crew what the drone
+  // currently "feels" from the crowd.  Green bar = consent granted.
   noStroke(); fill(consent? color(0,255,0): color(255,0,0));
   rect(0, height-10, width*(consent?1:0.25), 10);
   fill(255);
