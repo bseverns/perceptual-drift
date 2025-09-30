@@ -17,7 +17,7 @@ from pythonosc import dispatcher, osc_server
 
 # --- MSP minimal helpers (subset) ---
 # The header and command IDs live here so you can tweak them without grepping.
-MSP_HEADER = b"\x24\x4D\x3C"  # '$M<' — Betaflight's Minimal Serial Protocol
+MSP_HEADER = b"\x24\x4d\x3c"  # '$M<' — Betaflight's Minimal Serial Protocol
 MSP_SET_RAW_RC = 200  # command ID for pushing raw RC channel values
 
 
@@ -95,10 +95,10 @@ class Mapper:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--serial', default='/dev/ttyUSB0')
-    ap.add_argument('--baud', type=int, default=115200)
-    ap.add_argument('--config', default='../../config/mapping.yaml')
-    ap.add_argument('--osc_port', type=int, default=9000)
+    ap.add_argument("--serial", default="/dev/ttyUSB0")
+    ap.add_argument("--baud", type=int, default=115200)
+    ap.add_argument("--config", default="../../config/mapping.yaml")
+    ap.add_argument("--osc_port", type=int, default=9000)
     args = ap.parse_args()
 
     # Slurp the mapping configuration.  This is where you wire OSC paths to
@@ -157,7 +157,7 @@ def main():
                 # 8 channels: roll, pitch, throttle, yaw, AUX1..AUX4.  If you
                 # need more, change the struct format and append extra values.
                 payload = struct.pack(
-                    '<8H',
+                    "<8H",
                     rc[0],
                     rc[1],
                     rc[2],
