@@ -1,0 +1,16 @@
+.DS_Store
+*.log
+*.mp4
+*.mov
+*.mkv
+*.png
+*.jpg
+*.jpeg
+*.bin
+.vscode/
+.idea/
+.build/
+.pio/
+dist/
+env/
+__pycache__/

@@ -1,0 +1,10 @@
+{
+  "clean_low_latency": {
+    "description": "Display FPV with minimal processing",
+    "gst": "v4l2src device=/dev/video0 ! videoconvert ! autovideosink sync=false"
+  },
+  "delayed_glitch": {
+    "description": "Buffer + drop frames based on OSC crowd",
+    "gst": "v4l2src device=/dev/video0 ! queue max-size-buffers=120 ! videorate ! videobalance ! autovideosink sync=false"
+  }
+}

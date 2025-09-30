@@ -1,0 +1,27 @@
+# Control mapping curves
+osc:
+  port: 9000
+  address_space:
+    altitude: "/pd/alt"
+    lateral: "/pd/lat"
+    yaw: "/pd/yaw"
+    crowd: "/pd/crowd"
+    consent: "/pd/consent"
+
+mapping:
+  altitude:
+    deadzone: 0.05
+    curve: "expo"
+    gain: 0.6
+  lateral:
+    deadzone: 0.05
+    curve: "linear"
+    gain: 0.5
+  yaw_bias:
+    bias: 0.1
+    jitter: 0.05
+  leds:
+    palette: ["#1e90ff", "#ff1493", "#32cd32", "#ffd700"]
+  glitch_intensity:
+    base: 0.2
+    max: 0.9
