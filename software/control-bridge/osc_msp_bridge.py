@@ -4,6 +4,12 @@
 This script is intentionally over-commented so future operators can wire up
 their own inputs without spelunking the MSP spec from scratch.  Read the notes,
 experiment shamelessly, and keep the props pointed away from your face.
+
+Useful breadcrumbs so you never have to guess:
+- MSP protocol reference: https://github.com/betaflight/betaflight/wiki/MSP-Protocol
+- python-osc docs: https://github.com/attwad/python-osc
+- pySerial quickstart: https://pyserial.readthedocs.io/en/latest/shortintro.html
+- Safety inspo: https://www.fpvsafety.org/
 """
 
 import argparse
