@@ -78,7 +78,9 @@ class SwarmNode(Node):
         self.dispatcher.map("/pd/lat", self.on_lat)
         self.dispatcher.map("/pd/alt", self.on_alt)
 
-        # Fire up a background OSC server.  Threading server keeps ROS spinning.
+        # Fire up a background OSC server.  We deliberately use the threading
+        # variant so the daemon OSC loop can live alongside ``rclpy.spin()``
+        # without blocking the ROS executor.
         self.server = osc_server.ThreadingOSCUDPServer((OSC_BIND_ADDRESS, OSC_BIND_PORT), self.dispatcher)
         self._osc_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self._osc_thread.start()
@@ -204,13 +206,16 @@ class SwarmNode(Node):
             return True
         return False
 
-    def destroy_node(self):  # type: ignore[override]
+    def stop_osc_server(self) -> None:
         if hasattr(self, "server"):
             try:
                 self.server.shutdown()
                 self.server.server_close()
             except Exception:  # pragma: no cover - best effort cleanup
                 pass
+
+    def destroy_node(self):  # type: ignore[override]
+        self.stop_osc_server()
         super().destroy_node()
 
 
@@ -222,6 +227,7 @@ def main():
         rclpy.spin(node)
     finally:
         node.destroy_node()
+        node.stop_osc_server()
         rclpy.shutdown()
 
 
