@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """OSC-to-MSP control bridge for hijacking Betaflight with wild data.
 
-This script is intentionally over-commented so future operators can wire up
-their own inputs without spelunking the MSP spec from scratch.  Read the notes,
-experiment shamelessly, and keep the props pointed away from your face.
+This script is intentionally over-commented so future operators can
+wire their own inputs without spelunking the MSP spec from scratch.
+Read the notes, experiment shamelessly, and keep the props pointed away
+from your face.
 
 References worth opening in a browser tab while you read this file:
 
 * MSP command table — https://github.com/betaflight/betaflight/wiki/MSP
 * python-osc docs — https://pypi.org/project/python-osc/
-* Betaflight raw RC ranges — https://github.com/betaflight/betaflight/wiki/RC-Setup
+* Betaflight raw RC ranges —
+  https://github.com/betaflight/betaflight/wiki/RC-Setup
 """
 
 import argparse
@@ -24,19 +26,20 @@ from pythonosc import dispatcher, osc_server
 
 # --- MSP minimal helpers (subset) ---
 # The header and command IDs live here so you can tweak them without grepping.
-# The MSP header is literally the bytes ``$M<`` — you see them in serial logs
-# when sniffing a radio link. Betaflight expects exactly this framing.
+# The MSP header is literally the bytes ``$M<`` — you see them in serial
+# logs when sniffing a radio link. Betaflight expects exactly this framing.
 MSP_HEADER = b"\x24\x4d\x3c"  # '$M<' — Betaflight's Minimal Serial Protocol
-# ID 200 = SET_RAW_RC.  Newer Betaflight builds still accept this despite other
-# MSP v2 command expansions.  If you want to play with v2, start with the link
-# above and pack CRCs instead of the XOR checksum used here.
+# ID 200 = SET_RAW_RC.  Newer Betaflight builds still accept this despite
+# other MSP v2 command expansions.  If you want to play with v2, start with
+# the link above and pack CRCs instead of the XOR checksum used here.
 MSP_SET_RAW_RC = 200  # command ID for pushing raw RC channel values
 
 
 def msp_packet(cmd, payload=b""):
     """Wrap a payload in MSP framing with the expected XOR checksum.
 
-    MSP v1 packets are: ``'$M<' + [payload_size] + [cmd_id] + payload + checksum``.
+    MSP v1 packets are: ``'$M<' + [payload_size] + [cmd_id] + payload +
+    checksum``.
     The checksum is the XOR of size, command, and each payload byte. See the
     Betaflight wiki for the canonical pseudocode.  This helper sticks to the
     tiny subset we need: write raw RC channel values.
@@ -176,8 +179,6 @@ class Mapper:
         rc_channels = [rc_roll, rc_pitch, rc_thr, rc_yaw]
 
         return rc_channels, aux_channels
-
-
 
 
 def main():
