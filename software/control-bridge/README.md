@@ -6,11 +6,11 @@ you can rip it apart and wire in your own sensors, sequencers, or stage props.
 
 Keep these tabs open while you hack:
 
-* MSP spec crib sheet — https://github.com/betaflight/betaflight/wiki/MSP
+* MSP spec crib sheet — https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md
 * python-osc API docs — https://pypi.org/project/python-osc/
 * Betaflight RC setup — https://github.com/betaflight/betaflight/wiki/RC-Setup
-* Inspiration: [DJI FPVgestures](https://github.com/whoisandrewd/fpv-gestures),
-  [MIT Swarm Lab](https://aerobotics.mit.edu/)
+* Inspiration: [Tello gesture-flight experiments](https://github.com/kinivi/tello-gesture-control),
+  [MIT’s Flyfire swarm sketches](https://senseable.mit.edu/flyfire/)
 
 ## Pipeline
 
