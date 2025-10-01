@@ -39,7 +39,7 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 ```
 .
 ├─ config/                      # YAML/JSON mappings and presets
-├─ docs/                        # Diagrams, checklists, assumption ledger, install notes
+├─ docs/                        # Diagrams, checklists, assumption ledger, UX mapping
 ├─ firmware/                    # Teensy LED (and optional DSP) firmware via PlatformIO
 ├─ hardware/                    # Cage, LED wiring, parts lists
 ├─ scripts/                     # Utility scripts (logs, calibration, recorders)
@@ -67,16 +67,17 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
    - `sudo apt install gstreamer1.0-tools` or use OBS.
    - Run `./software/video-pipeline/gst_launch.sh clean_low_latency` for tight monitoring or `delayed_glitch` for delayed projection loops. Adapted from [Scanlines’ GStreamer recipes](https://scanlines.xyz/t/gstreamer-recipes/1414).
 5. **Safety dance**
-   - Follow `docs/checklists/safety_checklist.md` before every session.
-   - Keep the `consent` channel low until the facilitator explicitly flips it.
-   - Tape a hardware kill switch (BetaFPV LiteRadio or Jumper T-Lite) to your wrist. Cages help, but redundancy keeps faces intact.
+- Follow `docs/checklists/safety_checklist.md` before every session.
+- Keep the `consent` channel low until the facilitator explicitly flips it.
+- Tape a hardware kill switch (BetaFPV LiteRadio or Jumper T-Lite) to your wrist. Cages help, but redundancy keeps faces intact.
+- Skim `docs/experience/README.md` for the meta UX choreography so operator + crowd stay in sync.
 
 ---
 
 ## Config
 - [`config/mapping.yaml`](config/mapping.yaml) provides tunable curves for **altitude**, **lateral drift**, **yaw bias**, **LED color**, and **glitch intensity**.
 - [`config/video-presets.json`](config/video-presets.json) defines named GStreamer pipeline presets for OBS/GStreamer hybrids.
-- [`hardware/`](hardware) includes BOMs, wiring, and net rig notes based on [Drone Cage DIY](https://hackaday.io/project/19102-drone-safety-cage) write-ups.
+- [`hardware/`](hardware) includes a fleshed-out [hardware BOM](hardware/README.md), wiring, and net rig notes based on [Drone Cage DIY](https://hackaday.io/project/19102-drone-safety-cage) write-ups.
 
 ---
 
