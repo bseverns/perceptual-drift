@@ -9,7 +9,7 @@ This is not a complete swarm choreographer — it is a heavily commented startin
 point.  You will need a ROS 2 Foxy/Humble workspace with the crazyflie_ros2 stack
 installed.  Recommended reading:
 
-* CrazySwarm2 tutorial — https://imrclab.github.io/crazyswarm/usage/
+* CrazySwarm2 tutorial — https://crazyswarm.readthedocs.io/en/latest/usage.html
 * python-osc quickstart — https://pypi.org/project/python-osc/
 * ROS 2 services overview — https://docs.ros.org/en/humble/Concepts/Services.html
 """

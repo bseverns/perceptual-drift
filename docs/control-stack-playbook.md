@@ -32,7 +32,7 @@ Every stage is intentionally hackable: the architecture is a bunch of small scri
 ## OSC → MSP bridge
 
 - **Code**: [`software/control-bridge/osc_msp_bridge.py`](../software/control-bridge/osc_msp_bridge.py)
-- **Protocols**: [Open Sound Control 1.0](http://opensoundcontrol.org/spec-1_0) and Betaflight's [MSP 2.0](https://github.com/betaflight/betaflight/wiki/MSP-Protocol)
+- **Protocols**: [Open Sound Control 1.0](http://opensoundcontrol.org/spec-1_0) and Betaflight's [MSP 2.0](https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md)
 - **Python helpers**: [`python-osc`](https://github.com/attwad/python-osc) for OSC, [`pySerial`](https://pyserial.readthedocs.io/en/latest/shortintro.html) for UART access.
 - **MSP refresher**: Each packet is `$M<` + payload length + command ID + bytes + XOR checksum. We're only using `MSP_SET_RAW_RC` (ID 200) and pushing eight 16-bit values (roll, pitch, throttle, yaw, AUX1–AUX4).
 - **Config**: [`config/mapping.yaml`](../config/mapping.yaml) holds every gain and OSC path. Change that file, not the code.

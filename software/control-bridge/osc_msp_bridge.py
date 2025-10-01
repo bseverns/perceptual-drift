@@ -8,7 +8,7 @@ from your face.
 
 References worth opening in a browser tab while you read this file:
 
-* MSP command table — https://github.com/betaflight/betaflight/wiki/MSP
+* MSP command table — https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md
 * python-osc docs — https://pypi.org/project/python-osc/
 * Betaflight raw RC ranges —
   https://github.com/betaflight/betaflight/wiki/RC-Setup

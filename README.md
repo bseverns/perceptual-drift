@@ -1,6 +1,6 @@
 # Perceptual Drift — Audience‑Controlled FPV Installation
 
-Perceptual Drift is a participatory drone‑based installation where **audience motion** modulates **FPV drone** behavior and **live video processing**. It centers shared authorship: many bodies → probabilistic control → drones that “drift” perceptually. The installation leans on **DIY‑friendly stacks**: Betaflight micro‑drones, Raspberry Pi video processing (GStreamer/OBS), OpenFrameworks/Processing for gesture tracking, and an OSC→MSP control bridge. Optional **Teensy DSP/LED** layers extend visual/sonic feedback. Think of it as an unholy jam session between [Betaflight](https://betaflight.com/), [Processing](https://processing.org/), [GStreamer](https://gstreamer.freedesktop.org/), and [python-osc](https://pypi.org/project/python-osc/) with a splash of [Mozzi](https://sensorium.github.io/Mozzi/) and [CrazySwarm2](https://imrclab.github.io/crazyflie-clients-python/).
+Perceptual Drift is a participatory drone‑based installation where **audience motion** modulates **FPV drone** behavior and **live video processing**. It centers shared authorship: many bodies → probabilistic control → drones that “drift” perceptually. The installation leans on **DIY‑friendly stacks**: Betaflight micro‑drones, Raspberry Pi video processing (GStreamer/OBS), OpenFrameworks/Processing for gesture tracking, and an OSC→MSP control bridge. Optional **Teensy DSP/LED** layers extend visual/sonic feedback. Think of it as an unholy jam session between [Betaflight](https://betaflight.com/), [Processing](https://processing.org/), [GStreamer](https://gstreamer.freedesktop.org/), and [python-osc](https://pypi.org/project/python-osc/) with a splash of [Mozzi](https://sensorium.github.io/Mozzi/) and [CrazySwarm2](https://crazyswarm.readthedocs.io/).
 
 > **No breadcrumbs? No problem.** This README tries to be the missing field manual. Every subsystem below includes links, inspiration, and what to Google when things melt down.
 
@@ -31,9 +31,9 @@ Treat that order as gospel for newcomers: prototype, secure, rehearse, reflect, 
    - We ship normalized floats over OSC using [oscP5](https://www.sojamo.de/libraries/oscP5/) & [NetP5](https://www.sojamo.de/libraries/netP5/).
    - Inspirations: [OfxCv optical flow demos](https://github.com/kylemcdonald/ofxCv) and [LASER Tag (Graffiti Research Lab)](http://graffitiresearchlab.com/blog/projects/laser-tag/).
 2. **Control bridge (Pi/PC)** *(Python)*
-   - [`osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py) converts the OSC data into Betaflight RC microseconds via the [Minimal Serial Protocol (MSP)](https://github.com/betaflight/betaflight/wiki/MSP). Think “software radio transmitter.”
+   - [`osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py) converts the OSC data into Betaflight RC microseconds via the [Minimal Serial Protocol (MSP)](https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md). Think “software radio transmitter.”
    - Uses [pyserial](https://pyserial.readthedocs.io/en/latest/), [python-osc](https://pypi.org/project/python-osc/), and config from `config/mapping.yaml`.
-   - Modelled after [DJI FPVgestures](https://github.com/whoisandrewd/fpv-gestures) and [Red Paper Heart’s drone installations](https://redpaperheart.com/).
+   - Modelled after [Tello gesture-flight experiments](https://github.com/kinivi/tello-gesture-control) and [Red Paper Heart’s drone installations](https://redpaperheart.com/).
 3. **FPV video pipeline** *(GStreamer / OBS)*
    - Analog FPV feed → VRX → USB capture card → [GStreamer](https://gstreamer.freedesktop.org/documentation/) pipeline or [OBS Studio](https://obsproject.com/) scenes.
    - Presets in [`software/video-pipeline/gst_launch.sh`](software/video-pipeline/gst_launch.sh) cover low-latency monitoring and delayed glitch feedback.
@@ -67,14 +67,14 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 1. **Hardware**
    - Net a 2×2 m cage. BetaFPV Cetus Pro or any 65–75 mm whoop running Betaflight 4.x works.
    - USB power a VRX + capture dongle (classic EasyCAP or UVC cards). Mount a short WS2812 strip (8–12 px) to the quad if you want glow feedback.
-   - Borrow ideas from [NOIR Drone Shows’ safety setups](https://noirdrones.com/) and [MIT’s FlyByWire cage](https://aerobotics.mit.edu/).
+   - Borrow ideas from [Intel’s drone show safety brief](https://www.intel.com/content/www/us/en/support/articles/000026520/drones.html) and [MIT’s Flyfire cage concept](https://senseable.mit.edu/flyfire/).
 2. **Tracking rig**
    - Install [Processing 4](https://processing.org/download) plus the `video`, `oscP5`, and `netP5` libraries.
    - Run `software/gesture-tracking/processing/PerceptualDrift_Tracker`. Aim any 720p-ish webcam at the audience area and tweak the `threshold` constant for your lighting.
 3. **Control bridge**
    - `pip install -r software/control-bridge/requirements.txt` (python-osc + pyserial + pyyaml).
    - Plug the drone’s flight controller in over USB, then run `python3 osc_msp_bridge.py --serial /dev/ttyUSB0`.
-   - Check out [Betaflight’s MSP docs](https://github.com/betaflight/betaflight/wiki/MSP) if you want to push extra AUX channels.
+   - Check out [Betaflight’s MSP docs](https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md) if you want to push extra AUX channels.
 4. **Video pipeline**
    - `sudo apt install gstreamer1.0-tools` or use OBS.
    - Run `./software/video-pipeline/gst_launch.sh clean_low_latency` for tight monitoring or `delayed_glitch` for delayed projection loops. Adapted from [Scanlines’ GStreamer recipes](https://scanlines.xyz/t/gstreamer-recipes/1414).
@@ -94,18 +94,18 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 ---
 
 ## Ethics & Consent
-- Visible “consent gate”: drones/video remain idle until participants opt‑in (button/gesture). Inspired by [Studio Olafur Eliasson’s consent signage](https://olafureliasson.net/).
+- Visible “consent gate”: drones/video remain idle until participants opt‑in (button/gesture). Inspired by [Studio Olafur Eliasson’s participation consent practice](https://www.theartnewspaper.com/2019/07/09/olafur-eliasson-introduces-participation-consent-forms-to-new-tate-modern-show).
 - Data minimization: no face storage, no cloud calls. See `docs/PRIVACY_ETHICS.md` and `docs/ASSUMPTION_LEDGER.md` for what we log (spoiler: almost nothing).
-- Follow [ADA walkway clearance guidelines](https://www.access-board.gov/ada/) when placing cages and screens so wheelchairs aren’t boxed out.
+- Follow [ADA walkway clearance guidelines](https://www.access-board.gov/ada/chapter-4-accessible-routes/#403-walking-surfaces) when placing cages and screens so wheelchairs aren’t boxed out.
 
 ---
 
 ## Deep-dive links & inspo
 - **Control theory crash course**: [UAVTech’s Betaflight PID bible](https://www.uavtech.com/pids) for tuning feel vs. safety.
-- **Interactive art ancestors**: [Daniel Rozin’s mirror series](https://rozinmuseum.com/mirrors/) and [Rafael Lozano-Hemmer’s “Pulse”](https://www.lozano-hemmer.com/pulse_room.php) for crowd-controlled ambiance.
-- **Latency budgeting**: [Bitcraze’s article on Vicon + Crazyflie latency](https://www.bitcraze.io/2020/05/latency-in-position-control/) — relevant when you scale to swarms.
+- **Interactive art ancestors**: [Daniel Rozin’s mirror series](http://smoothware.com/danny/woodenmirror.html) and [Rafael Lozano-Hemmer’s “Pulse”](https://www.lozano-hemmer.com/pulse_room.php) for crowd-controlled ambiance.
+- **Latency budgeting**: [Bitcraze’s article on Vicon + Crazyflie latency](https://www.bitcraze.io/2020/05/latency-in-position-control-with-motion-capture/) — relevant when you scale to swarms.
 - **Network hygiene**: [NDI vs. SDI vs. analog FPV comparison](https://www.ptzoptics.com/guides/ndi/) if you swap video transports.
-- **Show control patterns**: [Ableton Link OSC bridges](https://github.com/ideoforms/ableton-link) and [TouchDesigner OSC out](https://docs.derivative.ca/OSC_Out_DAT) make for easy interoperability.
+- **Show control patterns**: [Ableton Link OSC bridges](https://github.com/ideoforms/link-python) and [TouchDesigner OSC out](https://docs.derivative.ca/OSC_Out_DAT) make for easy interoperability.
 
 ---
 
