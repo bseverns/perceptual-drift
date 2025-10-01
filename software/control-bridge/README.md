@@ -17,7 +17,8 @@ Keep these tabs open while you hack:
 1. **OSC listeners** soak up altitude/lateral/yaw/crowd/consent values from
    whatever instruments you throw at port `9000`.
 2. The `Mapper` class shapes those normalized floats into RC-style microsecond
-   values, applying expo curves, gains, and trim bias from `config/mapping.yaml`.
+   values, applying deadzones, expo/linear curves, gains, and trim+jitter bias
+   from `config/mapping.yaml`.
 3. We slam the values into an MSP `SET_RAW_RC` packet and yeet it down a serial
    line to your flight controller at `115200` baud.  MSP is literally bytes over
    UART — sniff it with `screen /dev/ttyUSB0 115200` to see the `$M<` framing.
@@ -28,9 +29,17 @@ Keep these tabs open while you hack:
   mapper expects.  You can add more keys—just remember to extend the mapper and
   struct packing.  Example OSC paths from the Processing sketch: `/pd/lat`,
   `/pd/alt`, `/pd/yaw`, `/pd/crowd`, `/pd/consent`.
-* Tweak the `gain`, `curve`, and `bias` fields to match your performance rig.
-  The comments in `osc_msp_bridge.py` call out each knob.  If you’re new to expo
-  curves, read [Joshua Bardwell’s RC expo primer](https://www.youtube.com/watch?v=7zKkRykWq5E).
+* Tweak the `deadzone`, `curve`, `expo_strength`, and `gain` fields to match
+  your performance rig.  `mapping.altitude` and `mapping.lateral` both support
+  `curve: linear` or `curve: expo`.  If you’re new to expo curves, read
+  [Joshua Bardwell’s RC expo primer](https://www.youtube.com/watch?v=7zKkRykWq5E).
+* `mapping.yaw_bias.bias` trims mechanical drift.  Sprinkle `mapping.yaw_bias.jitter`
+  (0.0–0.2 is plenty) when you want deliberate Brownian wobble instead of a
+  stick-stiff heading.
+* The OSC `crowd` signal now drives AUX outputs: AUX1 mirrors the raw crowd
+  energy, AUX2 ramps between `mapping.glitch_intensity.base` ↔ `max`, and AUX3
+  picks a color slot from `mapping.leds.palette`.  Plug LEDs, VJ software, or
+  synth triggers into those channels downstream.
 
 ## Safety checklist
 

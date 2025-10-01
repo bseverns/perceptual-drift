@@ -14,6 +14,7 @@ References worth opening in a browser tab while you read this file:
 
 import argparse
 import math
+import random
 import struct
 import time
 
@@ -88,41 +89,95 @@ class Mapper:
 
         return math.copysign((abs(x) ** (1 + k)), x)
 
-    def apply(self):
-        """Convert the current sensor state into four RC channel values.
+    def apply_deadzone(self, value, deadzone):
+        """Snap tiny inputs to zero while preserving full-throw range."""
 
-        Returns a list in Betaflight channel order: roll, pitch, throttle, yaw.
-        AUX channels come later when we pack the struct.
+        if deadzone <= 0:
+            return value
+        if deadzone >= 1:
+            return 0.0
+        if abs(value) <= deadzone:
+            return 0.0
+        scaled = (abs(value) - deadzone) / (1 - deadzone)
+        return math.copysign(scaled, value)
+
+    def shape_axis(self, axis_name, value):
+        """Apply deadzone + curve shaping from the mapping config."""
+
+        axis_cfg = self.cfg["mapping"].get(axis_name, {})
+        shaped = self.apply_deadzone(value, axis_cfg.get("deadzone", 0.0))
+        curve = axis_cfg.get("curve", "linear")
+        if curve == "expo":
+            strength = axis_cfg.get("expo_strength", axis_cfg.get("expo", 0.5))
+            shaped = self.expo(shaped, strength)
+        return clamp(shaped, -1.0, 1.0)
+
+    def apply(self):
+        """Convert the current sensor state into RC + AUX channel values.
+
+        Returns a tuple ``([roll, pitch, throttle, yaw], [aux1..aux4])`` in RC
+        microseconds.
         """
 
-        alt = self.state["alt"]
-        lat = self.state["lat"]
-        yaw = self.state["yaw"]
+        mapping_cfg = self.cfg.get("mapping", {})
 
-        # Optionally run the altitude through an exponential curve.  Expo keeps
-        # hover tweaks chill while still letting you punch the throttle when
-        # the performance needs drama.
-        if self.cfg["mapping"]["altitude"]["curve"] == "expo":
-            alt = self.expo(alt, 0.3)
-        lat_gain = self.cfg["mapping"]["lateral"]["gain"]
-        yaw_bias = self.cfg["mapping"]["yaw_bias"]["bias"]
+        alt = self.shape_axis("altitude", self.state["alt"])
+        lat = self.shape_axis("lateral", self.state["lat"])
+
+        yaw_cfg = mapping_cfg.get("yaw_bias", {})
+        yaw_bias = yaw_cfg.get("bias", 0.0)
+        jitter = yaw_cfg.get("jitter", 0.0)
+        if jitter:
+            yaw_bias += random.uniform(-jitter, jitter)
+        yaw = clamp(self.state["yaw"] + yaw_bias, -1.0, 1.0)
+
+        lat_gain = mapping_cfg.get("lateral", {}).get("gain", 1.0)
+        alt_gain = mapping_cfg.get("altitude", {}).get("gain", 1.0)
 
         rc_roll = map_float_to_rc(lat, gain=lat_gain)
         # Pitch tips forward proportional to lateral magnitude so sideways
         # slides keep their swagger.  Yank or reshape it if that's not your
         # jam.
         rc_pitch = map_float_to_rc(-abs(lat) * 0.2)
-        # Throttle squishes [-1, 1] into [0, 1] before mapping into
+        # Throttle squishes [-1, 1] into [-0.5, 0.5] before mapping into
         # microseconds.
-        rc_thr = map_float_to_rc(
-            (alt + 1) / 2 - 0.5,
-            gain=self.cfg["mapping"]["altitude"]["gain"],
-        )
+        rc_thr = map_float_to_rc(alt / 2, gain=alt_gain)
         # Yaw bias lets you trim out mechanical drift without touching
-        # hardware.
-        rc_yaw = map_float_to_rc(yaw + yaw_bias)
+        # hardware.  ``jitter`` (if non-zero) adds intentional wobble to keep
+        # the quad from sticking on a deadband.
+        rc_yaw = map_float_to_rc(yaw)
 
-        return [rc_roll, rc_pitch, rc_thr, rc_yaw]
+        crowd = clamp(self.state["crowd"], 0.0, 1.0)
+        aux_crowd = map_float_to_rc(crowd * 2 - 1)
+
+        glitch_cfg = mapping_cfg.get("glitch_intensity", {})
+        glitch_base = glitch_cfg.get("base", 0.0)
+        glitch_max = glitch_cfg.get("max", 1.0)
+        glitch_norm = clamp(
+            glitch_base + (glitch_max - glitch_base) * crowd,
+            0.0,
+            1.0,
+        )
+        aux_glitch = map_float_to_rc(glitch_norm * 2 - 1)
+
+        palette = mapping_cfg.get("leds", {}).get("palette", [])
+        if palette:
+            if len(palette) == 1:
+                led_norm = 0.0
+            else:
+                slot = int(round(crowd * (len(palette) - 1)))
+                slot = clamp(slot, 0, len(palette) - 1)
+                led_norm = slot / (len(palette) - 1)
+        else:
+            led_norm = 0.0
+        aux_led = map_float_to_rc(led_norm * 2 - 1)
+
+        aux_channels = [aux_crowd, aux_glitch, aux_led, 1500]
+        rc_channels = [rc_roll, rc_pitch, rc_thr, rc_yaw]
+
+        return rc_channels, aux_channels
+
+
 
 
 def main():
@@ -139,7 +194,13 @@ def main():
     args = ap.parse_args()
 
     # Slurp the mapping configuration.  This is where you wire OSC paths to
-    # channel names and tweak curves/gains without touching code.
+    # channel names and tweak deadzones/curves/gains without touching code.
+    # ``mapping.altitude`` and ``mapping.lateral`` now understand ``deadzone``,
+    # ``curve`` ("linear" or "expo"), and an optional ``expo_strength`` knob.
+    # ``mapping.yaw_bias`` adds deterministic trim plus optional ``jitter`` to
+    # keep mechanical deadbands honest.  AUX payloads borrow the OSC ``crowd``
+    # stream plus ``mapping.leds`` and ``mapping.glitch_intensity`` values
+    # downstream.
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
     mapper = Mapper(cfg)
@@ -178,8 +239,8 @@ def main():
     def on_crowd(addr, *vals):
         """OSC handler for crowd/aux data.
 
-        Currently unused, but it is ripe for LED intensity or video glitching.
-        Keep it normalized 0..1 to make re-use simple.
+        We pipe this into AUX channels for LED/glitch consumers.  Keep it
+        normalized 0..1 to make re-use simple.
         """
 
         mapper.state["crowd"] = float(clamp(vals[0], 0.0, 1.0))
@@ -214,24 +275,23 @@ def main():
         while True:
             now = time.time()
             if now - last > 0.02:  # 50 Hz RC updates — plenty for whoops
-                rc = mapper.apply()
+                rc_channels, aux_channels = mapper.apply()
                 # 8 channels: roll, pitch, throttle, yaw, AUX1..AUX4.  If you
                 # need more, change the struct format and append extra values.
                 payload = struct.pack(
                     "<8H",
                     # Roll, pitch, throttle, yaw — exactly what Betaflight
                     # expects for channels 1–4.  These ints are already µs.
-                    rc[0],
-                    rc[1],
-                    rc[2],
-                    rc[3],
-                    # AUX1..AUX4 live here.  Leaving them at 1500 µs keeps
-                    # modes neutral, but feel free to hijack them for LED
-                    # control or arming workflows.
-                    1500,
-                    1500,
-                    1500,
-                    1500,
+                    rc_channels[0],
+                    rc_channels[1],
+                    rc_channels[2],
+                    rc_channels[3],
+                    # AUX1..AUX4 now carry the crowd/glitch/LED payloads so
+                    # downstream systems can actually consume the YAML knobs.
+                    aux_channels[0],
+                    aux_channels[1],
+                    aux_channels[2],
+                    aux_channels[3],
                 )
                 pkt = msp_packet(MSP_SET_RAW_RC, payload)
                 if mapper.state["consent"] == 1:
