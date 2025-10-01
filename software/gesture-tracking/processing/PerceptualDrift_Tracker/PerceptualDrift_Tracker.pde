@@ -61,15 +61,29 @@ void draw(){
   tint(255, 100);
   image(diff, 0,0);
 
-  // centroid for lateral mapping
+  // centroid for lateral mapping — we average the active sample positions so the
+  // "center of motion" follows the crowd instead of the raw sum of pixels.
   float cx=0, cy=0;
+  int activeSamples = 0;
   for (int y=0; y<height; y+=8){
     for (int x=0; x<width; x+=8){
-      if (brightness(diff.get(x,y))>128){ cx+=x; cy+=y; }
+      if (brightness(diff.get(x,y))>128){
+        cx += x;
+        cy += y;
+        activeSamples++;
+      }
     }
   }
-  float normX = map(cx, 0, (width*height)/64.0, -1, 1);
-  float normY = map(cy, 0, (width*height)/64.0, -1, 1);
+  float normX = 0;
+  float normY = 0;
+  if (activeSamples > 0){
+    cx /= activeSamples;
+    cy /= activeSamples;
+    float avgNormX = cx / float(width);
+    float avgNormY = cy / float(height);
+    normX = map(avgNormX, 0, 1, -1, 1);
+    normY = map(avgNormY, 0, 1, -1, 1);
+  }
 
   lat = constrain(normX, -1, 1);
   alt = constrain(-normY, -1, 1);
