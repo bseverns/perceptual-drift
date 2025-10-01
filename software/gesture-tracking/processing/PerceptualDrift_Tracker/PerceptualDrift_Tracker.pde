@@ -90,10 +90,6 @@ void draw(){
   yaw = constrain(lat*0.2, -1, 1);
   crowd = constrain(motionCount / float(pixels.length) * 5.0, 0, 1);
 
-  // consent toggle — space bar flips on/off.  Consider mapping this to a foot
-  // switch or physical button in the gallery so the facilitator controls arming.
-  if (keyPressed && key==' ') consent = !consent;
-
   sendOSC("/pd/lat", lat);
   sendOSC("/pd/alt", alt);
   sendOSC("/pd/yaw", yaw);
@@ -108,6 +104,13 @@ void draw(){
   text(String.format("lat %.2f alt %.2f yaw %.2f crowd %.2f consent %s", lat, alt, yaw, crowd, consent), 10, 20);
 
   prev.copy(cam, 0,0, cam.width, cam.height, 0,0, width, height);
+}
+
+// consent toggle — space bar flips on/off.  Consider mapping this to a foot
+// switch or physical button in the gallery so the facilitator controls arming.
+// If you need to remap the arming key, this is the block to edit.
+void keyReleased(){
+  if (key == ' ') consent = !consent;
 }
 
 void sendOSC(String addr, float v){
