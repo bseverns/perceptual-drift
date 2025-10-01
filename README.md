@@ -6,6 +6,18 @@ Perceptual Drift is a participatory drone‑based installation where **audience 
 
 ---
 
+## How to tour this notebook (a.k.a. your flight school syllabus)
+
+1. **Start with the [Control Stack Playbook](docs/control-stack-playbook.md)** — *Why you care:* it’s the soup-to-nuts wiring diagram for prototypes, so you know exactly when to open [`software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde`](software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde), [`software/control-bridge/osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py), and the knobs inside [`config/mapping.yaml`](config/mapping.yaml) before you solder anything.
+2. **Skim the [Safety Checklist](docs/checklists/safety_checklist.md)** — *Why you care:* this is the punk-rock preflight liturgy; keep it open while you’re flashing firmware or tweaking [`hardware/README.md`](hardware/README.md) so the “oops” moments stay on paper, not on people.
+3. **Digest the [Experience Playbook](docs/experience/README.md)** — *Why you care:* once the prototype hovers, this choreographs rehearsals: when to flip the consent AUX in [`software/control-bridge/osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py), when to remix projections via [`software/video-pipeline/gst_launch.sh`](software/video-pipeline/gst_launch.sh), and how to brief humans without killing the vibe.
+4. **Update the [Assumption Ledger](docs/ASSUMPTION_LEDGER.md)** — *Why you care:* during runs you log surprises, then feed them back into configs like [`config/video-presets.json`](config/video-presets.json) and flight curves in [`config/mapping.yaml`](config/mapping.yaml) so the system evolves intentionally instead of by rumor.
+5. **Reference the [System Diagrams](docs/diagrams/system-overview.md)** whenever something feels abstract — *Why you care:* the mermaid maps keep the OSC→MSP→LED trail legible, pointing you back to tooling like [`scripts/record_fpv.sh`](scripts/record_fpv.sh) when it’s time to capture evidence or debug latency.
+
+Treat that order as gospel for newcomers: prototype, secure, rehearse, reflect, repeat. No more spelunking through tabs wondering which YAML is the boss.
+
+---
+
 ## Why this repo
 - **Rapid pilot → exhibition‑scale**: start with 1 drone, 1 projector; scale to a swarm and multi‑screen projections.
 - **Open & reproducible**: off‑the‑shelf micro‑FPV, open libraries, simple wiring.
