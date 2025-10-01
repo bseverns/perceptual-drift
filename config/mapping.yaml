@@ -1,38 +1,27 @@
-# mapping.yaml — central nervous system for OSC → drone mapping.
-#
-# HOW TO READ THIS:
-#   * `osc`: declares where the Processing tracker is broadcasting data.
-#   * `mapping`: shapes those normalized [-1, 1] values into RC microseconds for Betaflight.
-#   * Tweak gains/curves here instead of editing code. Keep version-controlled notes as you dial in a venue.
-#
-# RELATED LINKS:
-#   * Betaflight MSP receiver docs: https://github.com/betaflight/betaflight/wiki/Receiver
-#   * OSC address design tips: https://opensoundcontrol.stanford.edu/
-#   * Expo curves explained (for RC pilots): https://oscarliang.com/expo-droneracing/
-
+# Control mapping curves
 osc:
-  port: 9000                     # Port that the Python bridge listens on
+  port: 9000
   address_space:
-    altitude: "/pd/alt"         # Vertical motion from the tracker
-    lateral: "/pd/lat"          # Left/right body sways
-    yaw: "/pd/yaw"              # Derived twist
-    crowd: "/pd/crowd"          # Crowd energy (0..1) for lights/effects
-    consent: "/pd/consent"      # Binary arm switch
+    altitude: "/pd/alt"
+    lateral: "/pd/lat"
+    yaw: "/pd/yaw"
+    crowd: "/pd/crowd"
+    consent: "/pd/consent"
 
 mapping:
   altitude:
-    deadzone: 0.05               # Ignore micro jitters around hover
-    curve: "expo"                # Use expo to keep hover gentle but allow dramatic punches
-    gain: 0.6                    # Scale factor before mapping to RC µs
+    deadzone: 0.05
+    curve: "expo"
+    gain: 0.6
   lateral:
     deadzone: 0.05
-    curve: "linear"             # Linear makes lateral sweeps predictable for first-time participants
+    curve: "linear"
     gain: 0.5
   yaw_bias:
-    bias: 0.1                    # Trim out slow mechanical yaw drift without touching the FC
-    jitter: 0.05                 # Optional random walk amount (unused in code yet—reserve for future art modes)
+    bias: 0.1
+    jitter: 0.05
   leds:
-    palette: ["#1e90ff", "#ff1493", "#32cd32", "#ffd700"]  # Palette the bridge can broadcast over serial/OSC
+    palette: ["#1e90ff", "#ff1493", "#32cd32", "#ffd700"]
   glitch_intensity:
-    base: 0.2                    # Default video FX intensity when the crowd is chill
-    max: 0.9                     # Cap when the room is going feral
+    base: 0.2
+    max: 0.9
