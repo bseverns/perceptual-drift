@@ -255,7 +255,17 @@ def main():
         Betaflight's actual arming logic.
         """
 
+        prev = mapper.state["consent"]
         mapper.state["consent"] = int(vals[0])
+        if mapper.state["consent"] != 1 and prev == 1:
+            mapper.state.update(
+                {
+                    "alt": 0.0,
+                    "lat": 0.0,
+                    "yaw": 0.0,
+                    "crowd": 0.0,
+                }
+            )
 
     disp = dispatcher.Dispatcher()
     # Map each OSC address path in the YAML into its handler.  The defaults
@@ -272,6 +282,17 @@ def main():
 
     # ``last`` timestamps the previous MSP push so we can throttle updates.
     last = 0
+    # Pre-pack the "everyone take a breath" frame so we can blast it whenever
+    # consent drops.  Roll/pitch/yaw park at 1500 µs, throttle clamps low, and
+    # AUX channels chill at mid-stick.
+    neutral_rc = (
+        map_float_to_rc(0.0),
+        map_float_to_rc(0.0),
+        map_float_to_rc(-1.0),
+        map_float_to_rc(0.0),
+    )
+    neutral_aux = (1500, 1500, 1500, 1500)
+
     try:
         while True:
             now = time.time()
@@ -298,10 +319,18 @@ def main():
                 if mapper.state["consent"] == 1:
                     ser.write(pkt)
                 else:
-                    # Leaving consent low keeps the drone armed but chilled so
-                    # you can rehearse without sending MSP spam downstream.
-                    # Useful during camera calibration or performer briefings.
-                    pass
+                    chill_payload = struct.pack(
+                        "<8H",
+                        neutral_rc[0],
+                        neutral_rc[1],
+                        neutral_rc[2],
+                        neutral_rc[3],
+                        neutral_aux[0],
+                        neutral_aux[1],
+                        neutral_aux[2],
+                        neutral_aux[3],
+                    )
+                    ser.write(msp_packet(MSP_SET_RAW_RC, chill_payload))
                 last = now
             time.sleep(0.005)
     except KeyboardInterrupt:
