@@ -11,7 +11,25 @@ Welcome to the backstage map for everyone who needs to understand how motion in 
 3. The **Python OSC→MSP bridge** listens for that OSC firehose, reshapes values into Betaflight-friendly RC microseconds, and writes them over serial to the flight controller.
 4. **GStreamer** captures the FPV feed from the drone and lets you color-grade, delay, or otherwise glitch it before you beam it back to the room.
 
-Every stage is intentionally hackable: the architecture is a bunch of small scripts stitched together with human-readable config. Fork any piece, keep the interfaces, and you will not break the show.
+```mermaid
+sequenceDiagram
+    participant Audience as Audience motion
+    participant Tracker as Processing sketch
+    participant OSC as OSC stream
+    participant Bridge as OSC→MSP bridge (`osc_msp_bridge.py`)
+    participant Betaflight as Betaflight FC + LEDs
+    participant FPV as FPV video
+    participant VideoHost as GStreamer / OBS
+
+    Audience->>Tracker: Movement captured via webcam
+    Tracker->>OSC: Normalized motion values over OSC
+    OSC->>Bridge: Forward OSC payloads
+    Bridge->>Betaflight: MSP RC updates + LED cues
+    Betaflight->>FPV: Radio control translated to flight + lighting
+    FPV->>VideoHost: FPV feed ingested for mixing/streaming
+```
+
+That sequence sketch is the street map—trace any arrow to know which script to poke next. Every stage is intentionally hackable: the architecture is a bunch of small scripts stitched together with human-readable config. Fork any piece, keep the interfaces, and you will not break the show.
 
 ---
 
