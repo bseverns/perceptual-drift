@@ -7,25 +7,26 @@ Welcome to the loud-and-clear map of how Perceptual Drift actually moves, thinks
 ```mermaid
 flowchart LR
     subgraph Audience
-        G[Gestures &amp; Body Motion]
+        AudienceGestures["Gestures & Body Motion"]
     end
     subgraph Vision
-        CAM[IR / RGB Cameras]
-        T[Vision Processing (openFrameworks)]
-        G --> CAM --> T
-        T -->|OSC| M[Mapping Layer]
+        Cameras["IR / RGB Cameras"]
+        VisionProcessing["Vision Processing — openFrameworks"]
+        AudienceGestures --> Cameras
+        Cameras --> VisionProcessing
+        VisionProcessing -->|OSC| GestureMapper
     end
     subgraph ControlStack[Drone System]
-        M -->|MSP via UART| FC[Betaflight Flight Controller]
-        FC --> MOTORS[Drone Motors]
-        FC --> LEDCTRL[Addressable LED Driver]
-        LEDCTRL --> DLEDs[Onboard LED Array]
-        MOTORS --> D[Drone Motion]
-        D -->|FPV Analog| VRX[Video RX → USB Capture]
+        GestureMapper -->|MSP via UART| FlightController["Betaflight Flight Controller"]
+        FlightController --> Motors["Drone Motors"]
+        FlightController --> LedDriver["Addressable LED Driver"]
+        LedDriver --> DroneLeds["Onboard LED Array"]
+        Motors --> DroneMotion["Drone Motion"]
+        DroneMotion -->|FPV Analog| GroundRx["Video RX → USB Capture"]
     end
     subgraph Projection
-        VRX -->|GStreamer → OBS| P[Processed Video Mix]
-        P --> OUTPROJ[Projectors / Displays]
+        GroundRx -->|GStreamer → OBS| VideoMix["Processed Video Mix"]
+        VideoMix --> Projectors["Projectors / Displays"]
     end
 ```
 
