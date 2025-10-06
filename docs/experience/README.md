@@ -10,6 +10,28 @@ This is the bird's-eye choreography for how humans orbit the drone cage. Treat i
 
 ## Journey Map — Parallel Tracks
 
+Peek the quick-glance map below before diving into the table; it mirrors the same phases and actions so you can grok the flow at a glance.
+
+```mermaid
+journey
+    title Parallel Tracks — Operator & Spectator
+    section Pre-show
+      Operator: Run safety checklist, arm kill switch, stage batteries, warm video feed
+      Spectator: Enter via signage corridor, scan QR safety spiel, vibe with amber ambience
+    section Onboarding
+      Operator: Launch tracker, verify OSC, simulate override, narrate rules
+      Spectator: Step onto marked pads, watch silhouettes bloom, receive gesture tutorial
+    section Active play
+      Operator: Monitor logs, tweak mapping curves, maintain situational awareness
+      Spectator: Experiment with gestures, track latency, co-steer vibe via audio/LED feedback
+    section Micro-crisis
+      Operator: Slam kill switch, announce pause, check battery, swap props if needed
+      Spectator: Hear pause cue, see red LEDs, clear perimeter, await restart
+    section Cooldown
+      Operator: Log metrics, archive recordings, prep feedback QR
+      Spectator: Leave note or QR feedback, snap powered-down drone selfies, bask in stats
+```
+
 | Phase | Operator POV | Spectator POV | Shared Touchpoints |
 | --- | --- | --- | --- |
 | **Pre-show** | Run `docs/checklists/safety_checklist.md`, arm the kill switch, stage spare batteries, warm up video feed. | Drift through entry corridor, catch signage, scan QR code linking to safety spiel. | Consent signage glows amber; ambient audio low. |
