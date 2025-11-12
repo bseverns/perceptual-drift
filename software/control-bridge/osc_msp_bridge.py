@@ -136,6 +136,7 @@ class AuditLogger:
         log_dir_env = os.environ.get("PERCEPTUAL_DRIFT_LOG_DIR")
         if log_dir_env:
             candidate = Path(log_dir_env)
+            log_dir = candidate if candidate.is_absolute() else repo_root / candidate
             if candidate.is_absolute():
                 log_dir = candidate
             else:
@@ -479,7 +480,10 @@ def main():
     disp.map(cfg["osc"]["address_space"]["consent"], on_consent)
 
     # Spin up an OSC server that listens for the incoming sensor party.
-    server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", osc_port), disp)
+    server = osc_server.ThreadingOSCUDPServer(
+        ("0.0.0.0", args.osc_port),
+        disp,
+    )
     print(f"OSC listening on {server.server_address}")
     audit.write(
         "osc_bridge_boot",

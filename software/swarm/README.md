@@ -4,7 +4,9 @@ This folder scaffolds integration with **CrazySwarm2** for multi-drone coordinat
 
 This is the place where Perceptual Drift's squishy human gestures become tight,
 punky drone choreography. The `swarm_demo.py` script listens to OSC messages and
-pushes them straight into CrazySwarm2 services.
+pushes them straight into CrazySwarm2 services. We now ship a full Ignition
+Gazebo rehearsal rig that mirrors those inputs, so you can stress the score
+without ever arming a real quad.
 
 ## Prerequisites
 
@@ -16,7 +18,7 @@ pushes them straight into CrazySwarm2 services.
 | [`python-osc`](https://pypi.org/project/python-osc/) | Feeds the crowd-control data into ROS. |
 | Fully charged Crazyflies & a big enough safety net | We're commanding flight. Don't be reckless. |
 
-## Run it live
+## Run it live (hardware)
 
 1. Fire up your CrazySwarm2 stack (mocap, radio, etc.) and verify a single
    drone responds to `ros2 service call /cf1/takeoff` in a safe, empty space.
@@ -42,6 +44,43 @@ pushes them straight into CrazySwarm2 services.
 6. Flap your limbs. `/pd/alt` drives `Takeoff` height, `/pd/lat` slides the
    craft laterally. Keep a thumb on the emergency stop.
 
+## Rehearse it in sim
+
+1. Source your ROS 2 workspace (the same one that provides `ros_ign_gazebo`,
+   `ros_gz_interfaces`, and `crazyflie_interfaces`).
+2. Fire up the full stack:
+
+   ```bash
+   ./software/swarm/swarm_rehearsal.py
+   ```
+
+   Add `--headless` if you want to ditch the GUI or `--dry-run` to peek at the
+   resolved launch arguments.
+3. Point your OSC stream at the same `/pd/*` topics you would use on hardware.
+   The bridge node, `software/swarm/ros2_nodes/pd_swarm_bridge.py`, translates
+   altitude, lateral pushes, and yaw into CrazySwarm2 service calls. It also
+   publishes fake-but-plausible `PoseStamped` telemetry on `/pd/sim/*`.
+4. Ignition’s X500 proxies track those poses via
+   `software/swarm/ros2_nodes/pd_sim_pose_driver.py`, so you get a 1:1 visual of
+   what your choreography will demand from real drones.
+5. Update formations, rate limits, and bounding boxes by tweaking the declared
+   parameters inside `pd_swarm_bridge.py`. Every knob is annotated; treat them
+   like safety rails, not style suggestions.
+
+## ROS 2 nodes in this folder
+
+| File | Role |
+| ---- | ---- |
+| `swarm_demo.py` | Minimal OSC→CrazySwarm2 bridge for one drone. Great for lab bring-up. |
+| `ros2_nodes/pd_swarm_bridge.py` | Multi-drone ROS 2 node that consumes `/pd/*` topics, fans them out to CrazySwarm2 services, and publishes simulated telemetry. |
+| `ros2_nodes/pd_sim_pose_driver.py` | Mirrors those telemetry messages into Ignition by calling `/world/<name>/set_pose`. |
+| `swarm_rehearsal.py` | Launch helper that spins up Ignition + both ROS nodes with one command. |
+
+The rehearsal stack expects a CrazySwarm2-style workspace (for message/service
+types) plus the `ros_ign_gazebo` launch files. If you install these scripts as a
+ROS 2 package, update the launch file under `simulation/launch/` to reference
+your package name instead of the placeholder `perceptual_drift_swarm`.
+
 ## Safety riffs
 
 * Never test in a crowd. Even punk shows have barricades.
@@ -49,3 +88,5 @@ pushes them straight into CrazySwarm2 services.
 * Keep the room soft: nets, curtains, no fragile art pieces.
 * Have a spotter ready to yank power the second a drone misbehaves.
 * Log everything. When things go weird (they will), you'll want receipts.
+* Rehearse the kill chain in simulation before you step into the venue. Muscle
+  memory is a safety feature.
