@@ -97,7 +97,15 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 ## Config
 - [`config/mapping.yaml`](config/mapping.yaml) provides tunable curves for **altitude**, **lateral drift**, **yaw bias**, **LED color**, and **glitch intensity**.
 - [`config/video-presets.json`](config/video-presets.json) defines named GStreamer pipeline presets for OBS/GStreamer hybrids.
+- [`config/recipes/`](config/recipes) bundles “whole mood” presets — gesture curves, video chains, LED notes — ready to load via the new `--recipe` flag.
 - [`hardware/`](hardware) includes a fleshed-out [hardware BOM](hardware/README.md), wiring, and net rig notes based on [Drone Cage DIY](https://hackaday.io/project/19102-drone-safety-cage) write-ups.
+
+See [`docs/recipes.md`](docs/recipes.md) for how to author your own.
+
+### Curated recipes (starter pack)
+- **Soft Consent Lounge** — Drift only when the room says yes. Altitude/lateral curves hug the center, LEDs breathe a cool aurora, and video stays soft-focus for onboarding. Load via `--recipe config/recipes/soft_consent_lounge.yaml` when you’re narrating safety. 
+- **Riot Mode** — Full-send feedback party. Aggressive lateral gain, yaw jitter, neon LED stabs, and a delayed glitch wall. Flip to this once spotters and the crowd are synced. `--recipe config/recipes/riot_mode.yaml`.
+- **Swarm Teaser** — One quad, swarm energy. Biases yaw into lazy figure-eights, paints gradient LED laps, and mirrors the feed to hint at future drones. Run with `--recipe config/recipes/swarm_teaser.yaml` when pitching the multi-craft upgrade.
 
 ---
 

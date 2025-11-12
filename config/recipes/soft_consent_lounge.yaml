@@ -1,0 +1,52 @@
+name: "Soft Consent Lounge"
+slug: soft-consent-lounge
+description: |
+  Diffuse wash. The drone drifts only when the room agrees, then glides like it
+  knows the floor is lava. Keeps throttle shy, yaw bias soft, and LEDs pulsing a
+  low-contrast aurora. Built for opening the space slowly while facilitators
+  narrate the consent protocol.
+intent: "gentle onboarding, keep props quiet until the crowd breathes together"
+control_bridge:
+  extends: ../mapping.yaml
+  osc:
+    # Leave the address space the same so the Processing sketch just works.
+    address_space:
+      altitude: "/pd/alt"
+      lateral: "/pd/lat"
+      yaw: "/pd/yaw"
+      crowd: "/pd/crowd"
+      consent: "/pd/consent"
+  mapping:
+    altitude:
+      deadzone: 0.12
+      curve: "expo"
+      gain: 0.45
+    lateral:
+      deadzone: 0.08
+      curve: "expo"
+      gain: 0.4
+    yaw_bias:
+      bias: 0.04
+      jitter: 0.0
+    leds:
+      palette: ["#274472", "#3a6ea5", "#f0f5ff"]
+    glitch_intensity:
+      base: 0.05
+      max: 0.35
+leds:
+  pattern: "slow_breathe"
+  notes: |
+    Fade the entire strip through the palette over ~18 seconds. If you are using
+    Teensy firmware, set the LFO depth low so the palette barely kisses white.
+video_pipeline:
+  story: |
+    Soft-focus mirror. Minimal latency, gentle saturation dip, subtle blue lift
+    to match the LED aura.
+  default_chain: ambient_soften
+  gst_chains:
+    ambient_soften: |
+      v4l2src device="{device}" !
+      queue leaky=downstream max-size-buffers=5 !
+      videobalance saturation=0.85 brightness=0.04 hue=0.02 !
+      videoconvert !
+      autovideosink sync=false
