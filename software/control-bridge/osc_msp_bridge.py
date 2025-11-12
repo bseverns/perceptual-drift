@@ -47,7 +47,11 @@ def deep_merge(base, override):
         return override
     merged = dict(base)
     for key, value in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+        if (
+            key in merged
+            and isinstance(merged[key], dict)
+            and isinstance(value, dict)
+        ):
             merged[key] = deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -70,7 +74,10 @@ def load_recipe(recipe_path):
         raise ValueError(f"Recipe at {recipe_path} must parse into a mapping")
 
     control_section = (
-        data.get("control_bridge") or data.get("control") or data.get("bridge") or {}
+        data.get("control_bridge")
+        or data.get("control")
+        or data.get("bridge")
+        or {}
     )
     if not control_section:
         raise ValueError(
