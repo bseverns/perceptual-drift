@@ -143,7 +143,11 @@ class AuditLogger:
         log_dir_env = os.environ.get("PERCEPTUAL_DRIFT_LOG_DIR")
         if log_dir_env:
             candidate = Path(log_dir_env)
-            log_dir = candidate if candidate.is_absolute() else repo_root / candidate
+            log_dir = (
+                candidate
+                if candidate.is_absolute()
+                else repo_root / candidate
+            )
         else:
             log_dir = repo_root / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
