@@ -19,6 +19,7 @@ import math
 import random
 import struct
 import time
+from pathlib import Path
 
 import serial
 import yaml
@@ -33,6 +34,66 @@ MSP_HEADER = b"\x24\x4d\x3c"  # '$M<' — Betaflight's Minimal Serial Protocol
 # other MSP v2 command expansions.  If you want to play with v2, start with
 # the link above and pack CRCs instead of the XOR checksum used here.
 MSP_SET_RAW_RC = 200  # command ID for pushing raw RC channel values
+
+
+def deep_merge(base, override):
+    """Recursively merge ``override`` into ``base`` returning a new dict."""
+
+    if not isinstance(base, dict) or not isinstance(override, dict):
+        return override
+    merged = dict(base)
+    for key, value in override.items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def load_yaml(path):
+    """Read YAML/JSON from ``path`` and return the parsed structure."""
+
+    with open(path) as fh:
+        return yaml.safe_load(fh)
+
+
+def load_recipe(recipe_path):
+    """Load a recipe file and return (control_cfg, metadata dict)."""
+
+    recipe_path = Path(recipe_path)
+    data = load_yaml(recipe_path)
+    if not isinstance(data, dict):
+        raise ValueError(f"Recipe at {recipe_path} must parse into a mapping")
+
+    control_section = (
+        data.get("control_bridge")
+        or data.get("control")
+        or data.get("bridge")
+        or {}
+    )
+    if not control_section:
+        raise ValueError(
+            f"Recipe {recipe_path} needs a 'control_bridge' section describing the MSP mapping"
+        )
+
+    base_cfg = {}
+    extends = control_section.get("extends")
+    if extends:
+        base_path = (recipe_path.parent / extends).resolve()
+        base_cfg = load_yaml(base_path) or {}
+
+    overlay = {k: v for k, v in control_section.items() if k != "extends"}
+    cfg = deep_merge(base_cfg, overlay)
+
+    metadata = {
+        "name": data.get("name", recipe_path.stem),
+        "slug": data.get("slug"),
+        "description": data.get("description", ""),
+        "intent": data.get("intent", ""),
+        "leds": data.get("leds", {}),
+        "video_pipeline": data.get("video_pipeline", {}),
+    }
+    return cfg, metadata
 
 
 def msp_packet(cmd, payload=b""):
@@ -191,6 +252,13 @@ def main():
     ap.add_argument("--serial", default="/dev/ttyUSB0")
     ap.add_argument("--baud", type=int, default=115200)
     ap.add_argument("--config", default="../../config/mapping.yaml")
+    ap.add_argument(
+        "--recipe",
+        help=(
+            "Path to a YAML/JSON recipe bundling MSP curves, LED palettes, and "
+            "video cues. Overrides --config when provided."
+        ),
+    )
     ap.add_argument("--osc_port", type=int, default=9000)
     args = ap.parse_args()
 
@@ -201,10 +269,25 @@ def main():
     # ``mapping.yaw_bias`` adds deterministic trim plus optional ``jitter`` to
     # keep mechanical deadbands honest.  AUX payloads borrow the OSC ``crowd``
     # stream plus ``mapping.leds`` and ``mapping.glitch_intensity`` values
-    # downstream.
-    with open(args.config) as f:
-        cfg = yaml.safe_load(f)
+    # downstream. Recipes tack on narrative intent so operators know the vibe.
+    cfg_meta = None
+    if args.recipe:
+        cfg, cfg_meta = load_recipe(args.recipe)
+        if cfg_meta:
+            print(
+                "Loaded recipe '{name}' — {intent}".format(
+                    name=cfg_meta.get("name", Path(args.recipe).stem),
+                    intent=cfg_meta.get("intent", ""),
+                ).strip()
+            )
+    else:
+        cfg = load_yaml(args.config)
     mapper = Mapper(cfg)
+
+    default_port = ap.get_default("osc_port")
+    osc_port = args.osc_port
+    if args.recipe and osc_port == default_port:
+        osc_port = cfg.get("osc", {}).get("port", default_port)
 
     # Fire up the serial link to the flight controller.  MSP is just bytes over
     # UART, so as long as the port is right you're golden.
@@ -277,7 +360,7 @@ def main():
     disp.map(cfg["osc"]["address_space"]["consent"], on_consent)
 
     # Spin up an OSC server that listens for the incoming sensor party.
-    server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", args.osc_port), disp)
+    server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", osc_port), disp)
     print(f"OSC listening on {server.server_address}")
 
     # ``last`` timestamps the previous MSP push so we can throttle updates.

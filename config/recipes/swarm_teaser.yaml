@@ -1,0 +1,53 @@
+name: "Swarm Teaser"
+slug: swarm-teaser
+description: |
+  One-quad hint of the future swarm rig. Gestures bias the drone toward smooth
+  figure-eights while AUX channels paint gradients meant for multi-node LED
+  choreography. Video pipeline doubles the frame with ghosted outlines so
+  audiences imagine the yet-to-arrive pack.
+intent: "sell the dream of N drones while flying one"
+control_bridge:
+  extends: ../mapping.yaml
+  mapping:
+    altitude:
+      deadzone: 0.06
+      curve: "expo"
+      gain: 0.55
+    lateral:
+      deadzone: 0.05
+      curve: "expo"
+      gain: 0.6
+    yaw_bias:
+      bias: 0.08
+      jitter: 0.08
+    leds:
+      palette: ["#0d3b66", "#faf0ca", "#f4d35e", "#ee964b", "#f95738"]
+    glitch_intensity:
+      base: 0.1
+      max: 0.6
+  osc:
+    address_space:
+      altitude: "/pd/alt"
+      lateral: "/pd/lat"
+      yaw: "/pd/yaw"
+      crowd: "/pd/crowd"
+      consent: "/pd/consent"
+leds:
+  pattern: "gradient_lap"
+  notes: |
+    Sweep palette index using AUX3 (LED cue), wrap every 12 frames. If you have
+    multiple drones later, offset the phase per craft by 90° for a running wave.
+video_pipeline:
+  story: |
+    Duplicate + offset the live feed with alpha blend to imply ghosts. Keep
+    latency respectable so pilots still feel the machine.
+  default_chain: mirror_twins
+  gst_chains:
+    mirror_twins: |
+      v4l2src device="{device}" !
+      videoconvert !
+      tee name=t !
+      queue ! videobalance saturation=1.2 contrast=1.1 !
+      queue ! videomixer name=mix background=1 ! queue ! videoconvert ! mix.
+      t. ! queue ! videoflip method=horizontal-flip ! timeoverlay halign=right valignment=bottom ! mix.
+      mix. ! videoconvert ! autovideosink sync=false
