@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<sdf version="1.9">
+  <world name="pd_swarm_world">
+    <plugin name="world_control" filename="libignition-gazebo-world-control-system.so"/>
+    <plugin name="scene_broadcaster" filename="libignition-gazebo-scene-broadcaster-system.so"/>
+
+    <gui fullscreen="0">
+      <plugin filename="GzScene3D" name="3D View">
+        <pose>0 0 10 0 0 0</pose>
+      </plugin>
+      <plugin filename="GzWorldStats" name="World stats"/>
+    </gui>
+
+    <gravity>0 0 -9.81</gravity>
+    <magnetic_field>6.0e-6 2.3e-5 -4.2e-5</magnetic_field>
+    <atmosphere type="adiabatic"/>
+
+    <include>
+      <uri>model://sun</uri>
+    </include>
+
+    <include>
+      <uri>model://ground_plane</uri>
+    </include>
+
+    <model name="cf1">
+      <include>
+        <uri>model://x500</uri>
+      </include>
+      <pose>0 0 0 0 0 0</pose>
+    </model>
+
+    <model name="cf2">
+      <include>
+        <uri>model://x500</uri>
+      </include>
+      <pose>1.5 0 0 0 0 0</pose>
+    </model>
+
+    <model name="cf3">
+      <include>
+        <uri>model://x500</uri>
+      </include>
+      <pose>-1.5 0 0 0 0 0</pose>
+    </model>
+
+    <light name="swarm_spot" type="spot">
+      <pose>0 0 5 0 0 0</pose>
+      <diffuse>0.9 0.9 1 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <attenuation>
+        <range>15</range>
+        <linear>0.02</linear>
+        <constant>0.8</constant>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>0 0 -1</direction>
+      <spot>
+        <inner_angle>0.7</inner_angle>
+        <outer_angle>1.0</outer_angle>
+        <falloff>0.5</falloff>
+      </spot>
+    </light>
+  </world>
+</sdf>
