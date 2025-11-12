@@ -15,10 +15,14 @@ References worth opening in a browser tab while you read this file:
 """
 
 import argparse
+import json
 import math
+import os
 import random
 import struct
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 
 import serial
 import yaml
@@ -65,6 +69,41 @@ def map_float_to_rc(value, gain=1.0, center=1500, span=400):
     """
 
     return int(clamp(center + value * span * gain, 1100, 1900))
+
+
+class AuditLogger:
+    def __init__(self):
+        repo_root = Path(__file__).resolve().parents[2]
+        log_dir_env = os.environ.get("PERCEPTUAL_DRIFT_LOG_DIR")
+        if log_dir_env:
+            candidate = Path(log_dir_env)
+            log_dir = candidate if candidate.is_absolute() else repo_root / candidate
+        else:
+            log_dir = repo_root / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        self.log_path = log_dir / "ops_events.jsonl"
+        self.operator = (
+            os.environ.get("OPERATOR_ID")
+            or os.environ.get("USER")
+            or os.environ.get("USERNAME")
+            or "unknown"
+        )
+        self.host = os.environ.get("HOSTNAME", "unknown_host")
+
+    def write(self, action, status="info", message=None, details=None):
+        event = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "operator": self.operator,
+            "host": self.host,
+            "action": action,
+            "status": status,
+        }
+        if message:
+            event["message"] = message
+        if details is not None:
+            event["details"] = details
+        with self.log_path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
 class Mapper:
@@ -205,6 +244,7 @@ def main():
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
     mapper = Mapper(cfg)
+    audit = AuditLogger()
 
     # Fire up the serial link to the flight controller.  MSP is just bytes over
     # UART, so as long as the port is right you're golden.
@@ -256,7 +296,15 @@ def main():
         """
 
         prev = mapper.state["consent"]
-        mapper.state["consent"] = int(vals[0])
+        new_val = int(vals[0])
+        mapper.state["consent"] = 1 if new_val == 1 else 0
+        if mapper.state["consent"] != prev:
+            status = "armed" if mapper.state["consent"] == 1 else "disarmed"
+            audit.write(
+                "consent_toggle",
+                status=status,
+                details={"value": mapper.state["consent"], "osc_addr": addr},
+            )
         if mapper.state["consent"] != 1 and prev == 1:
             mapper.state.update(
                 {
@@ -265,6 +313,11 @@ def main():
                     "yaw": 0.0,
                     "crowd": 0.0,
                 }
+            )
+            audit.write(
+                "osc_bridge_stream",
+                status="neutralized",
+                message="Consent dropped; neutral frame primed.",
             )
 
     disp = dispatcher.Dispatcher()
@@ -279,6 +332,11 @@ def main():
     # Spin up an OSC server that listens for the incoming sensor party.
     server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", args.osc_port), disp)
     print(f"OSC listening on {server.server_address}")
+    audit.write(
+        "osc_bridge_boot",
+        status="info",
+        message=f"OSC→MSP bridge listening on {server.server_address}",
+    )
 
     # ``last`` timestamps the previous MSP push so we can throttle updates.
     last = 0
@@ -292,6 +350,8 @@ def main():
         map_float_to_rc(0.0),
     )
     neutral_aux = (1500, 1500, 1500, 1500)
+
+    streaming_live = False
 
     try:
         while True:
@@ -318,6 +378,13 @@ def main():
                 pkt = msp_packet(MSP_SET_RAW_RC, payload)
                 if mapper.state["consent"] == 1:
                     ser.write(pkt)
+                    if not streaming_live:
+                        audit.write(
+                            "osc_bridge_stream",
+                            status="armed",
+                            message="Live MSP stream resumed.",
+                        )
+                        streaming_live = True
                 else:
                     chill_payload = struct.pack(
                         "<8H",
@@ -331,13 +398,29 @@ def main():
                         neutral_aux[3],
                     )
                     ser.write(msp_packet(MSP_SET_RAW_RC, chill_payload))
+                    if streaming_live:
+                        audit.write(
+                            "osc_bridge_stream",
+                            status="neutralized",
+                            message="Consent gating forced neutral MSP frame.",
+                        )
+                        streaming_live = False
                 last = now
             time.sleep(0.005)
     except KeyboardInterrupt:
-        pass
+        audit.write(
+            "osc_bridge_shutdown",
+            status="info",
+            message="Operator interrupted bridge (Ctrl+C).",
+        )
     finally:
         # Close the serial port so the next run doesn't start with a fight.
         ser.close()
+        audit.write(
+            "osc_bridge_shutdown",
+            status="closed",
+            message="Serial link closed.",
+        )
 
 
 if __name__ == "__main__":

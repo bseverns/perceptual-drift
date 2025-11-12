@@ -49,11 +49,12 @@ When anyone asks for deletion, drop everything and purge the volatile caches.
    - This script wipes the runtime caches in `$PERCEPTUAL_DRIFT_RUNTIME` (defaults
      to `~/perceptual-drift-runtime`) and `software/video-pipeline/tmp` before
      recreating empty, locked-down directories.
-   - It also appends an audit line to `logs/privacy_audit.log` with a timestamp,
-     hostname, and operator username.
-3. **Verification**: Tail the last three log entries to prove the wipe happened:
+   - It also drops a JSONL event into `logs/ops_events.jsonl` with the exact
+     directories it touched plus your operator ID (override with `OPERATOR_ID`).
+3. **Verification**: Tail the last three log entries to prove the wipe happened
+   (pipe through `jq` if you want pretty output):
    ```bash
-   tail -n 3 logs/privacy_audit.log
+   tail -n 3 logs/ops_events.jsonl | jq '.'
    ```
 4. **Verbal confirmation**: Tell the participant exactly what you just erased.
    Example script: “Buffers are nuked; nothing left in cache, nothing leaves this
@@ -61,16 +62,59 @@ When anyone asks for deletion, drop everything and purge the volatile caches.
 
 ## Event logging expectations
 
-- `logs/privacy_audit.log` is the canonical ledger. It inherits `.gitignore`
+- `logs/ops_events.jsonl` is the canonical ledger. It inherits `.gitignore`
   rules so it never syncs upstream.
+- Automation now covers the usual suspects: `scripts/purge_buffers.sh`,
+  `scripts/record_fpv.sh`, and the OSC→MSP bridge all append structured events
+  with timestamps, hostnames, and the current `OPERATOR_ID`.
 - Log every consent toggle, buffer purge, manual deletion, and external storage
-  connection. Append entries manually when automation isn’t available:
+  connection. When you need a manual entry, echo a JSON blob so the replay tools
+  stay happy:
   ```bash
-  printf "%s | consent_toggle | <initials> | note" \
-    "$(date --iso-8601=seconds)" >> logs/privacy_audit.log
+  python3 - <<'PY' >> logs/ops_events.jsonl
+  import json, os
+  from datetime import datetime, timezone
+
+  event = {
+      "timestamp": datetime.now(timezone.utc).isoformat(),
+      "operator": os.environ.get("OPERATOR_ID", os.environ.get("USER", "unknown")),
+      "host": os.environ.get("HOSTNAME", "unknown_host"),
+      "action": "consent_toggle",
+      "status": "manual",
+      "message": "Stage manager requested hard pause.",
+  }
+  print(json.dumps(event))
+  PY
   ```
 - Backup the log to encrypted removable media only after the run sheet is signed
   off. Destroy the media once the show closes.
+
+## Privacy audit replay
+
+When somebody wants receipts, you should be able to play the whole day back
+without breaking a sweat.
+
+1. **Collect the ledger** — After each run, package the `logs/` directory with
+   `./scripts/seal_logs.sh`. The helper skips empty runs, tars the JSONL ledger,
+   and signs the bundle with Minisign so you can prove nobody retroactively
+   edited the trail.
+2. **Verify the bundle** — On a clean machine, run:
+   ```bash
+   minisign -V -P <team-public-key> \
+     -m logs/bundles/privacy_audit_<timestamp>.tar.gz \
+     -x logs/bundles/privacy_audit_<timestamp>.tar.gz.minisig
+   ```
+   The command should shout “Signature and comment signature verified.” before
+   you proceed. See `docs/safety/LOG_SIGNING.md` for the gritty setup details.
+3. **Review the timeline** — Extract the tarball into a quarantine folder and
+   run your favorite JSONL tool (`jq`, Datasette, or plain old `less`). Verify
+   that every purge, consent flip, FPV recording, and shutdown handshake matches
+   the show report. If an action is missing, the run is **not** compliant.
+
+Compliance means every visitor-triggered action is accounted for, the Minisign
+signature validates, and the ledger shows the buffers dying before any storage
+device leaves the room. Anything less? Pause the show and figure out what went
+sideways.
 
 ## Public signage (print + screen reader copy)
 
@@ -107,7 +151,7 @@ Before opening doors each day:
 5. Confirm the router/firewall ACL blocks WAN egress for the rig’s MAC addresses.
 6. Simulate a full run while monitoring with `iftop`. No spikes beyond the LAN =
    green light.
-7. Document the check in `logs/privacy_audit.log`.
+7. Document the check in `logs/ops_events.jsonl`.
 
 ## Related files to enforce these promises
 
