@@ -1,0 +1,55 @@
+name: "Riot Mode"
+slug: riot-mode
+description: |
+  High-energy takeover. Crowd lateral pushes slam the drone into strafing arcs
+  while yaw jitters to keep the chassis twitchy. LEDs burn neon magenta/orange
+  and the video feed trails hard glitch echoes. Deploy once the room has bought
+  into the chaos and safety spotters are locked in.
+intent: "dial everything to 11 without snapping props"
+control_bridge:
+  extends: ../mapping.yaml
+  mapping:
+    altitude:
+      deadzone: 0.05
+      curve: "linear"
+      gain: 0.9
+    lateral:
+      deadzone: 0.03
+      curve: "expo"
+      gain: 0.85
+    yaw_bias:
+      bias: 0.12
+      jitter: 0.2
+    leds:
+      palette: ["#ff0054", "#ffbd00", "#ffffff"]
+    glitch_intensity:
+      base: 0.45
+      max: 1.0
+  osc:
+    address_space:
+      altitude: "/pd/alt"
+      lateral: "/pd/lat"
+      yaw: "/pd/yaw"
+      crowd: "/pd/crowd"
+      consent: "/pd/consent"
+leds:
+  pattern: "spark_bursts"
+  notes: |
+    Trigger percussive strobes on AUX2 crossing 1700 µs. Map AUX1 to overall
+    intensity so crowd density literally fuels the sparks.
+video_pipeline:
+  story: |
+    Maximum drama: crank saturation, delay the feed a few seconds, fold it back
+    on itself with horizontal tear and contrast pump.
+  default_chain: riot_feedback
+  gst_chains:
+    riot_feedback: |
+      v4l2src device="{device}" !
+      queue max-size-buffers=240 max-size-bytes=0 max-size-time=0 !
+      videorate drop-only=true max-rate=30 !
+      videobalance saturation=1.8 contrast=1.3 brightness=-0.08 !
+      tee name=t !
+      queue ! videoflip method=horizontal-flip !
+      videomixer name=mix background=1 !
+      queue ! videoscale ! videoconvert ! mix. \
+      t. ! queue ! timeoverlay shaded-background=true ! mix.

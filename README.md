@@ -6,13 +6,21 @@ Perceptual Drift is a participatory drone‑based installation where **audience 
 
 ---
 
+## Onboarding flight school (start here)
+
+1. **Run the staged onboarding playbook** in [`docs/onboarding/`](docs/onboarding/README.md). It walks you through three levels — systems sighting, consent choreography, and safety loop drills — with "do this now" exercises so you earn muscle memory, not just vibes.
+2. **Log your artifacts** (Level 1 dry-run screenshot, Level 2 consent rehearsal capture, Level 3 checklist PDF) and open a GitHub discussion titled `Onboarding sign-off — <your name>` tagging `@control-lead`, `@experience-lead`, and `@safety-second` once all drills are done.
+3. **Wait for sign-off** — leads usually respond within 48 hours; once approved you’re clear to co-run rehearsals.
+
+---
+
 ## How to tour this notebook (a.k.a. your flight school syllabus)
 
 1. **Start with the [Control Stack Playbook](docs/control-stack-playbook.md)** — *Why you care:* it’s the soup-to-nuts wiring diagram for prototypes, so you know exactly when to open [`software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde`](software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde), [`software/control-bridge/osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py), and the knobs inside [`config/mapping.yaml`](config/mapping.yaml) before you solder anything.
 2. **Skim the [Safety Checklist](docs/checklists/safety_checklist.md)** — *Why you care:* this is the punk-rock preflight liturgy; keep it open while you’re flashing firmware or tweaking [`hardware/README.md`](hardware/README.md) so the “oops” moments stay on paper, not on people.
 3. **Digest the [Experience Playbook](docs/experience/README.md)** — *Why you care:* once the prototype hovers, this choreographs rehearsals: when to flip the consent AUX in [`software/control-bridge/osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py), when to remix projections via [`software/video-pipeline/gst_launch.sh`](software/video-pipeline/gst_launch.sh), and how to brief humans without killing the vibe.
 4. **Update the [Assumption Ledger](docs/ASSUMPTION_LEDGER.md)** — *Why you care:* during runs you log surprises, then feed them back into configs like [`config/video-presets.json`](config/video-presets.json) and flight curves in [`config/mapping.yaml`](config/mapping.yaml) so the system evolves intentionally instead of by rumor.
-5. **Reference the [System Diagrams](docs/diagrams/system-overview.md)** whenever something feels abstract — *Why you care:* the mermaid maps keep the OSC→MSP→LED trail legible, pointing you back to tooling like [`scripts/record_fpv.sh`](scripts/record_fpv.sh) when it’s time to capture evidence or debug latency.
+5. **Reference the [System Diagrams](docs/diagrams/system-overview.md)** whenever something feels abstract — *Why you care:* the mermaid maps keep the OSC→MSP→LED trail legible, pointing you back to tooling like [`scripts/record_fpv.sh`](scripts/record_fpv.sh) when it’s time to capture evidence or debug latency. These diagrams also surface in the onboarding playbook with failure-mode callouts, so the visuals stay consistent between study and drills.
 
 Treat that order as gospel for newcomers: prototype, secure, rehearse, reflect, repeat. No more spelunking through tabs wondering which YAML is the boss.
 
@@ -89,7 +97,15 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 ## Config
 - [`config/mapping.yaml`](config/mapping.yaml) provides tunable curves for **altitude**, **lateral drift**, **yaw bias**, **LED color**, and **glitch intensity**.
 - [`config/video-presets.json`](config/video-presets.json) defines named GStreamer pipeline presets for OBS/GStreamer hybrids.
+- [`config/recipes/`](config/recipes) bundles “whole mood” presets — gesture curves, video chains, LED notes — ready to load via the new `--recipe` flag.
 - [`hardware/`](hardware) includes a fleshed-out [hardware BOM](hardware/README.md), wiring, and net rig notes based on [Drone Cage DIY](https://hackaday.io/project/19102-drone-safety-cage) write-ups.
+
+See [`docs/recipes.md`](docs/recipes.md) for how to author your own.
+
+### Curated recipes (starter pack)
+- **Soft Consent Lounge** — Drift only when the room says yes. Altitude/lateral curves hug the center, LEDs breathe a cool aurora, and video stays soft-focus for onboarding. Load via `--recipe config/recipes/soft_consent_lounge.yaml` when you’re narrating safety. 
+- **Riot Mode** — Full-send feedback party. Aggressive lateral gain, yaw jitter, neon LED stabs, and a delayed glitch wall. Flip to this once spotters and the crowd are synced. `--recipe config/recipes/riot_mode.yaml`.
+- **Swarm Teaser** — One quad, swarm energy. Biases yaw into lazy figure-eights, paints gradient LED laps, and mirrors the feed to hint at future drones. Run with `--recipe config/recipes/swarm_teaser.yaml` when pitching the multi-craft upgrade.
 
 ---
 
