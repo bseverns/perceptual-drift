@@ -8,7 +8,8 @@ from your face.
 
 References worth opening in a browser tab while you read this file:
 
-* MSP command table — https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md
+* MSP command table —
+  https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md
 * python-osc docs — https://pypi.org/project/python-osc/
 * Betaflight raw RC ranges —
   https://github.com/betaflight/betaflight/wiki/RC-Setup
@@ -43,7 +44,11 @@ def deep_merge(base, override):
         return override
     merged = dict(base)
     for key, value in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+        if (
+            key in merged
+            and isinstance(merged[key], dict)
+            and isinstance(value, dict)
+        ):
             merged[key] = deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -73,7 +78,8 @@ def load_recipe(recipe_path):
     )
     if not control_section:
         raise ValueError(
-            f"Recipe {recipe_path} needs a 'control_bridge' section describing the MSP mapping"
+            "Recipe {path} needs a 'control_bridge' section describing "
+            "the MSP mapping".format(path=recipe_path)
         )
 
     base_cfg = {}
@@ -255,8 +261,8 @@ def main():
     ap.add_argument(
         "--recipe",
         help=(
-            "Path to a YAML/JSON recipe bundling MSP curves, LED palettes, and "
-            "video cues. Overrides --config when provided."
+            "Path to a YAML/JSON recipe bundling MSP curves, LED palettes, "
+            "and video cues. Overrides --config when provided."
         ),
     )
     ap.add_argument("--osc_port", type=int, default=9000)
