@@ -277,7 +277,10 @@ def main():
     disp.map(cfg["osc"]["address_space"]["consent"], on_consent)
 
     # Spin up an OSC server that listens for the incoming sensor party.
-    server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", args.osc_port), disp)
+    server = osc_server.ThreadingOSCUDPServer(
+        ("0.0.0.0", args.osc_port),
+        disp,
+    )
     print(f"OSC listening on {server.server_address}")
 
     # ``last`` timestamps the previous MSP push so we can throttle updates.
