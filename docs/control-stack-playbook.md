@@ -42,7 +42,7 @@ That sequence sketch is the street map—trace any arrow to know which script to
 - **Output contract**: the sketch publishes normalized floats on the OSC addresses declared in [`config/mapping.yaml`](../config/mapping.yaml). Latency is effectively frame time, so treat 30 Hz as normal.
 - **Customization tips**:
   - Adjust `threshold` for darker or brighter rooms. Lower values see smaller motions but add noise.
-  - Rework the centroid logic if you want multi-participant control. [openFrameworks examples](https://openframeworks.cc/download/) provide fancier blob trackers you can port over.
+  - Rework the centroid logic if you want multi-participant control. There's an archived openFrameworks fork in `software/gesture-tracking/openframeworks` and the [official examples](https://openframeworks.cc/download/) are killer references if you port the OSC contract over to C++ land.
   - If you outgrow Processing, mirror the OSC schema and rebuild in TouchDesigner, Max/MSP, or [cv.jit](https://cycling74.com/products/max) land.
 
 ---

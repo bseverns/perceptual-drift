@@ -11,7 +11,7 @@ flowchart LR
     end
     subgraph Vision
         Cameras["IR / RGB Cameras"]
-        VisionProcessing["Vision Processing — openFrameworks"]
+        VisionProcessing["Vision Processing — Processing"]
         AudienceGestures --> Cameras
         Cameras --> VisionProcessing
         VisionProcessing -->|OSC| GestureMapper
@@ -38,7 +38,7 @@ The flow above is the bird’s-eye view: humans throw gestures, the vision stack
 sequenceDiagram
     participant Performer
     participant Camera
-    participant VisionApp as Vision App (oF)
+    participant VisionApp as Vision App (Processing)
     participant Mapper as Gesture→Control Mapper
     participant FC as Flight Controller
     participant Drone as Drone Platform
@@ -56,7 +56,7 @@ sequenceDiagram
 **Teach-back checklist:**
 
 1. Cameras are the first translators, turning vibes into pixels.
-2. The openFrameworks vision app crunches those pixels into actionable gesture tags.
+2. The Processing vision sketch chews those pixels into actionable gesture tags (with an openFrameworks fork on standby if we need native extensions).
 3. Mapping code turns gestures into multi-field MSP packets (throttle, roll, LED mode, etc.).
 4. Betaflight consumes MSP, applies PID loops, and drives both motors and LEDs.
 5. The performer sees light, hears motors, and keeps the feedback loop alive.
