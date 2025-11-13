@@ -47,7 +47,11 @@ def deep_merge(base, override):
         return override
     merged = dict(base)
     for key, value in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+        if (
+            key in merged
+            and isinstance(merged[key], dict)
+            and isinstance(value, dict)
+        ):
             merged[key] = deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -70,7 +74,10 @@ def load_recipe(recipe_path):
         raise ValueError(f"Recipe at {recipe_path} must parse into a mapping")
 
     control_section = (
-        data.get("control_bridge") or data.get("control") or data.get("bridge") or {}
+        data.get("control_bridge")
+        or data.get("control")
+        or data.get("bridge")
+        or {}
     )
     if not control_section:
         raise ValueError(
@@ -136,7 +143,6 @@ class AuditLogger:
         log_dir_env = os.environ.get("PERCEPTUAL_DRIFT_LOG_DIR")
         if log_dir_env:
             candidate = Path(log_dir_env)
-            log_dir = candidate if candidate.is_absolute() else repo_root / candidate
             if candidate.is_absolute():
                 log_dir = candidate
             else:
@@ -183,7 +189,7 @@ class DryRunSerial:
             size = payload[3]
             cmd = payload[4]
             if cmd == MSP_SET_RAW_RC and size == 16:
-                frame = struct.unpack("<8H", payload[5 : 5 + size])
+                frame = struct.unpack("<8H", payload[5:5 + size])
                 self._last_frame = frame
         now = time.time()
         if now - self._last_report >= 1.0:
@@ -199,8 +205,15 @@ class DryRunSerial:
                     )
                 )
             else:
+                total = self.byte_count
                 print(
-                    f"[dry-run] would stream {len(payload)} bytes (total {self.byte_count} bytes so far)"
+                    (
+                        "[dry-run] would stream {} bytes (total {} bytes so "
+                        "far)"
+                    ).format(
+                        len(payload),
+                        total,
+                    )
                 )
             self._last_report = now
 
@@ -210,6 +223,7 @@ class DryRunSerial:
             aux = list(self._last_frame[4:])
             print(f"[dry-run] last frame RC={rc} AUX={aux}")
         print(f"[dry-run] serial stub wrote {self.byte_count} bytes total")
+
 
 class Mapper:
     def __init__(self, cfg):
@@ -343,7 +357,11 @@ def main():
         ),
     )
     ap.add_argument("--osc_port", type=int, default=9000)
-    ap.add_argument("--dry-run", action="store_true", help="Skip serial writes and log MSP traffic.")
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Skip serial writes and log MSP traffic.",
+    )
     args = ap.parse_args()
 
     audit = AuditLogger()
@@ -624,7 +642,9 @@ def main():
         audit.write(
             "osc_bridge_shutdown",
             status="closed",
-            message="Serial link closed{suffix}.".format(suffix=" (dry-run stub)" if args.dry_run else ""),
+            message="Serial link closed{suffix}.".format(
+                suffix=" (dry-run stub)" if args.dry_run else ""
+            ),
         )
 
 
