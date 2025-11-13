@@ -48,11 +48,7 @@ def deep_merge(base, override):
         return override
     merged = dict(base)
     for key, value in override.items():
-        if (
-            key in merged
-            and isinstance(merged[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
             merged[key] = deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -75,10 +71,7 @@ def load_recipe(recipe_path):
         raise ValueError(f"Recipe at {recipe_path} must parse into a mapping")
 
     control_section = (
-        data.get("control_bridge")
-        or data.get("control")
-        or data.get("bridge")
-        or {}
+        data.get("control_bridge") or data.get("control") or data.get("bridge") or {}
     )
     if not control_section:
         raise ValueError(
@@ -190,7 +183,7 @@ class DryRunSerial:
             size = payload[3]
             cmd = payload[4]
             if cmd == MSP_SET_RAW_RC and size == 16:
-                frame = struct.unpack("<8H", payload[5:5+size])
+                frame = struct.unpack("<8H", payload[5 : 5 + size])
                 self._last_frame = frame
         now = time.time()
         if now - self._last_report >= 1.0:
@@ -209,8 +202,7 @@ class DryRunSerial:
                 total = self.byte_count
                 print(
                     (
-                        "[dry-run] would stream {} bytes (total {} bytes so "
-                        "far)"
+                        "[dry-run] would stream {} bytes (total {} bytes so " "far)"
                     ).format(
                         len(payload),
                         total,
@@ -461,12 +453,12 @@ def main():
     # UART, so as long as the port is right you're golden.
     if args.dry_run:
         ser = DryRunSerial()
-        print('[dry-run] Serial writes suppressed; MSP frames logged locally.')
+        print("[dry-run] Serial writes suppressed; MSP frames logged locally.")
         audit.write(
-            'osc_bridge_dry_run',
-            status='info',
-            message='Dry-run mode active; serial link mocked.',
-            details={'serial': args.serial, 'baud': args.baud},
+            "osc_bridge_dry_run",
+            status="info",
+            message="Dry-run mode active; serial link mocked.",
+            details={"serial": args.serial, "baud": args.baud},
         )
     else:
         ser = serial.Serial(args.serial, args.baud, timeout=0.01)
