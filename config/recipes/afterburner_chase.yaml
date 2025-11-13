@@ -1,0 +1,55 @@
+name: "Afterburner Chase"
+slug: afterburner-chase
+description: |
+  When the crowd begs for one more lap, this is the encore. Lateral curves go
+  sharp, yaw jitters in bursts, and AUX channels pump LED strobes plus audio
+  chirps. Video stacks the mirror preset with extra saturation so the quad looks
+  like it’s leaving burn trails.
+intent: "give them the fast one without blowing the cage"
+control_bridge:
+  extends: ../mapping.yaml
+  mapping:
+    altitude:
+      deadzone: 0.04
+      curve: "linear"
+      gain: 0.95
+    lateral:
+      deadzone: 0.02
+      curve: "expo"
+      gain: 0.92
+    yaw_bias:
+      bias: 0.14
+      jitter: 0.24
+    leds:
+      palette: ["#ff006e", "#fb5607", "#ffbe0b", "#8338ec"]
+    glitch_intensity:
+      base: 0.55
+      max: 1.0
+  osc:
+    address_space:
+      altitude: "/pd/alt"
+      lateral: "/pd/lat"
+      yaw: "/pd/yaw"
+      crowd: "/pd/crowd"
+      consent: "/pd/consent"
+leds:
+  pattern: "afterburn_trail"
+  notes: |
+    AUX1: strobe rate. AUX2: white flash level. AUX3: send to DSP for synced
+    chirps. Keep a safety guard: if AUX1 stays pegged for >10 s, drop intensity
+    by half automatically.
+video_pipeline:
+  story: |
+    Feed the mirror twins preset into riot feedback for a neon sci-fi chase.
+    Display the chain name on screen so operators can call it out live.
+  default_chain: mirror_twins
+  gst_chains:
+    riot_afterburn: |
+      v4l2src device="{device}" !
+      queue max-size-buffers=180 max-size-bytes=0 max-size-time=0 !
+      videobalance saturation=1.9 contrast=1.4 brightness=-0.06 !
+      tee name=t !
+      queue ! videoflip method=horizontal-flip !
+      queue ! videomixer name=mix background=1 ! queue ! videoconvert ! mix.
+      t. ! queue ! timeoverlay shaded-background=true text="afterburner" ! mix.
+      mix. ! videoconvert ! autovideosink sync=false

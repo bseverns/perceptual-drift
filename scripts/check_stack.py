@@ -207,6 +207,7 @@ class BridgeHarness:
         self.serial = serial_link
         self.osc_port = osc_port
         self._stop = threading.Event()
+        self._started = threading.Event()
         self._loop_thread: threading.Thread | None = None
         self._osc_thread: threading.Thread | None = None
         self._server: ThreadingOSCUDPServer | None = None
@@ -235,12 +236,24 @@ class BridgeHarness:
             self.mapper.state.update({"alt": 0.0, "lat": 0.0, "yaw": 0.0, "crowd": 0.0})
 
     def start(self) -> None:
+        self._stop.clear()
         self._server = ThreadingOSCUDPServer(("127.0.0.1", self.osc_port), self._dispatcher)
         self._server.daemon_threads = True
+        # Bind to an ephemeral port when osc_port == 0 so tests/CI don't clash
+        # with a real bridge session.
+        self.osc_port = self._server.server_address[1]
         self._osc_thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._osc_thread.start()
         self._loop_thread = threading.Thread(target=self._loop, daemon=True)
         self._loop_thread.start()
+        self._started.set()
+
+    @property
+    def listening_port(self) -> int:
+        return self.osc_port
+
+    def wait_ready(self, timeout: float = 1.0) -> bool:
+        return self._started.wait(timeout)
 
     def _loop(self) -> None:
         neutral_rc = (
@@ -289,10 +302,14 @@ class BridgeHarness:
         if self._server:
             self._server.shutdown()
             self._server.server_close()
+            self._server = None
         if self._loop_thread:
             self._loop_thread.join(timeout=1)
+            self._loop_thread = None
         if self._osc_thread:
             self._osc_thread.join(timeout=1)
+            self._osc_thread = None
+        self._started.clear()
 
 
 def decode_msp_frame(frame: bytes) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
@@ -353,28 +370,55 @@ def main(argv: Iterable[str] | None = None) -> int:
         default="config/test-fixtures/gesture_fixture_frames.json",
         help="Gesture fixture JSON for the camera stub",
     )
-    parser.add_argument("--osc-port", type=int, default=9100, help="Ephemeral OSC port for the harness")
+    parser.add_argument("--osc-port", type=int, default=9100, help="OSC port for the harness (0 = auto)")
+    parser.add_argument(
+        "--max-frames",
+        type=int,
+        default=0,
+        help="Limit how many fixture frames get replayed (handy for fast CI runs)",
+    )
+    parser.add_argument(
+        "--send-interval",
+        type=float,
+        default=0.03,
+        help="Delay between OSC fixture sends in seconds",
+    )
+    parser.add_argument(
+        "--warmup",
+        type=float,
+        default=0.1,
+        help="Warmup sleep after the harness boots so the OSC server is ready",
+    )
+    parser.add_argument(
+        "--cooldown",
+        type=float,
+        default=0.2,
+        help="Post-stream pause to let the bridge emit its final MSP frame",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     random.seed(0)
 
     fixture_vectors = load_fixture_vectors(Path(args.fixture))
+    if args.max_frames:
+        fixture_vectors = fixture_vectors[: args.max_frames]
     serial_link = MSPSerialLoopback()
     harness = BridgeHarness(Path(args.mapping), serial_link, osc_port=args.osc_port)
     harness.start()
-    client = udp_client.SimpleUDPClient("127.0.0.1", args.osc_port)
-    time.sleep(0.1)
+    harness.wait_ready()
+    client = udp_client.SimpleUDPClient("127.0.0.1", harness.listening_port)
+    time.sleep(max(0.0, args.warmup))
 
     client.send_message(harness.addresses["consent"], 1)
-    time.sleep(0.05)
+    time.sleep(max(0.0, min(args.send_interval, 0.05)))
     for vec in fixture_vectors:
         client.send_message(harness.addresses["lateral"], vec.lat)
         client.send_message(harness.addresses["altitude"], vec.alt)
         client.send_message(harness.addresses["yaw"], vec.yaw)
         client.send_message(harness.addresses["crowd"], vec.crowd)
-        time.sleep(0.03)
+        time.sleep(max(0.0, args.send_interval))
 
-    time.sleep(0.2)
+    time.sleep(max(0.0, args.cooldown))
     harness.stop()
 
     assert_msp_activity(serial_link)

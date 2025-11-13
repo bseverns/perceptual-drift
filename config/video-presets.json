@@ -6,5 +6,17 @@
   "delayed_glitch": {
     "description": "Buffer + drop frames based on OSC crowd",
     "gst": "v4l2src device=/dev/video0 ! queue max-size-buffers=120 ! videorate ! videobalance ! autovideosink sync=false"
+  },
+  "mirror_twins": {
+    "description": "Duplicate the feed with a ghosted horizontal flip for swarm teasers",
+    "gst": "v4l2src device=/dev/video0 ! videoconvert ! tee name=t ! queue ! videobalance saturation=1.2 contrast=1.1 ! queue ! videomixer name=mix background=1 ! queue ! videoconvert ! mix. t. ! queue ! videoflip method=horizontal-flip ! timeoverlay halign=right valignment=bottom ! mix. mix. ! videoconvert ! autovideosink sync=false"
+  },
+  "infrared_memory": {
+    "description": "Push the feed toward monochrome with a slow fade buffer for meditative runs",
+    "gst": "v4l2src device=/dev/video0 ! queue max-size-buffers=90 max-size-bytes=0 max-size-time=0 ! videobalance saturation=0.2 brightness=0.05 contrast=1.15 ! videoconvert ! autovideosink sync=false"
+  },
+  "crowd_scope": {
+    "description": "Picture-in-picture scope that shrinks the live feed and overlays motion history",
+    "gst": "v4l2src device=/dev/video0 ! videoconvert ! tee name=t ! queue ! videoscale ! video/x-raw,width=640,height=360 ! queue ! compositor name=comp sink_1::xpos=1280 sink_1::ypos=360 ! videoconvert ! autovideosink sync=false t. ! queue ! videobalance saturation=1.6 hue=0.1 ! videorate drop-only=true max-rate=15 ! comp."
   }
 }
