@@ -190,7 +190,7 @@ class DryRunSerial:
             size = payload[3]
             cmd = payload[4]
             if cmd == MSP_SET_RAW_RC and size == 16:
-                frame = struct.unpack("<8H", payload[5 : 5 + size])
+                frame = struct.unpack("<8H", payload[5:5 + size])
                 self._last_frame = frame
         now = time.time()
         if now - self._last_report >= 1.0:
