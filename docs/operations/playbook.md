@@ -52,6 +52,27 @@ If everything passes you’ll see three ✅ lines followed by “Go run the real
 Anything else? Start reading the tracebacks — they’re intentionally opinionated
 about what went sideways.
 
+### Need a shorter loop for CI or lab smoke tests?
+
+Use the runtime knobs baked into the script:
+
+```bash
+./scripts/check_stack.py \
+  --osc-port 0 \
+  --max-frames 40 \
+  --send-interval 0.01 \
+  --cooldown 0.05
+```
+
+* `--osc-port 0` grabs an ephemeral UDP port so you don’t collide with a real
+  bridge already listening on 9000.
+* `--max-frames` limits how much of the gesture fixture replays.
+* `--send-interval` and `--cooldown` shorten the OSC/MPS pacing so automated
+  runs finish in seconds.
+
+Pair that with `pytest` (see `tests/test_check_stack.py`) to make sure the smoke
+test keeps working whenever someone edits configs.
+
 ## Manual fallback (when you want to poke each lane by hand)
 
 1. **Processing tracker sanity:** Launch the sketch, hit play, and point it at a
@@ -74,5 +95,11 @@ about what went sideways.
 serial sessions.  Then re-run the script.  If MSP packets still fail the
 checksum, yank the repo back to `main` and diff your local changes to the bridge
 or mapping YAML.
+
+### Watching the telemetry
+
+The bridge logs every major event into `logs/ops_events.jsonl`. Skim
+[`docs/operations/bridge_telemetry.md`](bridge_telemetry.md) to learn how to
+interpret those JSONL breadcrumbs and when to seal them for audits.
 
 Stay scrappy, stay safe, and keep the drone pointed away from faces.

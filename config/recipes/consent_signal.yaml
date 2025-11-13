@@ -1,0 +1,45 @@
+name: "Consent Signal"
+slug: consent-signal
+description: |
+  Built for workshops where you need the room to literally see the consent gate
+  flip. Motion only maps to RC when the crowd lifts the gate; otherwise the drone
+  hard-parks. LEDs flash amber until consent hits and video splits the frame to
+  display the toggle state.
+intent: "teach the ritual, spotlight the gate, zero surprises"
+control_bridge:
+  extends: ../mapping.yaml
+  mapping:
+    altitude:
+      deadzone: 0.1
+      curve: "linear"
+      gain: 0.5
+    lateral:
+      deadzone: 0.1
+      curve: "linear"
+      gain: 0.45
+    yaw_bias:
+      bias: 0.0
+      jitter: 0.0
+    leds:
+      palette: ["#ffbf00", "#ff7b00", "#f6511d", "#ffffff"]
+    glitch_intensity:
+      base: 0.05
+      max: 0.4
+  osc:
+    address_space:
+      altitude: "/pd/alt"
+      lateral: "/pd/lat"
+      yaw: "/pd/yaw"
+      crowd: "/pd/crowd"
+      consent: "/pd/consent"
+leds:
+  pattern: "consent_gate"
+  notes: |
+    Blink amber at 2 Hz when consent=0. The moment consent=1, fade to white
+    and let AUX1 drive intensity. Pipe a low beep on AUX2 transitions for
+    accessibility.
+video_pipeline:
+  story: |
+    Use the picture-in-picture scope so facilitators can point at the consent
+    overlay while the live feed plays underneath.
+  default_chain: crowd_scope

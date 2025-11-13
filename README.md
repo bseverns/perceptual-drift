@@ -1,6 +1,6 @@
 # Perceptual Drift — Audience‑Controlled FPV Installation
 
-Perceptual Drift is a participatory drone‑based installation where **audience motion** modulates **FPV drone** behavior and **live video processing**. It centers shared authorship: many bodies → probabilistic control → drones that “drift” perceptually. The installation leans on **DIY‑friendly stacks**: Betaflight micro‑drones, Raspberry Pi video processing (GStreamer/OBS), OpenFrameworks/Processing for gesture tracking, and an OSC→MSP control bridge. Optional **Teensy DSP/LED** layers extend visual/sonic feedback. Think of it as an unholy jam session between [Betaflight](https://betaflight.com/), [Processing](https://processing.org/), [GStreamer](https://gstreamer.freedesktop.org/), and [python-osc](https://pypi.org/project/python-osc/) with a splash of [Mozzi](https://sensorium.github.io/Mozzi/) and [CrazySwarm2](https://crazyswarm.readthedocs.io/).
+Perceptual Drift is a participatory drone‑based installation where **audience motion** modulates **FPV drone** behavior and **live video processing**. It centers shared authorship: many bodies → probabilistic control → drones that “drift” perceptually. The installation leans on **DIY‑friendly stacks**: Betaflight micro‑drones, Raspberry Pi video processing (GStreamer/OBS), Processing for gesture tracking, and an OSC→MSP control bridge. Optional **Teensy DSP/LED** layers extend visual/sonic feedback. Think of it as an unholy jam session between [Betaflight](https://betaflight.com/), [Processing](https://processing.org/), [GStreamer](https://gstreamer.freedesktop.org/), and [python-osc](https://pypi.org/project/python-osc/) with a splash of [Mozzi](https://sensorium.github.io/Mozzi/) and [CrazySwarm2](https://crazyswarm.readthedocs.io/).
 
 > **No breadcrumbs? No problem.** This README tries to be the missing field manual. Every subsystem below includes links, inspiration, and what to Google when things melt down.
 
@@ -20,7 +20,7 @@ Perceptual Drift is a participatory drone‑based installation where **audience 
 2. **Skim the [Safety Checklist](docs/checklists/safety_checklist.md)** — *Why you care:* this is the punk-rock preflight liturgy; keep it open while you’re flashing firmware or tweaking [`hardware/README.md`](hardware/README.md) so the “oops” moments stay on paper, not on people.
 3. **Digest the [Experience Playbook](docs/experience/README.md)** — *Why you care:* once the prototype hovers, this choreographs rehearsals: when to flip the consent AUX in [`software/control-bridge/osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py), when to remix projections via [`software/video-pipeline/gst_launch.sh`](software/video-pipeline/gst_launch.sh), and how to brief humans without killing the vibe.
 4. **Update the [Assumption Ledger](docs/ASSUMPTION_LEDGER.md)** — *Why you care:* during runs you log surprises, then feed them back into configs like [`config/video-presets.json`](config/video-presets.json) and flight curves in [`config/mapping.yaml`](config/mapping.yaml) so the system evolves intentionally instead of by rumor.
-5. **Reference the [System Diagrams](docs/diagrams/system-overview.md)** whenever something feels abstract — *Why you care:* the mermaid maps keep the OSC→MSP→LED trail legible, pointing you back to tooling like [`scripts/record_fpv.sh`](scripts/record_fpv.sh) when it’s time to capture evidence or debug latency. These diagrams also surface in the onboarding playbook with failure-mode callouts, so the visuals stay consistent between study and drills.
+5. **Reference the [System Diagrams](docs/diagrams/system-overview.md)** whenever something feels abstract — *Why you care:* the mermaid maps keep the OSC→MSP→LED trail legible, pointing you back to tooling like [`scripts/record_fpv.sh`](scripts/record_fpv.sh) when it’s time to capture evidence or debug latency. These diagrams also surface in the onboarding playbook with failure-mode callouts, so the visuals stay consistent between study and drills. Pair them with the [bridge telemetry cheat sheet](docs/operations/bridge_telemetry.md) so you know what the audit logs are whispering during a run.
 
 Treat that order as gospel for newcomers: prototype, secure, rehearse, reflect, repeat. No more spelunking through tabs wondering which YAML is the boss.
 
@@ -34,7 +34,7 @@ Treat that order as gospel for newcomers: prototype, secure, rehearse, reflect, 
 ---
 
 ## System Overview
-1. **Gesture tracking** *(Processing / OpenFrameworks)*
+1. **Gesture tracking** *(Processing)*
    - Webcam or depth cam feeds into a Processing sketch that estimates coarse crowd motion.
    - We ship normalized floats over OSC using [oscP5](https://www.sojamo.de/libraries/oscP5/) & [NetP5](https://www.sojamo.de/libraries/netP5/).
    - Inspirations: [OfxCv optical flow demos](https://github.com/kylemcdonald/ofxCv) and [LASER Tag (Graffiti Research Lab)](http://graffitiresearchlab.com/blog/projects/laser-tag/).
@@ -65,7 +65,7 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 ├─ scripts/                     # Utility scripts (logs, calibration, recorders)
 └─ software/
    ├─ control-bridge/           # OSC → MSP bridge (Python)
-   ├─ gesture-tracking/         # Processing/OpenFrameworks sketches
+   ├─ gesture-tracking/         # Processing sketch + HUD for crowd consent
    └─ video-pipeline/           # GStreamer/OBS scenes, launchers
 ```
 
@@ -87,25 +87,24 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
    - `sudo apt install gstreamer1.0-tools` or use OBS.
    - Run `./software/video-pipeline/gst_launch.sh clean_low_latency` for tight monitoring or `delayed_glitch` for delayed projection loops. Adapted from [Scanlines’ GStreamer recipes](https://scanlines.xyz/t/gstreamer-recipes/1414).
 5. **Safety dance**
-- Follow `docs/checklists/safety_checklist.md` before every session.
-- Keep the `consent` channel low until the facilitator explicitly flips it.
-- Tape a hardware kill switch (BetaFPV LiteRadio or Jumper T-Lite) to your wrist. Cages help, but redundancy keeps faces intact.
-- Skim `docs/experience/README.md` for the meta UX choreography so operator + crowd stay in sync.
+   - Live inside [`docs/checklists/safety_checklist.md`](docs/checklists/safety_checklist.md). That single source of truth covers consent rituals, kill-switch drills, and spotter call-and-response. Bring it to every rehearsal so wording never drifts.
 
 ---
 
 ## Config
 - [`config/mapping.yaml`](config/mapping.yaml) provides tunable curves for **altitude**, **lateral drift**, **yaw bias**, **LED color**, and **glitch intensity**.
-- [`config/video-presets.json`](config/video-presets.json) defines named GStreamer pipeline presets for OBS/GStreamer hybrids.
+- [`config/video-presets.json`](config/video-presets.json) defines named GStreamer pipeline presets for OBS/GStreamer hybrids (clean, glitchy, mirrored, infrared, and scope overlays).
 - [`config/recipes/`](config/recipes) bundles “whole mood” presets — gesture curves, video chains, LED notes — ready to load via the new `--recipe` flag.
 - [`hardware/`](hardware) includes a fleshed-out [hardware BOM](hardware/README.md), wiring, and net rig notes based on [Drone Cage DIY](https://hackaday.io/project/19102-drone-safety-cage) write-ups.
 
 See [`docs/recipes.md`](docs/recipes.md) for how to author your own.
 
-### Curated recipes (starter pack)
-- **Soft Consent Lounge** — Drift only when the room says yes. Altitude/lateral curves hug the center, LEDs breathe a cool aurora, and video stays soft-focus for onboarding. Load via `--recipe config/recipes/soft_consent_lounge.yaml` when you’re narrating safety. 
+- **Soft Consent Lounge** — Drift only when the room says yes. Altitude/lateral curves hug the center, LEDs breathe a cool aurora, and video stays soft-focus for onboarding. Load via `--recipe config/recipes/soft_consent_lounge.yaml` when you’re narrating safety.
+- **Consent Signal** — Workshop-friendly mode that literally spotlights the consent gate. LEDs flash amber until the crowd says go and the projection overlays the toggle state. `--recipe config/recipes/consent_signal.yaml`.
+- **Midnight Meditation** — Slow-breath intermission. Heavy deadzones, noir LEDs, and the infrared video preset keep everyone grounded between high-energy runs. `--recipe config/recipes/midnight_meditation.yaml`.
 - **Riot Mode** — Full-send feedback party. Aggressive lateral gain, yaw jitter, neon LED stabs, and a delayed glitch wall. Flip to this once spotters and the crowd are synced. `--recipe config/recipes/riot_mode.yaml`.
 - **Swarm Teaser** — One quad, swarm energy. Biases yaw into lazy figure-eights, paints gradient LED laps, and mirrors the feed to hint at future drones. Run with `--recipe config/recipes/swarm_teaser.yaml` when pitching the multi-craft upgrade.
+- **Afterburner Chase** — Encore banger. Sharp lateral curves, jittery yaw bursts, and riot-level video feedback so the quad looks like it’s leaving burn trails. `--recipe config/recipes/afterburner_chase.yaml`.
 
 ---
 

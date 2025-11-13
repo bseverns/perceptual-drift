@@ -1,0 +1,43 @@
+name: "Midnight Meditation"
+slug: midnight-meditation
+description: |
+  Lights down, breath up. The drone hovers like a censer, easing altitude and
+  lateral moves so the crowd can focus on slow collective gestures. Video turns
+  velvety with infrared vibes and LEDs pulse like a distant lighthouse.
+intent: "reset the nervous system between riot sets"
+control_bridge:
+  extends: ../mapping.yaml
+  mapping:
+    altitude:
+      deadzone: 0.15
+      curve: "expo"
+      gain: 0.35
+    lateral:
+      deadzone: 0.12
+      curve: "expo"
+      gain: 0.32
+    yaw_bias:
+      bias: 0.02
+      jitter: 0.0
+    leds:
+      palette: ["#0b0d17", "#1b263b", "#415a77", "#778da9"]
+    glitch_intensity:
+      base: 0.02
+      max: 0.25
+  osc:
+    address_space:
+      altitude: "/pd/alt"
+      lateral: "/pd/lat"
+      yaw: "/pd/yaw"
+      crowd: "/pd/crowd"
+      consent: "/pd/consent"
+leds:
+  pattern: "ebb_flow"
+  notes: |
+    Slow sine fade across the palette with AUX2 controlling phase speed.
+    Keep peak intensity under 160 to prevent accidental wake-up flashes.
+video_pipeline:
+  story: |
+    Lean into noir. Use the infrared-style preset so the audience watches a
+    ghost of themselves sway without jitter.
+  default_chain: infrared_memory
