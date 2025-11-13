@@ -83,10 +83,13 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
    - `pip install -r software/control-bridge/requirements.txt` (python-osc + pyserial + pyyaml).
    - Plug the drone’s flight controller in over USB, then run `python3 osc_msp_bridge.py --serial /dev/ttyUSB0`.
    - Check out [Betaflight’s MSP docs](https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md) if you want to push extra AUX channels.
-4. **Video pipeline**
+4. **Stack health check**
+   - Run `./scripts/check_stack.py` once your Processing sketch and bridge are humming. The [operations playbook](docs/operations/playbook.md) breaks down what “good” looks like and how to triage noise.
+   - This single command pings the Processing tracker, OSC bridge, MSP framing, and Teensy mocks so you know the whole control artery is alive before you unleash a drone.
+5. **Video pipeline**
    - `sudo apt install gstreamer1.0-tools` or use OBS.
    - Run `./software/video-pipeline/gst_launch.sh clean_low_latency` for tight monitoring or `delayed_glitch` for delayed projection loops. Adapted from [Scanlines’ GStreamer recipes](https://scanlines.xyz/t/gstreamer-recipes/1414).
-5. **Safety dance**
+6. **Safety dance**
    - Live inside [`docs/checklists/safety_checklist.md`](docs/checklists/safety_checklist.md). That single source of truth covers consent rituals, kill-switch drills, and spotter call-and-response. Bring it to every rehearsal so wording never drifts.
 
 ---
