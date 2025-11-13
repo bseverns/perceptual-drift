@@ -16,7 +16,7 @@ Welcome to the weird, wired, and very human machine we call Perceptual Drift. Th
 ```bash
 python3 software/control-bridge/osc_msp_bridge.py --serial FAKE --dry-run
 ```
-- Confirm the console streams RC microseconds and note the jitter envelope.
+- Confirm the console prints `[dry-run]` MSP snapshots and note the jitter envelope.
 - Sketch in your notebook the first subsystem you would open if microsecond jitter explodes past ±5.
 
 **Quick-reference schematic + watchouts**
@@ -84,7 +84,7 @@ sequenceDiagram
 
 **Do this now — Cage-side drill trifecta.**
 1. Run the kill-switch drill with the transmitter unplugged from the quad: time the power drop (target <1 s).
-2. In a dry cage, power up the quad, run `osc_msp_bridge.py --dry-run` beside Betaflight Configurator to watch RC channels respond.
+2. In a dry cage, power up the quad, run `osc_msp_bridge.py --dry-run` beside Betaflight Configurator, and confirm the `[dry-run]` logs still track your sticks even though the UART stays silent.
 3. Perform a ghost run: motors disarmed, but walk through every checklist callout with a partner acting as Safety Second.
 
 **Quick-reference schematic + watchouts**

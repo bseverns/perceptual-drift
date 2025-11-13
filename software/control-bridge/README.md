@@ -57,9 +57,11 @@ python3 osc_msp_bridge.py \
   --baud 115200 \
   --config ../../config/mapping.yaml \
   --osc_port 9000
-```
+``
 
 If your system needs a different port or baud rate, swap the flags as required.
+Add `--dry-run` when you want to bench-test without touching the UART — the bridge
+will print `[dry-run]` MSP payload stats instead of pushing bytes at the FC.
 
 Now go make something gloriously noisy.  Bonus: use
 [`scripts/record_fpv.sh`](../../scripts/record_fpv.sh) to capture your chaos.

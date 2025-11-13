@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+LOG_HELPER="$SCRIPT_DIR/log_event.py"
 export PERCEPTUAL_DRIFT_LOG_DIR="${PERCEPTUAL_DRIFT_LOG_DIR:-$REPO_ROOT/logs}"
 
 log_event() {
@@ -11,42 +12,13 @@ log_event() {
   local message="$3"
   local details_json="${4:-}"
 
-  python3 - "$action" "$status" "$message" "$details_json" <<'PY'
-import json
-import os
-import sys
-from datetime import datetime, timezone
-from pathlib import Path
-
-action, status, message, details = sys.argv[1:5]
-log_dir = Path(os.environ.get("PERCEPTUAL_DRIFT_LOG_DIR", Path("logs")))
-if not log_dir.is_absolute():
-    log_dir = Path.cwd() / log_dir
-log_dir.mkdir(parents=True, exist_ok=True)
-log_path = log_dir / "ops_events.jsonl"
-
-event = {
-    "timestamp": datetime.now(timezone.utc).isoformat(),
-    "operator": os.environ.get("OPERATOR_ID")
-    or os.environ.get("USER")
-    or os.environ.get("USERNAME")
-    or "unknown",
-    "host": os.environ.get("HOSTNAME", "unknown_host"),
-    "action": action,
-    "status": status,
-    "message": message,
+  if [ -n "$details_json" ]; then
+    python3 "$LOG_HELPER" "$action" "$status" "$message" "$details_json"
+  else
+    python3 "$LOG_HELPER" "$action" "$status" "$message"
+  fi
 }
 
-if details:
-    try:
-        event["details"] = json.loads(details)
-    except json.JSONDecodeError:
-        event["details"] = {"raw": details}
-
-with log_path.open("a", encoding="utf-8") as fh:
-    fh.write(json.dumps(event, ensure_ascii=False) + "\n")
-PY
-}
 
 if ! command -v minisign >/dev/null 2>&1; then
   log_event "seal_logs" "error" "minisign is not installed."

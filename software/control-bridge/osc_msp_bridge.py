@@ -9,7 +9,8 @@ from your face.
 References worth opening in a browser tab while you read this file:
 
 * MSP command table —
-  https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md
+  https://github.com/betaflight/betaflight.com/
+  blob/master/docs/development/API/MSP-Extensions.md
 * python-osc docs — https://pypi.org/project/python-osc/
 * Betaflight raw RC ranges —
   https://github.com/betaflight/betaflight/wiki/RC-Setup
@@ -136,7 +137,6 @@ class AuditLogger:
         log_dir_env = os.environ.get("PERCEPTUAL_DRIFT_LOG_DIR")
         if log_dir_env:
             candidate = Path(log_dir_env)
-            log_dir = candidate if candidate.is_absolute() else repo_root / candidate
             if candidate.is_absolute():
                 log_dir = candidate
             else:
@@ -167,6 +167,55 @@ class AuditLogger:
             event["details"] = details
         with self.log_path.open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
+class DryRunSerial:
+    """Lightweight stand-in for ``serial.Serial`` during dry runs."""
+
+    def __init__(self):
+        self.byte_count = 0
+        self._last_report = time.time()
+        self._last_frame = None
+
+    def write(self, payload: bytes) -> None:
+        self.byte_count += len(payload)
+        if len(payload) >= 7 and payload.startswith(MSP_HEADER):
+            size = payload[3]
+            cmd = payload[4]
+            if cmd == MSP_SET_RAW_RC and size == 16:
+                frame = struct.unpack("<8H", payload[5 : 5 + size])
+                self._last_frame = frame
+        now = time.time()
+        if now - self._last_report >= 1.0:
+            if self._last_frame:
+                rc = list(self._last_frame[:4])
+                aux = list(self._last_frame[4:])
+                print(
+                    "[dry-run] RC={} AUX={} (frame bytes={} total={})".format(
+                        rc,
+                        aux,
+                        len(payload),
+                        self.byte_count,
+                    )
+                )
+            else:
+                total = self.byte_count
+                print(
+                    (
+                        "[dry-run] would stream {} bytes (total {} bytes so " "far)"
+                    ).format(
+                        len(payload),
+                        total,
+                    )
+                )
+            self._last_report = now
+
+    def close(self) -> None:
+        if self._last_frame:
+            rc = list(self._last_frame[:4])
+            aux = list(self._last_frame[4:])
+            print(f"[dry-run] last frame RC={rc} AUX={aux}")
+        print(f"[dry-run] serial stub wrote {self.byte_count} bytes total")
 
 
 class Mapper:
@@ -301,6 +350,11 @@ def main():
         ),
     )
     ap.add_argument("--osc_port", type=int, default=9000)
+    ap.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Skip serial writes and log MSP traffic.",
+    )
     args = ap.parse_args()
 
     audit = AuditLogger()
@@ -371,7 +425,6 @@ def main():
             details={"path": str(config_path.resolve())},
         )
     mapper = Mapper(cfg)
-    audit = AuditLogger()
 
     default_port = ap.get_default("osc_port")
     osc_port = args.osc_port
@@ -398,7 +451,17 @@ def main():
 
     # Fire up the serial link to the flight controller.  MSP is just bytes over
     # UART, so as long as the port is right you're golden.
-    ser = serial.Serial(args.serial, args.baud, timeout=0.01)
+    if args.dry_run:
+        ser = DryRunSerial()
+        print("[dry-run] Serial writes suppressed; MSP frames logged locally.")
+        audit.write(
+            "osc_bridge_dry_run",
+            status="info",
+            message="Dry-run mode active; serial link mocked.",
+            details={"serial": args.serial, "baud": args.baud},
+        )
+    else:
+        ser = serial.Serial(args.serial, args.baud, timeout=0.01)
 
     def on_alt(addr, *vals):
         """OSC handler for altitude channel.
@@ -572,7 +635,9 @@ def main():
         audit.write(
             "osc_bridge_shutdown",
             status="closed",
-            message="Serial link closed.",
+            message="Serial link closed{suffix}.".format(
+                suffix=" (dry-run stub)" if args.dry_run else ""
+            ),
         )
 
 
