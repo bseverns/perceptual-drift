@@ -30,6 +30,9 @@ import serial
 import yaml
 from pythonosc import dispatcher, osc_server
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_MAPPING_PATH = REPO_ROOT / "config" / "mapping.yaml"
+
 # --- MSP minimal helpers (subset) ---
 # The header and command IDs live here so you can tweak them without grepping.
 # The MSP header is literally the bytes ``$M<`` — you see them in serial
@@ -341,7 +344,13 @@ def main():
     )
     ap.add_argument("--serial", default="/dev/ttyUSB0")
     ap.add_argument("--baud", type=int, default=115200)
-    ap.add_argument("--config", default="../../config/mapping.yaml")
+    ap.add_argument(
+        "--config",
+        default=str(DEFAULT_MAPPING_PATH),
+        help=(
+            "Path to the OSC/MSP mapping YAML (default: repo_root/config/mapping.yaml)."
+        ),
+    )
     ap.add_argument(
         "--recipe",
         help=(
@@ -369,7 +378,7 @@ def main():
     # downstream. Recipes tack on narrative intent so operators know the vibe.
     cfg_meta = {}
     if args.recipe:
-        recipe_path = Path(args.recipe)
+        recipe_path = Path(args.recipe).expanduser().resolve()
         try:
             cfg, cfg_meta = load_recipe(recipe_path)
         except Exception as exc:  # noqa: BLE001
@@ -404,7 +413,11 @@ def main():
             },
         )
     else:
-        config_path = Path(args.config)
+        config_path = Path(args.config).expanduser()
+        if not config_path.is_absolute():
+            config_path = (Path.cwd() / config_path).resolve()
+        else:
+            config_path = config_path.resolve()
         try:
             cfg = load_yaml(config_path)
         except Exception as exc:  # noqa: BLE001

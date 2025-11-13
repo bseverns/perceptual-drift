@@ -55,11 +55,13 @@ Keep these tabs open while you hack:
 python3 osc_msp_bridge.py \
   --serial /dev/ttyUSB0 \
   --baud 115200 \
-  --config ../../config/mapping.yaml \
   --osc_port 9000
 ``
 
 If your system needs a different port or baud rate, swap the flags as required.
+The bridge now auto-loads `config/mapping.yaml` from the repo root, so skip
+`--config` unless you're experimenting with a custom map — in that case point it
+wherever your alt mapping lives.
 Add `--dry-run` when you want to bench-test without touching the UART — the bridge
 will print `[dry-run]` MSP payload stats instead of pushing bytes at the FC.
 
