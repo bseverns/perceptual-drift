@@ -169,6 +169,48 @@ class AuditLogger:
             fh.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+class DryRunSerial:
+    """Lightweight stand-in for ``serial.Serial`` during dry runs."""
+
+    def __init__(self):
+        self.byte_count = 0
+        self._last_report = time.time()
+        self._last_frame = None
+
+    def write(self, payload: bytes) -> None:
+        self.byte_count += len(payload)
+        if len(payload) >= 7 and payload.startswith(MSP_HEADER):
+            size = payload[3]
+            cmd = payload[4]
+            if cmd == MSP_SET_RAW_RC and size == 16:
+                frame = struct.unpack("<8H", payload[5 : 5 + size])
+                self._last_frame = frame
+        now = time.time()
+        if now - self._last_report >= 1.0:
+            if self._last_frame:
+                rc = list(self._last_frame[:4])
+                aux = list(self._last_frame[4:])
+                print(
+                    "[dry-run] RC={} AUX={} (frame bytes={} total={})".format(
+                        rc,
+                        aux,
+                        len(payload),
+                        self.byte_count,
+                    )
+                )
+            else:
+                print(
+                    f"[dry-run] would stream {len(payload)} bytes (total {self.byte_count} bytes so far)"
+                )
+            self._last_report = now
+
+    def close(self) -> None:
+        if self._last_frame:
+            rc = list(self._last_frame[:4])
+            aux = list(self._last_frame[4:])
+            print(f"[dry-run] last frame RC={rc} AUX={aux}")
+        print(f"[dry-run] serial stub wrote {self.byte_count} bytes total")
+
 class Mapper:
     def __init__(self, cfg):
         # Stash the YAML config so we can grab mapping knobs everywhere.  The
@@ -301,6 +343,7 @@ def main():
         ),
     )
     ap.add_argument("--osc_port", type=int, default=9000)
+    ap.add_argument("--dry-run", action="store_true", help="Skip serial writes and log MSP traffic.")
     args = ap.parse_args()
 
     audit = AuditLogger()
@@ -371,7 +414,6 @@ def main():
             details={"path": str(config_path.resolve())},
         )
     mapper = Mapper(cfg)
-    audit = AuditLogger()
 
     default_port = ap.get_default("osc_port")
     osc_port = args.osc_port
@@ -398,7 +440,17 @@ def main():
 
     # Fire up the serial link to the flight controller.  MSP is just bytes over
     # UART, so as long as the port is right you're golden.
-    ser = serial.Serial(args.serial, args.baud, timeout=0.01)
+    if args.dry_run:
+        ser = DryRunSerial()
+        print('[dry-run] Serial writes suppressed; MSP frames logged locally.')
+        audit.write(
+            'osc_bridge_dry_run',
+            status='info',
+            message='Dry-run mode active; serial link mocked.',
+            details={'serial': args.serial, 'baud': args.baud},
+        )
+    else:
+        ser = serial.Serial(args.serial, args.baud, timeout=0.01)
 
     def on_alt(addr, *vals):
         """OSC handler for altitude channel.
@@ -572,7 +624,7 @@ def main():
         audit.write(
             "osc_bridge_shutdown",
             status="closed",
-            message="Serial link closed.",
+            message="Serial link closed{suffix}.".format(suffix=" (dry-run stub)" if args.dry_run else ""),
         )
 
 

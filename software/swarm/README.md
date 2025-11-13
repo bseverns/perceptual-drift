@@ -3,10 +3,12 @@
 This folder scaffolds integration with **CrazySwarm2** for multi-drone coordination.
 
 This is the place where Perceptual Drift's squishy human gestures become tight,
-punky drone choreography. The `swarm_demo.py` script listens to OSC messages and
-pushes them straight into CrazySwarm2 services. We now ship a full Ignition
-Gazebo rehearsal rig that mirrors those inputs, so you can stress the score
-without ever arming a real quad.
+punky drone choreography. The revamped `swarm_demo.py` fans OSC across every Crazyfly
+listed in `DEFAULT_FLEET`, mapping both the global `/pd/*` gestures and per-craft
+`/pd/<craft>/lat` + `/pd/<craft>/alt` overrides. It also tails telemetry topics and prints
+heartbeat snapshots so you know round-trip data is flowing before you invite an audience.
+We still ship a full Ignition Gazebo rehearsal rig that mirrors those inputs, so you can
+stress the score without ever arming a real quad.
 
 ## Prerequisites
 
@@ -25,8 +27,9 @@ without ever arming a real quad.
 2. Copy `software/swarm/swarm_demo.py` into your ROS workspace or invoke it via
    `ros2 run perceptual_drift_swarm swarm_demo` if you have it installed as a
    package.
-3. Edit the tweakables at the top of the file: service names, axis choice,
-   scaling factors. Treat them like guard rails, not suggestions.
+3. Edit the tweakables at the top of the file: swap `DEFAULT_FLEET` entries for
+   your Crazyflies, adjust the axis choice, and tune scaling factors. Treat them
+   like guard rails, not suggestions.
 4. In one terminal (with your workspace sourced):
 
    ```bash
@@ -41,8 +44,9 @@ without ever arming a real quad.
 
 5. Point Perceptual Drift's OSC output at the IP/port you configured (defaults
    to `0.0.0.0:9010`).
-6. Flap your limbs. `/pd/alt` drives `Takeoff` height, `/pd/lat` slides the
-   craft laterally. Keep a thumb on the emergency stop.
+6. Flap your limbs. `/pd/alt` + `/pd/lat` move the full formation; override a
+   single craft with `/pd/<craft>/alt` and `/pd/<craft>/lat`. Watch the telemetry
+   snapshots in the ROS console—if they stall, freeze the show and troubleshoot.
 
 ## Rehearse it in sim
 
@@ -71,7 +75,7 @@ without ever arming a real quad.
 
 | File | Role |
 | ---- | ---- |
-| `swarm_demo.py` | Minimal OSC→CrazySwarm2 bridge for one drone. Great for lab bring-up. |
+| `swarm_demo.py` | Multi-drone OSC→CrazySwarm2 bridge with per-craft overrides and telemetry snapshots. |
 | `ros2_nodes/pd_swarm_bridge.py` | Multi-drone ROS 2 node that consumes `/pd/*` topics, fans them out to CrazySwarm2 services, and publishes simulated telemetry. |
 | `ros2_nodes/pd_sim_pose_driver.py` | Mirrors those telemetry messages into Ignition by calling `/world/<name>/set_pose`. |
 | `swarm_rehearsal.py` | Launch helper that spins up Ignition + both ROS nodes with one command. |
