@@ -22,7 +22,7 @@ python3 software/control-bridge/osc_msp_bridge.py --serial FAKE --dry-run
 **Quick-reference schematic + watchouts**
 ```mermaid
 flowchart LR
-    subgraph Vision
+    subgraph ProcessingTracker[Processing Vision Tracker]
         Cameras["IR / RGB Cameras"]
         VisionProcessing["Vision Processing — Processing"]
         Cameras --> VisionProcessing
@@ -34,11 +34,11 @@ flowchart LR
         FlightController --> LedDriver["Addressable LED Driver"]
     end
 ```
-This is the Processing-first vision stack: camera frames in, OSC out, no C++ detours unless you deliberately branch the fork.
+This is the Processing-first vision stack: camera frames in, OSC out, no C++ detours unless you deliberately branch the archived fork.
 - **Camera dropout** → Expect OSC silence; reopen the tracker or swap USB before blaming MSP.
 - **Mapper freeze** → Motors hold last known value. Kill power if the stick outputs don’t update for 2 seconds.
 - **UART noise** → LEDs may desync before motors do. Treat flicker as an early warning.
-- **Tracker reality check** → The live build is the Processing sketch; the archived openFrameworks fork in `software/gesture-tracking/openframeworks` is optional and needs the same OSC schema if you revive it.
+- **Tracker reality check** → The live build is the Processing sketch; the archived openFrameworks fork in `software/gesture-tracking/openframeworks` is optional and must mirror the same OSC schema if you resurrect it.
 
 ✅ **Level 1 sign-off ritual:** Post a screenshot of your dry-run output + your jitter mitigation plan in the crew chat. Tag `#flight-school-lvl1` so leads can rubber-stamp it.
 

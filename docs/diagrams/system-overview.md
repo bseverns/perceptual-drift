@@ -9,7 +9,7 @@ flowchart LR
     subgraph Audience
         AudienceGestures["Gestures & Body Motion"]
     end
-    subgraph Vision
+    subgraph ProcessingTracker[Processing Vision Tracker]
         Cameras["IR / RGB Cameras"]
         VisionProcessing["Vision Processing — Processing"]
         AudienceGestures --> Cameras
@@ -56,7 +56,7 @@ sequenceDiagram
 **Teach-back checklist:**
 
 1. Cameras are the first translators, turning vibes into pixels.
-2. The Processing vision sketch chews those pixels into actionable gesture tags (with an openFrameworks fork on standby if we need native extensions).
+2. The Processing vision sketch chews those pixels into actionable gesture tags (with an openFrameworks fork on standby if you intentionally pivot to C++ land).
 3. Mapping code turns gestures into multi-field MSP packets (throttle, roll, LED mode, etc.).
 4. Betaflight consumes MSP, applies PID loops, and drives both motors and LEDs.
 5. The performer sees light, hears motors, and keeps the feedback loop alive.
