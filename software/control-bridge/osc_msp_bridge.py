@@ -68,7 +68,7 @@ def load_yaml(path):
 def load_recipe(recipe_path):
     """Load a recipe file and return (control_cfg, metadata dict)."""
 
-    recipe_path = Path(recipe_path)
+    recipe_path = Path(recipe_path).expanduser().resolve()
     data = load_yaml(recipe_path)
     if not isinstance(data, dict):
         raise ValueError(f"Recipe at {recipe_path} must parse into a mapping")
