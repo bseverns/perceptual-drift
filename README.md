@@ -81,7 +81,7 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
    - Run `software/gesture-tracking/processing/PerceptualDrift_Tracker`. Aim any 720p-ish webcam at the audience area and tweak the `threshold` constant for your lighting.
 3. **Control bridge**
    - `pip install -r software/control-bridge/requirements.txt` (python-osc + pyserial + pyyaml).
-   - Plug the drone’s flight controller in over USB, then run `python3 osc_msp_bridge.py --serial /dev/ttyUSB0`.
+   - Plug the drone’s flight controller in over USB, then run `python3 software/control-bridge/osc_msp_bridge.py --serial /dev/ttyUSB0` from the repo root (swap the serial device if you’re on macOS or Windows).
    - Check out [Betaflight’s MSP docs](https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md) if you want to push extra AUX channels.
 4. **Stack health check**
    - Fire `./scripts/check_stack.py` once your Processing tracker and OSC bridge are humming. The [operations playbook](docs/operations/playbook.md) is the annotated score: it maps each printout, tells you what “normal” feels like, and lists the weird smells plus triage moves when the script throws shade.
