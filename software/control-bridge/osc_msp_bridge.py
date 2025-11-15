@@ -31,7 +31,7 @@ import yaml
 from pythonosc import dispatcher, osc_server
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_MAPPING_PATH = REPO_ROOT / "config" / "mapping.yaml"
+DEFAULT_MAPPING_PATH = (REPO_ROOT / "config/mapping.yaml").resolve()
 
 # --- MSP minimal helpers (subset) ---
 # The header and command IDs live here so you can tweak them without grepping.
@@ -347,9 +347,7 @@ def main():
     ap.add_argument(
         "--config",
         default=str(DEFAULT_MAPPING_PATH),
-        help=(
-            "Path to the OSC/MSP mapping YAML (default: repo_root/config/mapping.yaml)."
-        ),
+        help=f"Path to the OSC/MSP mapping YAML (default: {DEFAULT_MAPPING_PATH}).",
     )
     ap.add_argument(
         "--recipe",
