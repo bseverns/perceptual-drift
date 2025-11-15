@@ -38,7 +38,7 @@ Processing is the canonical tracker: camera frames in, OSC out, no C++ detours u
 - **Camera dropout** → Expect OSC silence; reopen the tracker or swap USB before blaming MSP.
 - **Mapper freeze** → Motors hold last known value. Kill power if the stick outputs don’t update for 2 seconds.
 - **UART noise** → LEDs may desync before motors do. Treat flicker as an early warning.
-- **Tracker reality check** → The live build is the Processing sketch; the archived openFrameworks fork in `software/gesture-tracking/openframeworks` is optional and must mirror the same OSC schema if you resurrect it.
+- **Tracker reality check** → The live build is the Processing sketch. The old openFrameworks fork was spun into cold storage and does **not** ship in this repo—treat Processing as canon unless the control lead hands you the archive explicitly.
 
 ✅ **Level 1 sign-off ritual:** Post a screenshot of your dry-run output + your jitter mitigation plan in the crew chat. Tag `#flight-school-lvl1` so leads can rubber-stamp it.
 
