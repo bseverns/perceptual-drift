@@ -24,7 +24,7 @@ python3 software/control-bridge/osc_msp_bridge.py --serial FAKE --dry-run
 flowchart LR
     subgraph ProcessingTracker[Processing Vision Tracker]
         Cameras["IR / RGB Cameras"]
-        VisionProcessing["Vision Processing — Processing"]
+        VisionProcessing["Processing Sketch — Vision Processing"]
         Cameras --> VisionProcessing
         VisionProcessing -->|OSC| GestureMapper
     end
@@ -34,7 +34,7 @@ flowchart LR
         FlightController --> LedDriver["Addressable LED Driver"]
     end
 ```
-This is the Processing-first vision stack: camera frames in, OSC out, no C++ detours unless you deliberately branch the archived fork.
+Processing is the canonical tracker: camera frames in, OSC out, no C++ detours unless you deliberately branch the archived fork.
 - **Camera dropout** → Expect OSC silence; reopen the tracker or swap USB before blaming MSP.
 - **Mapper freeze** → Motors hold last known value. Kill power if the stick outputs don’t update for 2 seconds.
 - **UART noise** → LEDs may desync before motors do. Treat flicker as an early warning.
@@ -60,7 +60,7 @@ This is the Processing-first vision stack: camera frames in, OSC out, no C++ det
 ```mermaid
 sequenceDiagram
     participant Performer
-    participant Tracker as Tracker (Processing)
+    participant Tracker as Processing Sketch
     participant Mapper as OSC→MSP Mapper
     participant FC as Flight Controller
 
@@ -69,7 +69,7 @@ sequenceDiagram
     Mapper-->>FC: AUX high (>1700 µs)
     FC-->>Performer: LEDs flip cyan, motors prep
 ```
-Processing is the authority here—the consent gate lives in that sketch, so keep it happy before you blame the mapper.
+Processing holds the consent gate—keep that sketch healthy before you blame the mapper.
 - **Gesture misread** → If the consent channel flickers between amber/cyan, lower the motion threshold or reposition the camera.
 - **Mapper lag** → ≥300 ms delay between gesture and AUX change means reboot the bridge or kill nonessential apps.
 - **Operator script drift** → If anyone improvises the ritual phrasing, pause and re-run the consent call-and-response.

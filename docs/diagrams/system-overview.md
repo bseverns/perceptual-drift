@@ -11,7 +11,7 @@ flowchart LR
     end
     subgraph ProcessingTracker[Processing Vision Tracker]
         Cameras["IR / RGB Cameras"]
-        VisionProcessing["Vision Processing — Processing"]
+        VisionProcessing["Processing Sketch — Vision Processing"]
         AudienceGestures --> Cameras
         Cameras --> VisionProcessing
         VisionProcessing -->|OSC| GestureMapper
@@ -30,7 +30,7 @@ flowchart LR
     end
 ```
 
-The flow above is the bird’s-eye view: humans throw gestures, the vision stack decodes them, the mapping layer translates vibe into control packets, and the drone both flies and beams video back for remixing.
+The flow above is the bird’s-eye view: humans throw gestures, the Processing sketch chews them into signals, the mapping layer translates vibe into control packets, and the drone both flies and beams video back for remixing.
 
 ## Stepwise Breakdown: Gesture to Flight
 
@@ -56,7 +56,7 @@ sequenceDiagram
 **Teach-back checklist:**
 
 1. Cameras are the first translators, turning vibes into pixels.
-2. The Processing vision sketch chews those pixels into actionable gesture tags (with an openFrameworks fork on standby if you intentionally pivot to C++ land).
+2. The Processing vision sketch chews those pixels into actionable gesture tags (if you fork to openFrameworks, treat it as an alternate and keep the OSC contract identical).
 3. Mapping code turns gestures into multi-field MSP packets (throttle, roll, LED mode, etc.).
 4. Betaflight consumes MSP, applies PID loops, and drives both motors and LEDs.
 5. The performer sees light, hears motors, and keeps the feedback loop alive.
