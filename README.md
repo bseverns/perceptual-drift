@@ -84,8 +84,8 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
    - Plug the drone’s flight controller in over USB, then run `python3 osc_msp_bridge.py --serial /dev/ttyUSB0`.
    - Check out [Betaflight’s MSP docs](https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md) if you want to push extra AUX channels.
 4. **Stack health check**
-   - Run `./scripts/check_stack.py` once your Processing tracker and OSC bridge are humming. The [operations playbook](docs/operations/playbook.md) narrates the signals to expect, common failure smells, and how to triage each subsystem when the script shouts.
-   - This single command thrashes the Processing tracker, OSC bridge, MSP framing, and Teensy mocks — a full dress rehearsal for the control artery — so you know the whole stack is breathing before you unleash a drone.
+   - Fire `./scripts/check_stack.py` once your Processing tracker and OSC bridge are humming. The [operations playbook](docs/operations/playbook.md) is the annotated score: it maps each printout, tells you what “normal” feels like, and lists the weird smells plus triage moves when the script throws shade.
+   - The run hammers the Processing tracker, OSC bridge, MSP framing, and Teensy mocks — a full dress rehearsal for the control artery — so you know the whole stack is breathing before you unleash a drone.
 5. **Video pipeline**
    - `sudo apt install gstreamer1.0-tools` or use OBS.
    - Run `./software/video-pipeline/gst_launch.sh clean_low_latency` for tight monitoring or `delayed_glitch` for delayed projection loops. Adapted from [Scanlines’ GStreamer recipes](https://scanlines.xyz/t/gstreamer-recipes/1414).
