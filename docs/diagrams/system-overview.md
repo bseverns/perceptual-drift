@@ -56,7 +56,7 @@ sequenceDiagram
 **Teach-back checklist:**
 
 1. Cameras are the first translators, turning vibes into pixels.
-2. The Processing vision sketch chews those pixels into actionable gesture tags (if you fork to openFrameworks, treat it as an alternate and keep the OSC contract identical).
+2. The Processing vision sketch chews those pixels into actionable gesture tags. The openFrameworks fork was an experiment now living in off-repo archives, so treat Processing as the reference build unless you revive that history on purpose.
 3. Mapping code turns gestures into multi-field MSP packets (throttle, roll, LED mode, etc.).
 4. Betaflight consumes MSP, applies PID loops, and drives both motors and LEDs.
 5. The performer sees light, hears motors, and keeps the feedback loop alive.
