@@ -513,10 +513,11 @@ def main():
     def on_consent(addr, *vals):
         """OSC handler for the go/no-go toggle.
 
-        When ``consent`` is 0 we skip writing MSP packets entirely.  That keeps
-        the drone armed-but-idle so you can rehearse tracking without props
-        spinning.  Think of it as a software arming switch layered on top of
-        Betaflight's actual arming logic.
+        Consent-off now forces a "neutral" MSP frame (centered RC sticks,
+        throttle clamped low, AUX channels chilled) instead of halting writes.
+        The FC still receives packets, but they're boring on purpose so you can
+        rehearse choreography without the motors spooling up.  Think of it as a
+        software arming layer stacked on Betaflight's own interlocks.
         """
 
         prev = mapper.state["consent"]

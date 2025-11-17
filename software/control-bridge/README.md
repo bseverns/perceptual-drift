@@ -43,8 +43,9 @@ Keep these tabs open while you hack:
 
 ## Safety checklist
 
-* Keep the `consent` channel low (zero) while experimenting so packets don't hit
-  the flight controller.
+* Keep the `consent` channel low (zero) while experimenting so the bridge keeps
+  blasting neutral MSP frames (center sticks, throttle low) at the flight
+  controller instead of live commands.
 * Use props-off bench tests first.  MSP cares zero percent about your fingers.
 * Carry a hardware kill switch if your stage show gets spicy.  BetaFPV LiteRadio
   or Jumper T-Lite transmitters with a ``disarm`` switch are cheap insurance.
