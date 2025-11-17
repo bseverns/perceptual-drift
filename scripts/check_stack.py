@@ -364,11 +364,19 @@ def run_dsp_mock_check() -> None:
 
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Spin up a control stack loopback smoke test.")
-    parser.add_argument("--mapping", default="config/mapping.yaml", help="Path to the mapping YAML")
+
+    default_mapping = REPO_ROOT / "config" / "mapping.yaml"
+    default_fixture = REPO_ROOT / "config" / "test-fixtures" / "gesture_fixture_frames.json"
+
+    parser.add_argument(
+        "--mapping",
+        default=str(default_mapping),
+        help="Path to the mapping YAML (defaults to config/mapping.yaml relative to the repo root)",
+    )
     parser.add_argument(
         "--fixture",
-        default="config/test-fixtures/gesture_fixture_frames.json",
-        help="Gesture fixture JSON for the camera stub",
+        default=str(default_fixture),
+        help="Gesture fixture JSON for the camera stub (resolved relative to the repo root)",
     )
     parser.add_argument("--osc-port", type=int, default=9100, help="OSC port for the harness (0 = auto)")
     parser.add_argument(
@@ -397,13 +405,22 @@ def main(argv: Iterable[str] | None = None) -> int:
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
+    def resolve_repo_path(value: str) -> Path:
+        path = Path(value)
+        if path.is_absolute():
+            return path
+        return (REPO_ROOT / path).resolve()
+
     random.seed(0)
 
-    fixture_vectors = load_fixture_vectors(Path(args.fixture))
+    fixture_path = resolve_repo_path(args.fixture)
+    mapping_path = resolve_repo_path(args.mapping)
+
+    fixture_vectors = load_fixture_vectors(fixture_path)
     if args.max_frames:
         fixture_vectors = fixture_vectors[: args.max_frames]
     serial_link = MSPSerialLoopback()
-    harness = BridgeHarness(Path(args.mapping), serial_link, osc_port=args.osc_port)
+    harness = BridgeHarness(mapping_path, serial_link, osc_port=args.osc_port)
     harness.start()
     harness.wait_ready()
     client = udp_client.SimpleUDPClient("127.0.0.1", harness.listening_port)
