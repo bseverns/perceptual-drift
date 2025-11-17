@@ -8,6 +8,7 @@ Perceptual Drift is a participatory drone‑based installation where **audience 
 
 ## Onboarding flight school (start here)
 
+0. **Touch the Drift Minimal sketch** in [`examples/drift_minimal/`](examples/drift_minimal/README.md). Run `python3 examples/drift_minimal/drift_minimal.py` and watch one still image drift via three layered offsets. It’s the punk-rock lab demo that lets students feel the installation’s core behavior without drones, OSC, or GStreamer.
 1. **Run the staged onboarding playbook** in [`docs/onboarding/`](docs/onboarding/README.md). It walks you through three levels — systems sighting, consent choreography, and safety loop drills — with "do this now" exercises so you earn muscle memory, not just vibes.
 2. **Log your artifacts** (Level 1 dry-run screenshot, Level 2 consent rehearsal capture, Level 3 checklist PDF) and open a GitHub discussion titled `Onboarding sign-off — <your name>` tagging `@control-lead`, `@experience-lead`, and `@safety-second` once all drills are done.
 3. **Wait for sign-off** — leads usually respond within 48 hours; once approved you’re clear to co-run rehearsals.
@@ -60,6 +61,7 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 .
 ├─ config/                      # YAML/JSON mappings and presets
 ├─ docs/                        # Diagrams, checklists, assumption ledger, UX mapping
+├─ examples/                    # Classroom-scale sketches (start with drift_minimal)
 ├─ firmware/                    # Teensy LED (and optional DSP) firmware via PlatformIO
 ├─ hardware/                    # Cage, LED wiring, parts lists
 ├─ scripts/                     # Utility scripts (logs, calibration, recorders)
@@ -91,6 +93,18 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
    - Run `./software/video-pipeline/gst_launch.sh clean_low_latency` for tight monitoring or `delayed_glitch` for delayed projection loops. Adapted from [Scanlines’ GStreamer recipes](https://scanlines.xyz/t/gstreamer-recipes/1414).
 6. **Safety dance**
    - Live inside [`docs/checklists/safety_checklist.md`](docs/checklists/safety_checklist.md). That single source of truth covers consent rituals, kill-switch drills, and spotter call-and-response. Bring it to every rehearsal so wording never drifts.
+
+---
+
+## Drift Minimal example (hello world)
+
+Need a zero-risk sandbox for class demos? `examples/drift_minimal/drift_minimal.py` is the repo’s new training wheels:
+
+- **Run**: `python3 examples/drift_minimal/drift_minimal.py --input path/to/photo.jpg` (input optional; it auto-builds a gradient seed if you don’t pass one).
+- **Loop**: Tkinter paints a single still image three times, each with a slight color tint and sin/cos offset so the stack feels like layered parallax.
+- **Learn**: code comments narrate the full input → transform → output chain; copy/paste into Processing or TouchDesigner workshops without any drone hardware nearby.
+
+Use it as an icebreaker in classes before graduating students to the full Control Stack Playbook.
 
 ---
 
