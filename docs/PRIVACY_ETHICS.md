@@ -15,9 +15,9 @@ Coordinate these signals before powering the drone:
 - **Projector overlay** — When consent is low the silhouette output fades toward
   grayscale (see `docs/experience/README.md` onboarding table). Once consent is
   granted, motion blooms into full-spectrum color and latency readouts unhide.
-- **Bridge console** — The OSC→MSP bridge zeroes RC payloads whenever `/pd/consent`
-  drops (see the neutral frame handling in
-  `software/control-bridge/osc_msp_bridge.py`). The terminal prints
+- **Bridge console** — The OSC→MSP bridge slams a neutral RC frame (centered
+  sticks, low throttle, chill AUX) whenever `/pd/consent` drops (see the neutral
+  frame handling in `software/control-bridge/osc_msp_bridge.py`). The terminal prints
   `consent=0` heartbeat lines while idle and `consent=1` when packets are armed.
 - **Physical LEDs** — AUX-driven fixtures should mirror the same amber→cyan state
   as the Processing HUD via the consent channel described in
