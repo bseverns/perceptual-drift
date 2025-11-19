@@ -365,18 +365,24 @@ def run_dsp_mock_check() -> None:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Spin up a control stack loopback smoke test.")
 
-    default_mapping = REPO_ROOT / "config" / "mapping.yaml"
-    default_fixture = REPO_ROOT / "config" / "test-fixtures" / "gesture_fixture_frames.json"
+    default_mapping = (REPO_ROOT / "config" / "mapping.yaml").resolve()
+    default_fixture = (REPO_ROOT / "config" / "test-fixtures" / "gesture_fixture_frames.json").resolve()
 
     parser.add_argument(
         "--mapping",
         default=str(default_mapping),
-        help="Path to the mapping YAML (defaults to config/mapping.yaml relative to the repo root)",
+        help=(
+            "Path to the mapping YAML. Relative paths are resolved from the repo root"
+            " (defaults to config/mapping.yaml)."
+        ),
     )
     parser.add_argument(
         "--fixture",
         default=str(default_fixture),
-        help="Gesture fixture JSON for the camera stub (resolved relative to the repo root)",
+        help=(
+            "Gesture fixture JSON for the camera stub. Relative paths are resolved"
+            " from the repo root (defaults to config/test-fixtures/gesture_fixture_frames.json)."
+        ),
     )
     parser.add_argument("--osc-port", type=int, default=9100, help="OSC port for the harness (0 = auto)")
     parser.add_argument(
