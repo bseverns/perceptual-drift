@@ -513,11 +513,12 @@ def main():
     def on_consent(addr, *vals):
         """OSC handler for the go/no-go toggle.
 
-        Consent-off now forces a "neutral" MSP frame (centered RC sticks,
-        throttle clamped low, AUX channels chilled) instead of halting writes.
-        The FC still receives packets, but they're boring on purpose so you can
-        rehearse choreography without the motors spooling up.  Think of it as a
-        software arming layer stacked on Betaflight's own interlocks.
+        Consent-off no longer "skips" writes — we keep streaming MSP packets,
+        but the payload switches to a pre-cooked neutral frame (center sticks,
+        yaw re-centered, throttle clamped low, AUX channels chilled).  That lets
+        you rehearse while Betaflight still sees a steady heartbeat, so the FC
+        doesn't think the link died but also never spools up.  Treat it as an
+        extra arming layer stacked atop the radio failsafes.
         """
 
         prev = mapper.state["consent"]

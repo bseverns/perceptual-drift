@@ -45,7 +45,9 @@ Keep these tabs open while you hack:
 
 * Keep the `consent` channel low (zero) while experimenting so the bridge keeps
   blasting neutral MSP frames (center sticks, throttle low) at the flight
-  controller instead of live commands.
+  controller instead of live commands.  We deliberately keep writing those
+  boring packets so Betaflight still sees a heartbeat even though the props stay
+  sleepy.
 * Use props-off bench tests first.  MSP cares zero percent about your fingers.
 * Carry a hardware kill switch if your stage show gets spicy.  BetaFPV LiteRadio
   or Jumper T-Lite transmitters with a ``disarm`` switch are cheap insurance.
