@@ -26,6 +26,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+
+def resolve_repo_path(value: str | Path) -> Path:
+    path = Path(value)
+    if path.is_absolute():
+        return path
+    return (REPO_ROOT / path).resolve()
+
 import yaml
 from pythonosc import dispatcher, udp_client
 from pythonosc.osc_server import ThreadingOSCUDPServer
@@ -147,7 +154,8 @@ def load_fixture_vectors(path: Path, threshold: int = 35) -> List[FixtureFrame]:
     ``lat``, ``alt``, ``yaw``, and ``crowd`` values.
     """
 
-    payload = json.loads(path.read_text())
+    fixture_path = resolve_repo_path(path)
+    payload = json.loads(fixture_path.read_text())
     frames: List[List[List[int]]] = payload["frames"]
     width = payload["meta"]["width"]
     height = payload["meta"]["height"]
@@ -198,6 +206,7 @@ class BridgeHarness:
     """Minimal copy of osc_msp_bridge.main with a deterministic serial link."""
 
     def __init__(self, mapping_path: Path, serial_link: MSPSerialLoopback, *, osc_port: int) -> None:
+        mapping_path = resolve_repo_path(mapping_path)
         cfg = yaml.safe_load(mapping_path.read_text())
         cfg = json.loads(json.dumps(cfg))  # deep copy without yaml nodes
         cfg.setdefault("mapping", {}).setdefault("yaw_bias", {}).setdefault("jitter", 0.0)
@@ -365,23 +374,25 @@ def run_dsp_mock_check() -> None:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Spin up a control stack loopback smoke test.")
 
-    default_mapping = (REPO_ROOT / "config" / "mapping.yaml").resolve()
-    default_fixture = (REPO_ROOT / "config" / "test-fixtures" / "gesture_fixture_frames.json").resolve()
+    default_mapping = resolve_repo_path(REPO_ROOT / "config" / "mapping.yaml")
+    default_fixture = resolve_repo_path(REPO_ROOT / "config" / "test-fixtures" / "gesture_fixture_frames.json")
 
     parser.add_argument(
         "--mapping",
-        default=str(default_mapping),
+        type=resolve_repo_path,
+        default=default_mapping,
         help=(
-            "Path to the mapping YAML. Relative paths are resolved from the repo root"
-            " (defaults to config/mapping.yaml)."
+            "Path to the mapping YAML. Relative paths are resolved from the repo root and"
+            " the default follows REPO_ROOT/config/mapping.yaml even when invoked elsewhere."
         ),
     )
     parser.add_argument(
         "--fixture",
-        default=str(default_fixture),
+        type=resolve_repo_path,
+        default=default_fixture,
         help=(
-            "Gesture fixture JSON for the camera stub. Relative paths are resolved"
-            " from the repo root (defaults to config/test-fixtures/gesture_fixture_frames.json)."
+            "Gesture fixture JSON for the camera stub. Relative paths are resolved from the"
+            " repo root and the default sticks to REPO_ROOT/config/test-fixtures/gesture_fixture_frames.json."
         ),
     )
     parser.add_argument("--osc-port", type=int, default=9100, help="OSC port for the harness (0 = auto)")
@@ -411,16 +422,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    def resolve_repo_path(value: str) -> Path:
-        path = Path(value)
-        if path.is_absolute():
-            return path
-        return (REPO_ROOT / path).resolve()
-
     random.seed(0)
-
-    fixture_path = resolve_repo_path(args.fixture)
-    mapping_path = resolve_repo_path(args.mapping)
+    fixture_path = args.fixture
+    mapping_path = args.mapping
 
     fixture_vectors = load_fixture_vectors(fixture_path)
     if args.max_frames:
