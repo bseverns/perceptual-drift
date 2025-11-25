@@ -234,7 +234,9 @@ class Mapper:
             "lat": 0.0,  # lateral strafe: -1 = left, +1 = right
             "yaw": 0.0,  # yaw twist: -1 = counter-clockwise, +1 = clockwise
             "crowd": 0.0,  # extra dimension for creative routing or lights
-            "consent": 0,  # kill-switch: 1 streams MSP packets, 0 parks them
+            # consent = 0 still streams MSP, but forces a chilled neutral frame
+            # so Betaflight keeps seeing a heartbeat while the props stay napping
+            "consent": 0,
         }
 
     def expo(self, x, k=0.5):
@@ -513,12 +515,12 @@ def main():
     def on_consent(addr, *vals):
         """OSC handler for the go/no-go toggle.
 
-        Consent-off no longer "skips" writes — we keep streaming MSP packets,
-        but the payload switches to a pre-cooked neutral frame (center sticks,
-        yaw re-centered, throttle clamped low, AUX channels chilled).  That lets
-        you rehearse while Betaflight still sees a steady heartbeat, so the FC
-        doesn't think the link died but also never spools up.  Treat it as an
-        extra arming layer stacked atop the radio failsafes.
+        Consent-off does **not** halt MSP writes.  Instead we keep the bytes
+        flowing with a neutral frame: sticks parked at center, throttle locked
+        low, yaw recentered, AUX channels mid-stick.  Betaflight keeps seeing a
+        heartbeat while the quad stays sedated — rehearsal mode without yanking
+        the USB cable.  Treat it as an extra arming layer stacked atop the radio
+        failsafes.
         """
 
         prev = mapper.state["consent"]
