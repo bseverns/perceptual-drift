@@ -5,12 +5,13 @@ import argparse
 import math
 import sys
 import threading
+import time
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import rclpy
-from pythonosc import dispatcher, osc_server
+from pythonosc import dispatcher, osc_server, udp_client
 from rclpy.node import Node
 from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
 from rosidl_runtime_py.convert import message_to_ordereddict
@@ -18,6 +19,7 @@ from rosidl_runtime_py.utilities import get_message
 
 from crazyflie_interfaces.srv import GoTo, Takeoff
 from software.swarm.mapping_loader import load_mapping
+from software.swarm.virtual_swarm import VirtualDrone
 
 # ---------------------------------------------------------------------------
 # Fleet layout + OSC wiring — tweak these to match your venue rig.
@@ -28,6 +30,8 @@ OSC_BIND_PORT = 9010
 
 DEFAULT_BASE_MAPPING_PATH = "config/mapping.yaml"
 DEFAULT_RECIPES_DIR = "config/recipes"
+SIM_OSC_TARGET = "127.0.0.1"
+SIM_OSC_PORT = 9100
 
 # Global OSC routes still exist so legacy Processing sketches keep working.
 GLOBAL_OSC_ROUTES = {
@@ -412,6 +416,20 @@ class SwarmNode(Node):
 def _parse_cli(argv: Optional[List[str]] = None) -> Tuple[argparse.Namespace, List[str]]:
     parser = argparse.ArgumentParser(description="OSC-driven CrazySwarm2 bridge")
     parser.add_argument("--recipe", help="Optional mapping recipe to apply at startup", default=None)
+    parser.add_argument("--simulate", action="store_true", help="Enable virtual swarm simulation")
+    parser.add_argument("--sim-drones", type=int, default=4, help="Number of virtual drones to simulate")
+    parser.add_argument(
+        "--sim-update-rate",
+        type=float,
+        default=30.0,
+        help="Frequency in Hz for simulated drone updates",
+    )
+    parser.add_argument(
+        "--sim-osc-target", default=SIM_OSC_TARGET, help="OSC host to publish simulated drone state"
+    )
+    parser.add_argument(
+        "--sim-osc-port", type=int, default=SIM_OSC_PORT, help="OSC port to publish simulated drone state"
+    )
     return parser.parse_known_args(argv)
 
 
@@ -445,9 +463,112 @@ def _initialize_mapping(recipe_name: Optional[str]) -> Tuple[Dict[str, Any], Opt
     return mapping, recipe_name
 
 
+def _map_gestures_to_behavior(gestures: Dict[str, float], mapping: Dict[str, Any]) -> Dict[str, float]:
+    """Translate raw gesture streams into a simplified behavior dictionary.
+
+    The mapping config is passed through so future tweaks can pull knobs from it
+    without changing call sites; for now we lean on the same clamps as the
+    hardware path to keep ranges reasonable.
+    """
+
+    lat = SwarmNode._clamp(gestures.get("lat", 0.0), LATERAL_INPUT_RANGE)
+    alt = SwarmNode._clamp(gestures.get("alt", 0.0), ALTITUDE_INPUT_RANGE)
+    yaw = SwarmNode._clamp(gestures.get("yaw", 0.0), (-1.0, 1.0))
+    crowd = gestures.get("crowd", 0.0) or 0.0
+    consent = max(0.0, min(1.0, gestures.get("consent", 1.0)))
+
+    # Convert normalized controls to meters and small angular nudges.
+    altitude_target = ALTITUDE_FLOOR_M + alt * ALTITUDE_SCALE_M
+    lateral_bias = (LATERAL_HOME_M + lat * LATERAL_SCALE_M) * consent
+    yaw_bias = yaw * (math.pi / 2.0) * consent
+    jitter = abs(crowd) * 0.5
+
+    return {
+        "altitude_target": altitude_target,
+        "lateral_bias": lateral_bias,
+        "yaw_bias": yaw_bias,
+        "jitter": jitter,
+        "consent": consent,
+        "recipe": mapping,
+    }
+
+
+def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_name: Optional[str]) -> None:
+    gesture_state: Dict[str, float] = {}
+    disp = dispatcher.Dispatcher()
+
+    def _mk_handler(label: str):
+        def _handler(addr: str, *vals) -> None:
+            value = SwarmNode._extract_first_value(vals)
+            if value is None:
+                return
+            gesture_state[label] = value
+
+        return _handler
+
+    disp.map(GLOBAL_OSC_ROUTES["lat"], _mk_handler("lat"))
+    disp.map(GLOBAL_OSC_ROUTES["alt"], _mk_handler("alt"))
+    disp.map("/pd/yaw", _mk_handler("yaw"))
+    disp.map("/pd/crowd", _mk_handler("crowd"))
+    disp.map("/pd/consent", _mk_handler("consent"))
+
+    server = osc_server.ThreadingOSCUDPServer((OSC_BIND_ADDRESS, OSC_BIND_PORT), disp)
+    osc_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    osc_thread.start()
+
+    target = parsed.sim_osc_target
+    port = parsed.sim_osc_port
+    client = udp_client.SimpleUDPClient(target, port)
+
+    drones = [VirtualDrone(i) for i in range(max(1, parsed.sim_drones))]
+    update_rate = parsed.sim_update_rate if parsed.sim_update_rate > 0 else 30.0
+    dt = 1.0 / update_rate
+
+    print(f"Simulation mode: ON ({len(drones)} virtual drones @ {update_rate} Hz)")
+    print(f"Sim OSC publish target: {target}:{port}")
+
+    last_summary = time.time()
+    try:
+        while True:
+            loop_start = time.time()
+            behavior = _map_gestures_to_behavior(gesture_state, mapping)
+            for drone in drones:
+                drone.update(dt, behavior)
+                client.send_message(f"/pd/sim/drone/{drone.drone_id}/pos", [drone.x, drone.y, drone.z])
+                client.send_message(f"/pd/sim/drone/{drone.drone_id}/yaw", drone.yaw)
+
+            now = time.time()
+            if now - last_summary >= 1.0:
+                recipe_label = recipe_name or "base"
+                client.send_message("/pd/sim/summary", [len(drones), recipe_label])
+                head = drones[0]
+                print(
+                    f"[sim] drone 0 → x={head.x:.2f} y={head.y:.2f} z={head.z:.2f} yaw={head.yaw:.2f} (recipe={recipe_label})"
+                )
+                last_summary = now
+
+            elapsed = time.time() - loop_start
+            sleep_for = max(0.0, dt - elapsed)
+            time.sleep(sleep_for)
+    except KeyboardInterrupt:
+        print("Simulation interrupted by user; shutting down")
+    finally:
+        try:
+            server.shutdown()
+            server.server_close()
+        except Exception:
+            pass
+
+
 def main(argv: Optional[List[str]] = None) -> None:
     parsed, remaining = _parse_cli(argv)
     mapping, recipe_name = _initialize_mapping(parsed.recipe)
+
+    if parsed.simulate:
+        _run_simulation(parsed, mapping, recipe_name)
+        return
+
+    print("Simulation mode: OFF (real drone path)")
 
     rclpy.init(args=remaining)
     node = SwarmNode(
