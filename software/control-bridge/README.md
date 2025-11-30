@@ -58,8 +58,10 @@ Keep these tabs open while you hack:
 python3 osc_msp_bridge.py \
   --serial /dev/ttyUSB0 \
   --baud 115200 \
-  --osc_port 9000
-``
+  --osc_port 9000 \
+  --hz 50 \
+  --mode smooth
+```
 
 If your system needs a different port or baud rate, swap the flags as required.
 The bridge now auto-loads `config/mapping.yaml` from the repo root, so skip
@@ -67,6 +69,16 @@ The bridge now auto-loads `config/mapping.yaml` from the repo root, so skip
 wherever your alt mapping lives.
 Add `--dry-run` when you want to bench-test without touching the UART — the bridge
 will print `[dry-run]` MSP payload stats instead of pushing bytes at the FC.
+
+`--hz` caps the MSP frame rate so you can keep a Pi from firehosing UART. `--mode`
+selects one of the `bridge.modes` presets in `config/mapping.yaml`:
+
+* `smooth` — continuous mapping.
+* `triggers_only` — fatter deadzones, softer gains, jitter scaled down.
+* `idle_visuals` — RC channels park neutral while AUX still reflects the crowd.
+
+Pre-show ritual: run `python3 scripts/validate_config.py` to make sure mapping and
+recipes stay sane. If it fails, fix the YAML before you fly.
 
 Now go make something gloriously noisy.  Bonus: use
 [`scripts/record_fpv.sh`](../../scripts/record_fpv.sh) to capture your chaos.

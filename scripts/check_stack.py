@@ -212,7 +212,9 @@ class BridgeHarness:
         cfg.setdefault("mapping", {}).setdefault("yaw_bias", {}).setdefault("jitter", 0.0)
         cfg["mapping"]["yaw_bias"]["jitter"] = 0.0
         self.cfg = cfg
-        self.mapper = bridge.Mapper(cfg)
+        self.mode = bridge.resolve_mode_settings(cfg)
+        self.hz = bridge.resolve_bridge_rate(cfg)
+        self.mapper = bridge.Mapper(cfg, mode=self.mode)
         self.serial = serial_link
         self.osc_port = osc_port
         self._stop = threading.Event()
@@ -221,6 +223,7 @@ class BridgeHarness:
         self._osc_thread: threading.Thread | None = None
         self._server: ThreadingOSCUDPServer | None = None
         self._last = 0.0
+        self._update_interval = 1.0 / self.hz
 
         addresses = cfg["osc"]["address_space"]
         disp = dispatcher.Dispatcher()
@@ -274,7 +277,7 @@ class BridgeHarness:
         neutral_aux = (1500, 1500, 1500, 1500)
         while not self._stop.is_set():
             now = time.time()
-            if now - self._last > 0.02:
+            if now - self._last > self._update_interval:
                 rc_channels, aux_channels = self.mapper.apply()
                 payload = struct.pack(
                     "<8H",

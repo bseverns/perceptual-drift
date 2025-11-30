@@ -39,3 +39,33 @@ mapping:
   glitch_intensity:
     base: 0.2
     max: 0.9
+
+bridge:
+  hz: 50
+  mode: smooth
+  modes:
+    smooth:
+      description: "Continuous mapping for rehearsal and most shows."
+      aux_strategy: full
+      neutral_rc: false
+      jitter_scale: 1.0
+    triggers_only:
+      description: "Heavier shaping on alt/lat with jitter toned down for trigger rigs."
+      deadzone_boost:
+        altitude: 0.08
+        lateral: 0.08
+      gain_scale:
+        altitude: 0.6
+        lateral: 0.6
+      jitter_scale: 0.2
+      aux_strategy: full
+      neutral_rc: false
+    idle_visuals:
+      description: "Crowd drives AUX/visuals while RC sticks park neutral."
+      gain_scale:
+        altitude: 0.0
+        lateral: 0.0
+        yaw: 0.0
+      jitter_scale: 0.0
+      aux_strategy: crowd_only
+      neutral_rc: true

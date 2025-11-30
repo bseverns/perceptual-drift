@@ -32,6 +32,8 @@ if [ ! -d "$PERCEPTUAL_DRIFT_LOG_DIR" ]; then
   exit 1
 fi
 
+# Event cadence spec: consent_toggle → osc_bridge_mode → osc_bridge_stream → seal_logs
+# should appear in that order for a clean ops trail.
 # Bail if there are no files to bundle aside from previous bundles/signatures.
 if ! find "$PERCEPTUAL_DRIFT_LOG_DIR" -mindepth 1 -maxdepth 1 \( -type f -o -type d \) \
   ! -name 'bundles' ! -name '*.tar.gz' ! -name '*.minisig' \

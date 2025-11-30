@@ -22,6 +22,7 @@ import math
 import os
 import random
 import struct
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,16 @@ from pathlib import Path
 import serial
 import yaml
 from pythonosc import dispatcher, osc_server
+
+BRIDGE_DIR = Path(__file__).resolve().parent
+if str(BRIDGE_DIR) not in sys.path:
+    sys.path.insert(0, str(BRIDGE_DIR))
+
+from config_validation import (  # noqa: E402
+    ModeSettings,
+    ValidationError,
+    validate_mapping_config,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MAPPING_PATH = (REPO_ROOT / "config/mapping.yaml").resolve()
@@ -74,7 +85,14 @@ def load_recipe(recipe_path):
         raise ValueError(f"Recipe at {recipe_path} must parse into a mapping")
 
     control_section = (
-        data.get("control_bridge") or data.get("control") or data.get("bridge") or {}
+        data.get("control_bridge")
+        or data.get("control")
+        or data.get("bridge")
+        or {
+            k: v
+            for k, v in data.items()
+            if k in {"mapping", "osc", "bridge", "extends"}
+        }
     )
     if not control_section:
         raise ValueError(
@@ -132,6 +150,48 @@ def map_float_to_rc(value, gain=1.0, center=1500, span=400):
     """
 
     return int(clamp(center + value * span * gain, 1100, 1900))
+
+
+def resolve_mode_settings(cfg, requested_mode=None):
+    """Return ModeSettings for the requested or default bridge mode."""
+
+    bridge_cfg = cfg.get("bridge", {}) or {}
+    modes_cfg = bridge_cfg.get("modes") or {}
+    mode_name = requested_mode or bridge_cfg.get("mode", "smooth")
+    if not modes_cfg:
+        return ModeSettings(
+            name=mode_name,
+            description="",
+            deadzone_boost={},
+            gain_scale={},
+            jitter_scale=1.0,
+            neutral_rc=False,
+            aux_strategy="full",
+        )
+    if mode_name not in modes_cfg:
+        raise ValidationError([f"bridge.mode '{mode_name}' not found in bridge.modes"])
+    mode_cfg = modes_cfg[mode_name] or {}
+    return ModeSettings(
+        name=mode_name,
+        description=mode_cfg.get("description", ""),
+        deadzone_boost=mode_cfg.get("deadzone_boost", {}),
+        gain_scale=mode_cfg.get("gain_scale", {}),
+        jitter_scale=float(mode_cfg.get("jitter_scale", 1.0)),
+        neutral_rc=bool(mode_cfg.get("neutral_rc", False)),
+        aux_strategy=str(mode_cfg.get("aux_strategy", "full")),
+    )
+
+
+def resolve_bridge_rate(cfg, requested_hz=None):
+    bridge_cfg = cfg.get("bridge", {}) or {}
+    hz = requested_hz or bridge_cfg.get("hz", 50)
+    try:
+        hz = float(hz)
+    except (TypeError, ValueError):  # noqa: BLE001
+        raise ValidationError(["bridge.hz must be numeric"])
+    if hz <= 0:
+        raise ValidationError(["bridge.hz must be > 0"])
+    return hz
 
 
 class AuditLogger:
@@ -222,11 +282,12 @@ class DryRunSerial:
 
 
 class Mapper:
-    def __init__(self, cfg):
+    def __init__(self, cfg, *, mode: ModeSettings | None = None):
         # Stash the YAML config so we can grab mapping knobs everywhere.  The
         # schema is documented in README.md but boils down to ``mapping`` and
         # ``osc.address_space`` dictionaries.
         self.cfg = cfg
+        self.mode = mode or resolve_mode_settings(cfg)
         # ``state`` holds the most recent values coming in from OSC.  Every
         # handler updates these keys, and ``apply`` transforms them into RC µs.
         self.state = {
@@ -235,9 +296,13 @@ class Mapper:
             "yaw": 0.0,  # yaw twist: -1 = counter-clockwise, +1 = clockwise
             "crowd": 0.0,  # extra dimension for creative routing or lights
             # consent = 0 still streams MSP, but forces a chilled neutral frame
-            # so Betaflight keeps seeing a heartbeat while the props stay napping
+            # so Betaflight keeps seeing a heartbeat while the props stay
+            # napping
             "consent": 0,
         }
+
+    def set_mode(self, mode: ModeSettings) -> None:
+        self.mode = mode
 
     def expo(self, x, k=0.5):
         """Push the midpoint flatter while keeping the sign intact.
@@ -264,7 +329,10 @@ class Mapper:
         """Apply deadzone + curve shaping from the mapping config."""
 
         axis_cfg = self.cfg["mapping"].get(axis_name, {})
-        shaped = self.apply_deadzone(value, axis_cfg.get("deadzone", 0.0))
+        deadzone = axis_cfg.get("deadzone", 0.0)
+        deadzone += self.mode.deadzone_for(axis_name)
+        deadzone = clamp(deadzone, 0.0, 0.99)
+        shaped = self.apply_deadzone(value, deadzone)
         curve = axis_cfg.get("curve", "linear")
         if curve == "expo":
             strength = axis_cfg.get("expo_strength", axis_cfg.get("expo", 0.5))
@@ -285,13 +353,15 @@ class Mapper:
 
         yaw_cfg = mapping_cfg.get("yaw_bias", {})
         yaw_bias = yaw_cfg.get("bias", 0.0)
-        jitter = yaw_cfg.get("jitter", 0.0)
+        jitter = yaw_cfg.get("jitter", 0.0) * self.mode.jitter_scale
         if jitter:
             yaw_bias += random.uniform(-jitter, jitter)
         yaw = clamp(self.state["yaw"] + yaw_bias, -1.0, 1.0)
 
         lat_gain = mapping_cfg.get("lateral", {}).get("gain", 1.0)
+        lat_gain *= self.mode.gain_for("lateral", 1.0)
         alt_gain = mapping_cfg.get("altitude", {}).get("gain", 1.0)
+        alt_gain *= self.mode.gain_for("altitude", 1.0)
 
         rc_roll = map_float_to_rc(lat, gain=lat_gain)
         # Pitch tips forward proportional to lateral magnitude so sideways
@@ -334,6 +404,16 @@ class Mapper:
         aux_channels = [aux_crowd, aux_glitch, aux_led, 1500]
         rc_channels = [rc_roll, rc_pitch, rc_thr, rc_yaw]
 
+        if self.mode.neutral_rc:
+            rc_channels = [
+                map_float_to_rc(0.0),
+                map_float_to_rc(0.0),
+                map_float_to_rc(-1.0),
+                map_float_to_rc(0.0),
+            ]
+        if self.mode.aux_strategy == "crowd_only":
+            aux_channels = [aux_crowd, 1500, 1500, 1500]
+
         return rc_channels, aux_channels
 
 
@@ -349,7 +429,9 @@ def main():
     ap.add_argument(
         "--config",
         default=str(DEFAULT_MAPPING_PATH),
-        help=f"Path to the OSC/MSP mapping YAML (default: {DEFAULT_MAPPING_PATH}).",
+        help=(
+            "Path to the OSC/MSP mapping YAML (default: " f"{DEFAULT_MAPPING_PATH})."
+        ),
     )
     ap.add_argument(
         "--recipe",
@@ -363,6 +445,14 @@ def main():
         "--dry-run",
         action="store_true",
         help="Skip serial writes and log MSP traffic.",
+    )
+    ap.add_argument("--hz", type=float, help="Limit MSP frame rate (Hz)")
+    ap.add_argument(
+        "--mode",
+        help=(
+            "Bridge mode name declared under bridge.modes "
+            "(smooth, triggers_only, ...)"
+        ),
     )
     args = ap.parse_args()
 
@@ -390,6 +480,16 @@ def main():
                     "path": str(recipe_path.resolve()),
                     "error": str(exc),
                 },
+            )
+            raise
+        try:
+            validate_mapping_config(cfg, recipe_path.name)
+        except ValidationError as exc:  # noqa: BLE001
+            audit.write(
+                "recipe_error",
+                status="error",
+                message=f"Recipe validation failed for {recipe_path.name}",
+                details={"errors": exc.errors},
             )
             raise
         if cfg_meta:
@@ -431,13 +531,31 @@ def main():
                 },
             )
             raise
+        try:
+            validate_mapping_config(cfg, config_path.name)
+        except ValidationError as exc:  # noqa: BLE001
+            audit.write(
+                "mapping_validation",
+                status="error",
+                message="Mapping validation failed",
+                details={"errors": exc.errors},
+            )
+            raise
         audit.write(
             "mapping_load",
             status="info",
             message="Loaded mapping config",
             details={"path": str(config_path.resolve())},
         )
-    mapper = Mapper(cfg)
+    mode_settings = resolve_mode_settings(cfg, args.mode)
+    hz = resolve_bridge_rate(cfg, args.hz)
+    mapper = Mapper(cfg, mode=mode_settings)
+    audit.write(
+        "osc_bridge_mode",
+        status="info",
+        message=f"Bridge mode set to {mode_settings.name} at {hz:.1f} Hz",
+        details={"mode": mode_settings.name, "hz": hz},
+    )
 
     default_port = ap.get_default("osc_port")
     osc_port = args.osc_port
@@ -518,9 +636,9 @@ def main():
         Consent-off does **not** halt MSP writes.  Instead we keep the bytes
         flowing with a neutral frame: sticks parked at center, throttle locked
         low, yaw recentered, AUX channels mid-stick.  Betaflight keeps seeing a
-        heartbeat while the quad stays sedated — rehearsal mode without yanking
-        the USB cable.  Treat it as an extra arming layer stacked atop the radio
-        failsafes.
+        heartbeat while the quad stays sedated — rehearsal mode without
+        yanking the USB cable.  Treat it as an extra arming layer stacked atop
+        the radio failsafes.
         """
 
         prev = mapper.state["consent"]
@@ -571,6 +689,7 @@ def main():
 
     # ``last`` timestamps the previous MSP push so we can throttle updates.
     last = 0
+    update_interval = 1.0 / hz
     # Pre-pack the "everyone take a breath" frame so we can blast it whenever
     # consent drops.  Roll/pitch/yaw park at 1500 µs, throttle clamps low, and
     # AUX channels chill at mid-stick.
@@ -587,7 +706,7 @@ def main():
     try:
         while True:
             now = time.time()
-            if now - last > 0.02:  # 50 Hz RC updates — plenty for whoops
+            if now - last > update_interval:
                 rc_channels, aux_channels = mapper.apply()
                 # 8 channels: roll, pitch, throttle, yaw, AUX1..AUX4.  If you
                 # need more, change the struct format and append extra values.
@@ -614,6 +733,7 @@ def main():
                             "osc_bridge_stream",
                             status="armed",
                             message="Live MSP stream resumed.",
+                            details={"mode": mapper.mode.name, "hz": hz},
                         )
                         streaming_live = True
                 else:
@@ -634,6 +754,7 @@ def main():
                             "osc_bridge_stream",
                             status="neutralized",
                             message="Consent gating forced neutral MSP frame.",
+                            details={"mode": mapper.mode.name, "hz": hz},
                         )
                         streaming_live = False
                 last = now
