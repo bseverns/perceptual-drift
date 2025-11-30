@@ -8,6 +8,20 @@ osc:
     crowd: "/pd/crowd"
     consent: "/pd/consent"
 
+# Consent is the floor-based participation zone published by the Processing
+# tracker. Treat it like any other gesture input so we can gate behavior
+# without hard-coding policy in Python.
+consent:
+  source: "/pd/consent"
+  mode: "binary"          # "binary" gates to 0/1; "smooth" scales motion
+  default_state: 1         # if no signal arrives, assume participation is allowed
+  gate_motion: true        # if true, scale or idle motion fields when consent=0
+  idle_altitude: 0.2       # normalized altitude to hold when consent=0
+  idle_jitter: 0.0         # jitter when nobody is in the participation zone
+  on_recipe: "ambient"    # optional recipe to jump to on consent ON
+  off_recipe: "none"      # optional recipe to jump to on consent OFF
+  auto_recipes: false      # flip to true to enable the auto-recipe edges
+
 mapping:
   altitude:
     deadzone: 0.05
