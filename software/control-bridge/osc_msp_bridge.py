@@ -35,7 +35,11 @@ BRIDGE_DIR = Path(__file__).resolve().parent
 if str(BRIDGE_DIR) not in sys.path:
     sys.path.insert(0, str(BRIDGE_DIR))
 
-from config_validation import ModeSettings, ValidationError, validate_mapping_config
+from config_validation import (  # noqa: E402
+    ModeSettings,
+    ValidationError,
+    validate_mapping_config,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MAPPING_PATH = (REPO_ROOT / "config/mapping.yaml").resolve()
@@ -58,7 +62,11 @@ def deep_merge(base, override):
         return override
     merged = dict(base)
     for key, value in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+        if (
+            key in merged
+            and isinstance(merged[key], dict)
+            and isinstance(value, dict)
+        ):
             merged[key] = deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -84,7 +92,11 @@ def load_recipe(recipe_path):
         data.get("control_bridge")
         or data.get("control")
         or data.get("bridge")
-        or {k: v for k, v in data.items() if k in {"mapping", "osc", "bridge", "extends"}}
+        or {
+            k: v
+            for k, v in data.items()
+            if k in {"mapping", "osc", "bridge", "extends"}
+        }
     )
     if not control_section:
         raise ValueError(
@@ -145,7 +157,7 @@ def map_float_to_rc(value, gain=1.0, center=1500, span=400):
 
 
 def resolve_mode_settings(cfg, requested_mode=None):
-    """Return :class:`ModeSettings` for the requested or default bridge mode."""
+    """Return ModeSettings for the requested or default bridge mode."""
 
     bridge_cfg = cfg.get("bridge", {}) or {}
     modes_cfg = bridge_cfg.get("modes") or {}
@@ -161,7 +173,9 @@ def resolve_mode_settings(cfg, requested_mode=None):
             aux_strategy="full",
         )
     if mode_name not in modes_cfg:
-        raise ValidationError([f"bridge.mode '{mode_name}' not found in bridge.modes"])
+        raise ValidationError(
+            [f"bridge.mode '{mode_name}' not found in bridge.modes"]
+        )
     mode_cfg = modes_cfg[mode_name] or {}
     return ModeSettings(
         name=mode_name,
@@ -179,7 +193,7 @@ def resolve_bridge_rate(cfg, requested_hz=None):
     hz = requested_hz or bridge_cfg.get("hz", 50)
     try:
         hz = float(hz)
-    except (TypeError, ValueError) as exc:  # noqa: BLE001
+    except (TypeError, ValueError):  # noqa: BLE001
         raise ValidationError(["bridge.hz must be numeric"])
     if hz <= 0:
         raise ValidationError(["bridge.hz must be > 0"])
@@ -238,7 +252,7 @@ class DryRunSerial:
             size = payload[3]
             cmd = payload[4]
             if cmd == MSP_SET_RAW_RC and size == 16:
-                frame = struct.unpack("<8H", payload[5 : 5 + size])
+                frame = struct.unpack("<8H", payload[5:5 + size])
                 self._last_frame = frame
         now = time.time()
         if now - self._last_report >= 1.0:
@@ -257,7 +271,8 @@ class DryRunSerial:
                 total = self.byte_count
                 print(
                     (
-                        "[dry-run] would stream {} bytes (total {} bytes so " "far)"
+                        "[dry-run] would stream {} bytes (total {} bytes so "
+                        "far)"
                     ).format(
                         len(payload),
                         total,
@@ -288,7 +303,8 @@ class Mapper:
             "yaw": 0.0,  # yaw twist: -1 = counter-clockwise, +1 = clockwise
             "crowd": 0.0,  # extra dimension for creative routing or lights
             # consent = 0 still streams MSP, but forces a chilled neutral frame
-            # so Betaflight keeps seeing a heartbeat while the props stay napping
+            # so Betaflight keeps seeing a heartbeat while the props stay
+            # napping
             "consent": 0,
         }
 
@@ -420,7 +436,10 @@ def main():
     ap.add_argument(
         "--config",
         default=str(DEFAULT_MAPPING_PATH),
-        help=f"Path to the OSC/MSP mapping YAML (default: {DEFAULT_MAPPING_PATH}).",
+        help=(
+            "Path to the OSC/MSP mapping YAML (default: "
+            f"{DEFAULT_MAPPING_PATH})."
+        ),
     )
     ap.add_argument(
         "--recipe",
@@ -438,7 +457,10 @@ def main():
     ap.add_argument("--hz", type=float, help="Limit MSP frame rate (Hz)")
     ap.add_argument(
         "--mode",
-        help="Bridge mode name declared under bridge.modes (smooth, triggers_only, ...)",
+        help=(
+            "Bridge mode name declared under bridge.modes "
+            "(smooth, triggers_only, ...)"
+        ),
     )
     args = ap.parse_args()
 
@@ -622,9 +644,9 @@ def main():
         Consent-off does **not** halt MSP writes.  Instead we keep the bytes
         flowing with a neutral frame: sticks parked at center, throttle locked
         low, yaw recentered, AUX channels mid-stick.  Betaflight keeps seeing a
-        heartbeat while the quad stays sedated — rehearsal mode without yanking
-        the USB cable.  Treat it as an extra arming layer stacked atop the radio
-        failsafes.
+        heartbeat while the quad stays sedated — rehearsal mode without
+        yanking the USB cable.  Treat it as an extra arming layer stacked atop
+        the radio failsafes.
         """
 
         prev = mapper.state["consent"]
