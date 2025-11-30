@@ -1,0 +1,14 @@
+# ambient: slow, gentle drift with softened responses and reduced jitter
+mapping:
+  altitude:
+    gain: 0.4
+    curve: "expo"
+  lateral:
+    gain: 0.35
+    deadzone: 0.08
+  yaw_bias:
+    bias: 0.05
+    jitter: 0.02
+  glitch_intensity:
+    base: 0.1
+    max: 0.5
