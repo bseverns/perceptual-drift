@@ -71,6 +71,26 @@ stress the score without ever arming a real quad.
    parameters inside `pd_swarm_bridge.py`. Every knob is annotated; treat them
    like safety rails, not style suggestions.
 
+## OSC-only sandbox (no ROS, no real props)
+
+Want to feel the mapping without arming anything? `swarm_demo.py` now ships a
+pure-Python rehearsal loop:
+
+```bash
+python3 software/swarm/swarm_demo.py --simulate \
+    --sim-drones 6 \
+    --sim-update-rate 45.0 \
+    --sim-osc-target 127.0.0.1 \
+    --sim-osc-port 9100
+```
+
+It listens to the same `/pd/alt`, `/pd/lat`, `/pd/yaw`, `/pd/crowd`, and
+`/pd/consent` OSC routes as the hardware bridge, nudges a handful of
+`VirtualDrone` objects around an imaginary 10×10×5m room, and sprays their poses
+back out over OSC at the given update rate. Feed that into your dashboard or VJ
+patch for classroom demos, choreography sketching, or late-night debugging with
+no flight risk.
+
 ## ROS 2 nodes in this folder
 
 | File | Role |
