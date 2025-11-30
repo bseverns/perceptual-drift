@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """OSC-driven CrazySwarm2 bridge that understands a full swarm, not just one whoop."""
 
+import argparse
 import math
+import sys
 import threading
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import rclpy
 from pythonosc import dispatcher, osc_server
@@ -15,6 +17,7 @@ from rosidl_runtime_py.convert import message_to_ordereddict
 from rosidl_runtime_py.utilities import get_message
 
 from crazyflie_interfaces.srv import GoTo, Takeoff
+from software.swarm.mapping_loader import load_mapping
 
 # ---------------------------------------------------------------------------
 # Fleet layout + OSC wiring — tweak these to match your venue rig.
@@ -22,6 +25,9 @@ from crazyflie_interfaces.srv import GoTo, Takeoff
 
 OSC_BIND_ADDRESS = "0.0.0.0"
 OSC_BIND_PORT = 9010
+
+DEFAULT_BASE_MAPPING_PATH = "config/mapping.yaml"
+DEFAULT_RECIPES_DIR = "config/recipes"
 
 # Global OSC routes still exist so legacy Processing sketches keep working.
 GLOBAL_OSC_ROUTES = {
@@ -101,11 +107,24 @@ class CraftState:
 class SwarmNode(Node):
     """ROS 2 node that listens for OSC and relays to a CrazySwarm2 fleet."""
 
-    def __init__(self, fleet: Optional[List[CraftConfig]] = None):
+    def __init__(
+        self,
+        fleet: Optional[List[CraftConfig]] = None,
+        mapping: Optional[Dict[str, Any]] = None,
+        recipe_name: Optional[str] = None,
+        base_mapping_path: str = DEFAULT_BASE_MAPPING_PATH,
+        recipes_dir: str = DEFAULT_RECIPES_DIR,
+    ):
         super().__init__("swarm_node")
         self.fleet_cfg = fleet or DEFAULT_FLEET
         if not self.fleet_cfg:
             raise RuntimeError("At least one CraftConfig is required to run the swarm bridge")
+
+        self.base_mapping_path = base_mapping_path
+        self.recipes_dir = recipes_dir
+        self.mapping = mapping or load_mapping(base_path=self.base_mapping_path, recipes_dir=self.recipes_dir)
+        self.current_recipe_name = recipe_name
+        self._mapping_lock = threading.Lock()
 
         qos = QoSProfile(
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -116,6 +135,7 @@ class SwarmNode(Node):
         self.dispatcher = dispatcher.Dispatcher()
         self.dispatcher.map(GLOBAL_OSC_ROUTES["lat"], self._handle_global_lat)
         self.dispatcher.map(GLOBAL_OSC_ROUTES["alt"], self._handle_global_alt)
+        self.dispatcher.map("/pd/patch", self._handle_patch)
 
         self.crafts: Dict[str, CraftState] = {}
         self._last_status_snapshot: Optional[str] = None
@@ -185,6 +205,28 @@ class SwarmNode(Node):
         elif axis == "alt":
             clamped = self._clamp(value, ALTITUDE_INPUT_RANGE)
             self._apply_altitude(craft, clamped, source="direct")
+
+    def _handle_patch(self, addr: str, *vals) -> None:
+        recipe = self._extract_recipe_name(vals)
+        if recipe is None:
+            self.get_logger().warning("%s handler received empty or invalid recipe payload: %s", addr, vals)
+            return
+
+        try:
+            new_mapping = load_mapping(
+                base_path=self.base_mapping_path,
+                recipe_name=recipe,
+                recipes_dir=self.recipes_dir,
+            )
+        except Exception as exc:
+            self.get_logger().warning("Failed to load recipe '%s' via OSC (%s): %s", recipe, addr, exc)
+            return
+
+        with self._mapping_lock:
+            self.mapping = new_mapping
+            self.current_recipe_name = recipe
+
+        self.get_logger().info("Switched recipe to '%s' via OSC (%s)", recipe, addr)
 
     # ------------------------------------------------------------------
     # CrazySwarm service helpers
@@ -335,6 +377,21 @@ class SwarmNode(Node):
             return None
 
     @staticmethod
+    def _extract_recipe_name(vals: Iterable[Any]) -> Optional[str]:
+        if not vals:
+            return None
+        raw = vals[0]
+        if raw is None:
+            return None
+        if isinstance(raw, bytes):
+            try:
+                raw = raw.decode("utf-8")
+            except Exception:
+                return None
+        text = str(raw).strip()
+        return text or None
+
+    @staticmethod
     def _clamp(value: float, bounds: Iterable[float]) -> float:
         lower, upper = bounds
         return max(lower, min(upper, value))
@@ -352,9 +409,53 @@ class SwarmNode(Node):
         super().destroy_node()
 
 
-def main() -> None:
-    rclpy.init()
-    node = SwarmNode()
+def _parse_cli(argv: Optional[List[str]] = None) -> Tuple[argparse.Namespace, List[str]]:
+    parser = argparse.ArgumentParser(description="OSC-driven CrazySwarm2 bridge")
+    parser.add_argument("--recipe", help="Optional mapping recipe to apply at startup", default=None)
+    return parser.parse_known_args(argv)
+
+
+def _initialize_mapping(recipe_name: Optional[str]) -> Tuple[Dict[str, Any], Optional[str]]:
+    """Load the base mapping and optionally an overlay recipe, with safe fallback."""
+
+    if recipe_name is None:
+        mapping = load_mapping(base_path=DEFAULT_BASE_MAPPING_PATH, recipes_dir=DEFAULT_RECIPES_DIR)
+        print(f"Loaded base mapping from {DEFAULT_BASE_MAPPING_PATH}")
+        print("No recipe specified; using base mapping only")
+        return mapping, None
+
+    try:
+        mapping = load_mapping(
+            base_path=DEFAULT_BASE_MAPPING_PATH,
+            recipe_name=recipe_name,
+            recipes_dir=DEFAULT_RECIPES_DIR,
+        )
+    except Exception as exc:
+        print(
+            f"Failed to load recipe '{recipe_name}'; falling back to base mapping ({exc})",
+            file=sys.stderr,
+        )
+        mapping = load_mapping(base_path=DEFAULT_BASE_MAPPING_PATH, recipes_dir=DEFAULT_RECIPES_DIR)
+        print(f"Loaded base mapping from {DEFAULT_BASE_MAPPING_PATH}")
+        print("Using base mapping only after recipe load failure")
+        return mapping, None
+
+    print(f"Loaded base mapping from {DEFAULT_BASE_MAPPING_PATH}")
+    print(f"Applied recipe '{recipe_name}' from {DEFAULT_RECIPES_DIR}/{recipe_name}.yaml")
+    return mapping, recipe_name
+
+
+def main(argv: Optional[List[str]] = None) -> None:
+    parsed, remaining = _parse_cli(argv)
+    mapping, recipe_name = _initialize_mapping(parsed.recipe)
+
+    rclpy.init(args=remaining)
+    node = SwarmNode(
+        mapping=mapping,
+        recipe_name=recipe_name,
+        base_mapping_path=DEFAULT_BASE_MAPPING_PATH,
+        recipes_dir=DEFAULT_RECIPES_DIR,
+    )
     try:
         rclpy.spin(node)
     finally:
