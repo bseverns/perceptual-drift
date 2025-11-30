@@ -6,7 +6,8 @@
 // Camera is mounted overhead (or steeply downward) looking at the floor.  The
 // drawn consent zone is an explicit participation boundary: stepping into the
 // region signals opt-in; stepping out is opt-out.  Keep it visible so the crew
-// can explain the ethics at a glance.
+// can explain the ethics at a glance.  A bottom-of-screen overlay now also
+// explains that the system is “resting” when nobody has stepped in.
 //
 // Required libraries (install via Sketch → Import Library... → Add Library):
 // * video (Processing core) — https://processing.org/reference/libraries/video/
@@ -30,6 +31,10 @@ float alt=0, lat=0, yaw=0, crowd=0;
 boolean consent=false;
 boolean consentArmed=true; // facilitator arming; space bar toggles this gate
 boolean consentZoneActive=false;
+int consentState = 0; // 0 = no one in zone, 1 = at least one centroid in bounds
+int lastConsentState = 0;
+int lastConsentChangeFrame = 0;
+boolean consentEnabled = true; // flip false if running in a legacy setup without consent signals
 int threshold = 35;
 PImage prev;
 
@@ -122,6 +127,12 @@ void draw(){
   for (PVector c : centroids){
     if (pointInConsentZone(c.x, c.y)) consentCount++;
   }
+  int consentInt = consentCount>0?1:0;
+  if (consentInt != consentState){
+    lastConsentState = consentState;
+    consentState = consentInt;
+    lastConsentChangeFrame = frameCount;
+  }
   updateConsentState(consentCount);
 
   sendOSC("/pd/lat", lat);
@@ -137,6 +148,13 @@ void draw(){
   rect(0, height-10, width*(consent?1:0.25), 10);
   fill(255);
   text(String.format("lat %.2f alt %.2f yaw %.2f crowd %.2f consent %s", lat, alt, yaw, crowd, consent), 10, 20);
+
+  // Consent overlay:
+  // When no one is inside the consent zone (consentState == 0), we draw a
+  // message to make the system's "resting" state visible. The camera feed and
+  // zone remain visible underneath so facilitators can still narrate what the
+  // system sees.
+  drawConsentRestingOverlay();
 
   prev.copy(cam, 0,0, cam.width, cam.height, 0,0, width, height);
 }
@@ -201,6 +219,31 @@ void drawConsentZoneOverlay(){
                "Consent: " + (consent?"ON":"OFF") +
                (consentArmed?"":" (paused by facilitator)");
   text(msg, 16, height - 40);
+}
+
+void drawConsentRestingOverlay(){
+  if (!consentEnabled || consentState != 0) return;
+
+  String msg = "No one has opted in yet.\nSystem resting until someone steps into the zone.";
+
+  float boxW = width * 0.7;
+  float boxH = 70;
+  float boxX = (width - boxW) / 2.0;
+  float boxY = height - boxH - 24;
+
+  // Gentle pulse so the overlay feels alive but not shouty.
+  float pulse = 0.5 + 0.5 * sin(frameCount * 0.05);
+  int bgAlpha = int(100 + 80 * pulse);
+  int textAlpha = int(200 + 40 * pulse);
+
+  noStroke();
+  fill(0, 0, 0, bgAlpha);
+  rect(boxX, boxY, boxW, boxH, 8);
+
+  fill(255, 255, 255, textAlpha);
+  textAlign(CENTER, CENTER);
+  textSize(16);
+  text(msg, boxX + boxW / 2.0, boxY + boxH / 2.0);
 }
 
 void sendConsentIfChanged(){
