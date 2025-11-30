@@ -23,20 +23,12 @@ import processing.video.*;
 import oscP5.*;
 import netP5.*;
 
-Capture cam;
-OscP5 osc;
-NetAddress dst;
-
-float alt=0, lat=0, yaw=0, crowd=0;
-boolean consent=false;
-boolean consentArmed=true; // facilitator arming; space bar toggles this gate
-boolean consentZoneActive=false;
-int consentState = 0; // 0 = no one in zone, 1 = at least one centroid in bounds
-int lastConsentState = 0;
-int lastConsentChangeFrame = 0;
-boolean consentEnabled = true; // flip false if running in a legacy setup without consent signals
-int threshold = 35;
-PImage prev;
+// -----------------------------------------------------------------------------
+// TUNABLE PARAMETERS — tweak up here so the rest of the sketch stays readable.
+// -----------------------------------------------------------------------------
+int threshold = 35;          // frame-diff brightness cutoff; lower = more sensitive
+int blurRadius = 0;          // optional blur applied to the working frame (0 = off)
+int sampleStride = 8;        // pixel sampling step when estimating the centroid
 
 // Consent zone in screen coordinates (top-down camera view)
 // Rectangular by default; tweak ratios to reshape without hunting through code.
@@ -44,10 +36,31 @@ float consentXRatio = 0.25;
 float consentYRatio = 0.25;
 float consentWRatio = 0.5;
 float consentHRatio = 0.5;
-float consentX, consentY, consentW, consentH;
 
 // Debounce so brushing the edge does not flicker consent.
 int consentHoldFrames = 10;
+
+// -----------------------------------------------------------------------------
+// END TUNABLES
+// -----------------------------------------------------------------------------
+
+Capture cam;
+OscP5 osc;
+NetAddress dst;
+
+float alt=0, lat=0, yaw=0, crowd=0;
+float liveAlt=0, liveLat=0, liveYaw=0, liveCrowd=0; // live numbers keep updating even when OSC is frozen
+boolean consent=false;
+boolean consentArmed=true; // facilitator arming; space bar toggles this gate
+boolean consentZoneActive=false;
+int consentState = 0; // 0 = no one in zone, 1 = at least one centroid in bounds
+int lastConsentState = 0;
+int lastConsentChangeFrame = 0;
+boolean consentEnabled = true; // flip false if running in a legacy setup without consent signals
+PImage prev;
+boolean calibrationMode = false; // toggled with 'c'; freezes OSC and HUD numbers while you tune
+
+float consentX, consentY, consentW, consentH;
 int consentFramesRemaining = 0;
 
 ArrayList<PVector> centroids = new ArrayList<PVector>();
@@ -71,15 +84,20 @@ void setup(){
 void draw(){
   background(0);
   if (cam.available()) cam.read();
+  PImage working = cam.get();
+  if (blurRadius > 0){
+    // Soften sensor noise when tuning threshold; this is intentionally optional.
+    working.filter(BLUR, blurRadius);
+  }
   image(cam, 0,0, width, height);
 
   // optical flow proxy: frame diff magnitude.  We compare the current frame to
   // the previous frame and count pixels above ``threshold`` as "motion".
   PImage diff = createImage(width, height, RGB);
-  cam.loadPixels(); prev.loadPixels(); diff.loadPixels();
+  working.loadPixels(); prev.loadPixels(); diff.loadPixels();
   int motionCount=0;
   for (int i=0; i<pixels.length; i++){
-    color c1 = cam.pixels[i];
+    color c1 = working.pixels[i];
     color c0 = prev.pixels[i];
     float d = abs(brightness(c1) - brightness(c0));
     if (d > threshold){
@@ -96,8 +114,8 @@ void draw(){
   centroids.clear();
   float cx=0, cy=0;
   int activeSamples = 0;
-  for (int y=0; y<height; y+=8){
-    for (int x=0; x<width; x+=8){
+  for (int y=0; y<height; y+=sampleStride){
+    for (int x=0; x<width; x+=sampleStride){
       if (brightness(diff.get(x,y))>128){
         cx += x;
         cy += y;
@@ -117,10 +135,17 @@ void draw(){
     normY = map(avgNormY, 0, 1, -1, 1);
   }
 
-  lat = constrain(normX, -1, 1);
-  alt = constrain(-normY, -1, 1);
-  yaw = constrain(lat*0.2, -1, 1);
-  crowd = constrain(motionCount / float(pixels.length) * 5.0, 0, 1);
+  liveLat = constrain(normX, -1, 1);
+  liveAlt = constrain(-normY, -1, 1);
+  liveYaw = constrain(liveLat*0.2, -1, 1);
+  liveCrowd = constrain(motionCount / float(pixels.length) * 5.0, 0, 1);
+
+  if (!calibrationMode){
+    lat = liveLat;
+    alt = liveAlt;
+    yaw = liveYaw;
+    crowd = liveCrowd;
+  }
 
   // consent zoning — count bodies inside the opt-in rectangle and debounce
   int consentCount = 0;
@@ -135,19 +160,24 @@ void draw(){
   }
   updateConsentState(consentCount);
 
-  sendOSC("/pd/lat", lat);
-  sendOSC("/pd/alt", alt);
-  sendOSC("/pd/yaw", yaw);
-  sendOSC("/pd/crowd", crowd);
-  sendConsentIfChanged();
+  if (!calibrationMode){
+    sendOSC("/pd/lat", lat);
+    sendOSC("/pd/alt", alt);
+    sendOSC("/pd/yaw", yaw);
+    sendOSC("/pd/crowd", crowd);
+    sendConsentIfChanged();
+  }
 
   // HUD overlay helps with calibration / explaining to the crew what the drone
   // currently "feels" from the crowd.  Green bar = consent granted.
   drawConsentZoneOverlay();
   noStroke(); fill(consent? color(0,255,0): color(255,0,0));
   rect(0, height-10, width*(consent?1:0.25), 10);
-  fill(255);
-  text(String.format("lat %.2f alt %.2f yaw %.2f crowd %.2f consent %s", lat, alt, yaw, crowd, consent), 10, 20);
+  drawHUD();
+
+  if (calibrationMode){
+    drawCalibrationOverlay();
+  }
 
   // Consent overlay:
   // When no one is inside the consent zone (consentState == 0), we draw a
@@ -156,17 +186,66 @@ void draw(){
   // system sees.
   drawConsentRestingOverlay();
 
-  prev.copy(cam, 0,0, cam.width, cam.height, 0,0, width, height);
+  prev.copy(working, 0,0, working.width, working.height, 0,0, width, height);
 }
 
 // consent toggle — space bar flips on/off.  Consider mapping this to a foot
 // switch or physical button in the gallery so the facilitator controls arming.
 // If you need to remap the arming key, this is the block to edit.
+// New calibration helpers:
+//   c   -> freeze OSC output + HUD numbers, show tuning overlay
+//   [/] -> threshold down/up
+//   -/= -> blur radius down/up
+//   j/l/i/k/u/o/n/m -> reposition/resize consent zone
+//   s   -> print a config snippet you can paste into the TUNABLES block
 void keyReleased(){
   if (key == ' '){
     consentArmed = !consentArmed;
     // Recompute state so the HUD and OSC reflect the arming gate immediately.
     updateConsentState(consentZoneActive?1:0);
+  } else if (key == 'c' || key == 'C'){
+    calibrationMode = !calibrationMode;
+    if (calibrationMode){
+      // freeze outgoing numbers so downstream mapping stays predictable while tinkering
+      lat = liveLat;
+      alt = liveAlt;
+      yaw = liveYaw;
+      crowd = liveCrowd;
+    }
+  } else if (key == '['){
+    threshold = max(0, threshold-1);
+  } else if (key == ']'){
+    threshold = min(255, threshold+1);
+  } else if (key == '-'){ // blur down
+    blurRadius = max(0, blurRadius-1);
+  } else if (key == '='){ // blur up (same as plus without shift)
+    blurRadius = min(12, blurRadius+1);
+  } else if (key == 'j' || key == 'J'){
+    consentXRatio = constrain(consentXRatio-0.01, 0, 1);
+    updateConsentZoneDimensions();
+  } else if (key == 'l' || key == 'L'){
+    consentXRatio = constrain(consentXRatio+0.01, 0, 1);
+    updateConsentZoneDimensions();
+  } else if (key == 'i' || key == 'I'){
+    consentYRatio = constrain(consentYRatio-0.01, 0, 1);
+    updateConsentZoneDimensions();
+  } else if (key == 'k' || key == 'K'){
+    consentYRatio = constrain(consentYRatio+0.01, 0, 1);
+    updateConsentZoneDimensions();
+  } else if (key == 'u' || key == 'U'){
+    consentWRatio = constrain(consentWRatio-0.01, 0.05, 1);
+    updateConsentZoneDimensions();
+  } else if (key == 'o' || key == 'O'){
+    consentWRatio = constrain(consentWRatio+0.01, 0.05, 1);
+    updateConsentZoneDimensions();
+  } else if (key == 'n' || key == 'N'){
+    consentHRatio = constrain(consentHRatio-0.01, 0.05, 1);
+    updateConsentZoneDimensions();
+  } else if (key == 'm' || key == 'M'){
+    consentHRatio = constrain(consentHRatio+0.01, 0.05, 1);
+    updateConsentZoneDimensions();
+  } else if (key == 's' || key == 'S'){
+    dumpConfigSnippet();
   }
 }
 
@@ -219,6 +298,10 @@ void drawConsentZoneOverlay(){
                "Consent: " + (consent?"ON":"OFF") +
                (consentArmed?"":" (paused by facilitator)");
   text(msg, 16, height - 40);
+  if (calibrationMode){
+    fill(255, 180, 0);
+    text("Calibration freeze ON", consentX + 8, consentY + 18);
+  }
 }
 
 void drawConsentRestingOverlay(){
@@ -244,6 +327,67 @@ void drawConsentRestingOverlay(){
   textAlign(CENTER, CENTER);
   textSize(16);
   text(msg, boxX + boxW / 2.0, boxY + boxH / 2.0);
+}
+
+// HUD: numeric readout of both frozen (OSC) and live values so you can see how
+// tweaking the filters affects the math.  Stays on-screen during normal ops and
+// calibration alike.
+void drawHUD(){
+  int hudW = 320;
+  int hudH = 130;
+  int hudX = 10;
+  int hudY = 10;
+
+  noStroke();
+  fill(0, 0, 0, 160);
+  rect(hudX, hudY, hudW, hudH, 8);
+
+  fill(255);
+  textAlign(LEFT, TOP);
+  textSize(14);
+  String frozenLabel = calibrationMode? "(frozen OSC)" : "(live OSC)";
+  text("OSC → " + frozenLabel, hudX + 10, hudY + 8);
+  text(String.format("lat %.2f  alt %.2f  yaw %.2f  crowd %.2f", lat, alt, yaw, crowd), hudX + 10, hudY + 28);
+  text("Live (preview only)", hudX + 10, hudY + 52);
+  text(String.format("lat %.2f  alt %.2f  yaw %.2f  crowd %.2f", liveLat, liveAlt, liveYaw, liveCrowd), hudX + 10, hudY + 72);
+
+  String consentMsg = "Consent: " + (consent?"1 (armed)":"0") + (consentArmed?"":" (paused)");
+  text(consentMsg, hudX + 10, hudY + 96);
+}
+
+void drawCalibrationOverlay(){
+  int overlayW = 420;
+  int overlayH = 170;
+  int overlayX = width - overlayW - 12;
+  int overlayY = 12;
+
+  noStroke();
+  fill(20, 0, 0, 170);
+  rect(overlayX, overlayY, overlayW, overlayH, 10);
+
+  fill(255, 220, 160);
+  textAlign(LEFT, TOP);
+  textSize(14);
+  text("Calibration mode (OSC frozen).", overlayX + 12, overlayY + 10);
+  text("[ / ] threshold ±1  •  -/= blur ±1  •  s = dump config", overlayX + 12, overlayY + 32);
+  text("Move ROI: j/l ←→   i/k ↑↓   Resize: u/o width  n/m height", overlayX + 12, overlayY + 52);
+
+  String snippet = buildConfigSnippet();
+  text("Config snippet (copy/paste):", overlayX + 12, overlayY + 76);
+  text(snippet, overlayX + 12, overlayY + 96);
+}
+
+String buildConfigSnippet(){
+  return String.format("threshold=%d, blur=%d, stride=%d, consent=(x:%.2f y:%.2f w:%.2f h:%.2f)",
+                      threshold, blurRadius, sampleStride,
+                      consentXRatio, consentYRatio, consentWRatio, consentHRatio);
+}
+
+void dumpConfigSnippet(){
+  String snippet = buildConfigSnippet();
+  println("--- PerceptualDrift Tracker config block ---");
+  println(snippet);
+  println("Copy into the TUNABLE PARAMETERS block up top.");
 }
 
 void sendConsentIfChanged(){
