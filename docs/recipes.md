@@ -116,5 +116,28 @@ If you omit the chain name the script uses `default_chain`.
 - **Test in pairs.** Run the bridge with `--recipe` while a second laptop fires
   the matching `gst_launch.sh --recipe` so you can feel how the vibe locks.
 
+## House recipes (load-and-go moods)
+- **Soft Consent Lounge** — Drift only when the room says yes. Altitude/lateral
+  curves hug the center, LEDs breathe a cool aurora, and video stays soft-focus
+  for onboarding. Load via
+  `--recipe config/recipes/soft_consent_lounge.yaml` when you’re narrating
+  safety.
+- **Consent Signal** — Workshop-friendly mode that literally spotlights the
+  consent gate. LEDs flash amber until the crowd says go and the projection
+  overlays the toggle state. `--recipe config/recipes/consent_signal.yaml`.
+- **Midnight Meditation** — Slow-breath intermission. Heavy deadzones, noir
+  LEDs, and the infrared video preset keep everyone grounded between high-energy
+  runs. `--recipe config/recipes/midnight_meditation.yaml`.
+- **Riot Mode** — Full-send feedback party. Aggressive lateral gain, yaw jitter,
+  neon LED stabs, and a delayed glitch wall. Flip to this once spotters and the
+  crowd are synced. `--recipe config/recipes/riot_mode.yaml`.
+- **Swarm Teaser** — One quad, swarm energy. Biases yaw into lazy figure-eights,
+  paints gradient LED laps, and mirrors the feed to hint at future drones. Run
+  with `--recipe config/recipes/swarm_teaser.yaml` when pitching the multi-craft
+  upgrade.
+- **Afterburner Chase** — Encore banger. Sharp lateral curves, jittery yaw
+  bursts, and riot-level video feedback so the quad looks like it’s leaving burn
+  trails. `--recipe config/recipes/afterburner_chase.yaml`.
+
 Go wild, but keep the narrative grounded. Novelty is fun; utility keeps the
 crowd safe and the drone out of the fog machine.
