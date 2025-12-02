@@ -2,7 +2,7 @@
 
 Perceptual Drift is a participatory drone‑based installation where **audience motion** modulates **FPV drone** behavior and **live video processing**. It centers shared authorship: many bodies → probabilistic control → drones that “drift” perceptually. The installation leans on **DIY‑friendly stacks**: Betaflight micro‑drones, Raspberry Pi video processing (GStreamer/OBS), Processing for gesture tracking, and an OSC→MSP control bridge. Optional **Teensy DSP/LED** layers extend visual/sonic feedback. Think of it as an unholy jam session between [Betaflight](https://betaflight.com/), [Processing](https://processing.org/), [GStreamer](https://gstreamer.freedesktop.org/), and [python-osc](https://pypi.org/project/python-osc/) with a splash of [Mozzi](https://sensorium.github.io/Mozzi/) and [CrazySwarm2](https://crazyswarm.readthedocs.io/).
 
-> **No breadcrumbs? No problem.** This README tries to be the missing field manual. Every subsystem below includes links, inspiration, and what to Google when things melt down.
+> **No breadcrumbs? No problem.** This README tries to be the "missing field manual" for these tech stacks. Every subsystem below includes links, inspiration, and what to Google when things melt down so you can find your way home.
 
 ---
 
