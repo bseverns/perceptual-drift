@@ -1,0 +1,17 @@
+# OSC mapping file describing how drift metrics are exposed over OSC.
+# TODO: Align parameter names with the actual drift-core outputs once they solidify.
+root: "/perceptual_drift"
+
+parameters:
+  - name: "frame_drift"
+    address: "/drift/frame"
+    range: [0.0, 1.0]
+  - name: "motion_center_x"
+    address: "/drift/motion_center/x"
+    range: [0.0, 1.0]
+  - name: "motion_center_y"
+    address: "/drift/motion_center/y"
+    range: [0.0, 1.0]
+  - name: "entropy"
+    address: "/drift/entropy"
+    range: [0.0, 1.0]

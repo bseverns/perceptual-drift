@@ -3,6 +3,7 @@
 Welcome to the parts buffet that keeps Perceptual Drift airborne without sacrificing safety cred. This BOM leans on components you can actually source, with specs noted so you can swap equivalents without breaking the vibe. Prices swing, so think in ranges and order spares.
 
 > **Reading tip**: The tables are organized by subsystem. `Qty` means how many you need for a single playable bay (1 drone, 1 projection). Scale linearly for multi-bay builds, or bring a spreadsheet and a stiff coffee.
+> **Jetson node callout**: compute is now documented as a first-class citizen. If you’re turning a Jetson Orin Nano into a capture/drift node, pair this BOM with [`hardware/jetson_orin_nano.md`](jetson_orin_nano.md) for flashing, deps, and first-boot rituals.
 
 ## Structural & Safety Envelope
 
