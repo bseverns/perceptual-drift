@@ -42,6 +42,14 @@ Coordinate these signals before powering the drone:
 
 When anyone asks for deletion, drop everything and purge the volatile caches.
 
+### What happens if...
+
+| Anxiety | Response for spectators | Action for operator |
+| --- | --- | --- |
+| Someone wants to opt out | Step out of the marked zone; projection fades to idle. | Park consent (amber), let MSP fall back to neutral, and keep visuals in idle/gray. |
+| Someone asks for deletion | You’ll hear “purging now” and see visuals idle. | Run the buffer purge, seal the log entry, and confirm verbally. |
+| Camera failure | Projection will dim/freeze while we reboot. | Keep consent parked, reboot the tracker, and announce the pause before re-arming. |
+
 1. **Key combo**: With the Processing window focused, hit `Shift` + `Backspace`
    to clear the current participant text overlays. Immediately switch to the
    operator terminal and run the command below.

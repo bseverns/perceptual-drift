@@ -17,7 +17,7 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Tuple
+from typing import Iterable, List, Mapping, Tuple
 
 import sys
 
@@ -49,6 +49,15 @@ spec.loader.exec_module(bridge)
 
 MSP_HEADER = bridge.MSP_HEADER
 MSP_SET_RAW_RC = bridge.MSP_SET_RAW_RC
+
+
+def _normalize_cfg(cfg: Mapping) -> Mapping:
+    """Deep-copy and sanitize a mapping config for the harness."""
+
+    cfg_copy = json.loads(json.dumps(cfg or {}))
+    cfg_copy.setdefault("mapping", {}).setdefault("yaw_bias", {}).setdefault("jitter", 0.0)
+    cfg_copy["mapping"]["yaw_bias"]["jitter"] = 0.0
+    return cfg_copy
 
 
 class MSPSerialLoopback:
@@ -205,17 +214,26 @@ def load_fixture_vectors(path: Path, threshold: int = 35) -> List[FixtureFrame]:
 class BridgeHarness:
     """Minimal copy of osc_msp_bridge.main with a deterministic serial link."""
 
-    def __init__(self, mapping_path: Path, serial_link: MSPSerialLoopback, *, osc_port: int) -> None:
-        mapping_path = resolve_repo_path(mapping_path)
-        cfg = yaml.safe_load(mapping_path.read_text())
-        cfg = json.loads(json.dumps(cfg))  # deep copy without yaml nodes
-        cfg.setdefault("mapping", {}).setdefault("yaw_bias", {}).setdefault("jitter", 0.0)
-        cfg["mapping"]["yaw_bias"]["jitter"] = 0.0
+    def __init__(
+        self,
+        mapping_path: Path | None,
+        serial_link: MSPSerialLoopback,
+        *,
+        osc_port: int,
+        cfg: Mapping | None = None,
+        audit: bridge.AuditLogger | None = None,
+    ) -> None:
+        if cfg is None:
+            mapping_path = resolve_repo_path(mapping_path or REPO_ROOT / "config" / "mapping.yaml")
+            cfg = yaml.safe_load(mapping_path.read_text())
+        cfg = _normalize_cfg(cfg)
+        bridge.validate_mapping_config(cfg, str(mapping_path) if mapping_path else "mapping")
         self.cfg = cfg
         self.mode = bridge.resolve_mode_settings(cfg)
         self.hz = bridge.resolve_bridge_rate(cfg)
         self.mapper = bridge.Mapper(cfg, mode=self.mode)
         self.serial = serial_link
+        self.audit = audit
         self.osc_port = osc_port
         self._stop = threading.Event()
         self._started = threading.Event()
@@ -223,6 +241,7 @@ class BridgeHarness:
         self._osc_thread: threading.Thread | None = None
         self._server: ThreadingOSCUDPServer | None = None
         self._last = 0.0
+        self._streaming_live = False
         self._update_interval = 1.0 / self.hz
 
         addresses = cfg["osc"]["address_space"]
@@ -244,6 +263,21 @@ class BridgeHarness:
     def _consent_handler(self, _addr: str, value: float) -> None:
         prev = self.mapper.state["consent"]
         self.mapper.state["consent"] = int(value)
+        if self.audit and self.mapper.state["consent"] != prev:
+            status = "armed" if self.mapper.state["consent"] == 1 else "disarmed"
+            self.audit.write(
+                "consent_toggle",
+                status=status,
+                details={"value": self.mapper.state["consent"], "osc_addr": _addr},
+            )
+            if self.mapper.state["consent"] != 1:
+                if self._streaming_live:
+                    self.audit.write(
+                        "osc_bridge_stream",
+                        status="neutralized",
+                        message="Consent dropped during harness run.",
+                    )
+                self._streaming_live = False
         if self.mapper.state["consent"] != 1 and prev == 1:
             self.mapper.state.update({"alt": 0.0, "lat": 0.0, "yaw": 0.0, "crowd": 0.0})
 
@@ -256,6 +290,12 @@ class BridgeHarness:
         self.osc_port = self._server.server_address[1]
         self._osc_thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._osc_thread.start()
+        if self.audit:
+            self.audit.write(
+                "osc_bridge_boot",
+                status="info",
+                message=f"Harness OSC listener on {self._server.server_address}",
+            )
         self._loop_thread = threading.Thread(target=self._loop, daemon=True)
         self._loop_thread.start()
         self._started.set()
@@ -293,6 +333,14 @@ class BridgeHarness:
                 pkt = bridge.msp_packet(MSP_SET_RAW_RC, payload)
                 if self.mapper.state["consent"] == 1:
                     self.serial.write(pkt)
+                    if self.audit and not self._streaming_live:
+                        self.audit.write(
+                            "osc_bridge_stream",
+                            status="armed",
+                            message="Harness MSP stream resumed.",
+                            details={"mode": self.mapper.mode.name, "hz": self.hz},
+                        )
+                    self._streaming_live = True
                 else:
                     chill_payload = struct.pack(
                         "<8H",
@@ -306,11 +354,27 @@ class BridgeHarness:
                         neutral_aux[3],
                     )
                     self.serial.write(bridge.msp_packet(MSP_SET_RAW_RC, chill_payload))
+                    if self.audit and self._streaming_live:
+                        self.audit.write(
+                            "osc_bridge_stream",
+                            status="neutralized",
+                            message="Harness forced neutral MSP frame.",
+                            details={"mode": self.mapper.mode.name, "hz": self.hz},
+                        )
+                    self._streaming_live = False
                 self._last = now
             time.sleep(0.005)
 
     def stop(self) -> None:
         self._stop.set()
+        if self.audit and self._streaming_live:
+            self.audit.write(
+                "osc_bridge_stream",
+                status="neutralized",
+                message="Harness stopping; final neutral frame.",
+                details={"mode": self.mapper.mode.name, "hz": self.hz},
+            )
+            self._streaming_live = False
         if self._server:
             self._server.shutdown()
             self._server.server_close()
@@ -322,6 +386,12 @@ class BridgeHarness:
             self._osc_thread.join(timeout=1)
             self._osc_thread = None
         self._started.clear()
+        if self.audit:
+            self.audit.write(
+                "osc_bridge_shutdown",
+                status="info",
+                message="Harness OSC/MSP bridge stopped.",
+            )
 
 
 def decode_msp_frame(frame: bytes) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
@@ -423,6 +493,11 @@ def main(argv: Iterable[str] | None = None) -> int:
         default=0.2,
         help="Post-stream pause to let the bridge emit its final MSP frame",
     )
+    parser.add_argument(
+        "--log-events",
+        action="store_true",
+        help="Write ops_events audit entries while the harness runs.",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     random.seed(0)
@@ -433,7 +508,8 @@ def main(argv: Iterable[str] | None = None) -> int:
     if args.max_frames:
         fixture_vectors = fixture_vectors[: args.max_frames]
     serial_link = MSPSerialLoopback()
-    harness = BridgeHarness(mapping_path, serial_link, osc_port=args.osc_port)
+    audit = bridge.AuditLogger() if args.log_events else None
+    harness = BridgeHarness(mapping_path, serial_link, osc_port=args.osc_port, audit=audit)
     harness.start()
     harness.wait_ready()
     client = udp_client.SimpleUDPClient("127.0.0.1", harness.listening_port)
