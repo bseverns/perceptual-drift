@@ -73,6 +73,38 @@ Use the runtime knobs baked into the script:
 Pair that with `pytest` (see `tests/test_check_stack.py`) to make sure the smoke
 test keeps working whenever someone edits configs.
 
+## Make every environment prove itself (deployment gate)
+
+Run the smoke checks everywhere the project ships — no mystery versions or
+“works on my laptop” energy. Treat this as the pre-show gauntlet the repo must
+clear before you put a drone near people.
+
+1. **CI / container sanity (fast loop):**
+   * `python -m pip install -r software/control-bridge/requirements.txt`
+   * `python -m pytest tests/test_check_stack.py -q`
+   * `./scripts/check_stack.py --max-frames 24 --send-interval 0.01 --cooldown 0.05`
+     (keeps the harness short so CI logs stay readable).
+   * GitHub Actions (`.github/workflows/ci.yml`) runs this recipe on every push
+     and PR.  If the bot fails here, fix the stack before you even think about
+     rolling hardware out of the case.
+2. **Laptop/dev box (full bridge rehearsal):**
+   * Create/activate your virtualenv and install control-bridge deps as above.
+   * Run the full `./scripts/check_stack.py` with no short flags so the gesture
+     fixture, OSC bridge, and MSP packets all get a real spin.
+   * Open `software/gesture-tracking/processing/PerceptualDrift_Tracker` in
+     Processing to confirm the HUD reacts while the harness hammers the loop.
+3. **Jetson/field rig (camera + GPU path):**
+   * Run `bash scripts/setup_jetson.sh` once on a fresh flash so Python deps
+     match the repo.
+   * `python3 scripts/check_sensors.py` to catch dead cameras before you drag
+     gear into a venue.
+   * `python3 examples/jetson_hello_camera.py --config config/platform_jetson_orin_nano.yaml`
+     to validate the GStreamer pipeline and drift math on-device.
+
+Log the results (pass/fail, weird smells, timestamps) in `notes/jetson_field_notes.md`
+or `notes/lap_field_notes.md`. If any lane fails, fix it or flag it before a
+pilot touches propellers.
+
 ## Manual fallback (when you want to poke each lane by hand)
 
 1. **Processing tracker sanity:** Launch the sketch, hit play, and point it at a

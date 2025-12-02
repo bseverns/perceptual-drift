@@ -114,6 +114,8 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
    - Fire `./scripts/check_stack.py` once your Processing tracker and OSC bridge are humming. The [operations playbook](docs/operations/playbook.md) is the annotated score: it maps each printout, tells you what “normal” feels like, and lists the weird smells plus triage moves when the script throws shade.
    - The run hammers the Processing tracker, OSC bridge, MSP framing, and Teensy mocks — a full dress rehearsal for the control artery — so you know the whole stack is breathing before you unleash a drone.
    - Bonus robustness drills: pass `--neutralize-after 12` to flip consent off mid-stream and confirm the MSP feed actually chills out to neutral RC values. If you typo the fixture path or hand it garbage JSON, the harness now bails with a loud error instead of pretending everything is fine.
+   - Want zero surprises between laptops, CI, and the Jetson? Follow the [environment gauntlet](docs/operations/playbook.md#make-every-environment-prove-itself-deployment-gate) so every platform proves it can run the tests before a real audience gets anywhere near the rig.
+   - GitHub Actions already runs the “CI / container sanity” loop on every push — if the bot chokes, your rig would have too. Fix it before walking into a venue.
 5. **Video pipeline**
    - `sudo apt install gstreamer1.0-tools` or use OBS.
    - Run `./software/video-pipeline/gst_launch.sh clean_low_latency` for tight monitoring or `delayed_glitch` for delayed projection loops. Adapted from [Scanlines’ GStreamer recipes](https://scanlines.xyz/t/gstreamer-recipes/1414).

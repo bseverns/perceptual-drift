@@ -19,13 +19,22 @@ jobs:
 
     - name: Install deps
       run: |
-        pip install black flake8
-        pip install -r software/control-bridge/requirements.txt
+        python -m pip install --upgrade pip
+        python -m pip install black flake8 pytest
+        python -m pip install -r software/control-bridge/requirements.txt
 
     - name: Lint
       run: |
         flake8 software/control-bridge || true
         black --check software/control-bridge
+
+    - name: Run unit tests
+      run: |
+        python -m pytest tests/test_check_stack.py -q
+
+    - name: Smoke the control stack (CI-short)
+      run: |
+        ./scripts/check_stack.py --max-frames 24 --send-interval 0.01 --cooldown 0.05
 
     - name: Package zip
       run: |
