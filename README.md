@@ -143,6 +143,7 @@ Use it as an icebreaker in classes before graduating students to the full Contro
 ## Config
 - [`config/mapping.yaml`](config/mapping.yaml) provides tunable curves for **altitude**, **lateral drift**, **yaw bias**, **LED color**, and **glitch intensity**.
 - [`config/video-presets.json`](config/video-presets.json) defines named GStreamer pipeline presets for OBS/GStreamer hybrids (clean, glitchy, mirrored, infrared, and scope overlays).
+- **See the [Video pipeline map](docs/video-pipeline.md)** for a mermaid sketch (camera/VRX → gst_launch/OBS → projector) plus a worked `gst_launch.sh` command matched to the `clean_low_latency` preset so you can trace the capture path end-to-end before you start improvising.
 - [`config/recipes/`](config/recipes) bundles “whole mood” presets — gesture curves, video chains, LED notes — ready to load via the new `--recipe` flag.
 - [`hardware/`](hardware) includes a fleshed-out [hardware BOM](hardware/README.md), wiring, and net rig notes based on [Drone Cage DIY](https://hackaday.io/project/19102-drone-safety-cage) write-ups.
 
