@@ -13,7 +13,7 @@ This is the no-nonsense field manual for getting a fresh human up to speed and a
 
 ---
 
-## How to tour this notebook (a.k.a. your flight school syllabus)
+## How to tour this notebook (a.k.a. your school syllabus)
 
 1. **Start with the [Control Stack Playbook](control-stack-playbook.md)** — *Why you care:* it’s the soup-to-nuts wiring diagram for prototypes, so you know exactly when to open [`software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde`](../software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde), [`software/control-bridge/osc_msp_bridge.py`](../software/control-bridge/osc_msp_bridge.py), and the knobs inside [`config/mapping.yaml`](../config/mapping.yaml) before you solder anything.
 2. **Skim the [Safety Checklist](checklists/safety_checklist.md)** — *Why you care:* this is the punk-rock preflight liturgy; keep it open while you’re flashing firmware or tweaking [`hardware/README.md`](../hardware/README.md) so the “oops” moments stay on paper, not on people.
