@@ -164,10 +164,17 @@ def load_fixture_vectors(path: Path, threshold: int = 35) -> List[FixtureFrame]:
     """
 
     fixture_path = resolve_repo_path(path)
+    if not fixture_path.exists():
+        raise FileNotFoundError(f"Fixture file not found: {fixture_path}")
+
     payload = json.loads(fixture_path.read_text())
+    if "frames" not in payload or "meta" not in payload:
+        raise ValueError(f"Fixture missing required keys: {fixture_path}")
     frames: List[List[List[int]]] = payload["frames"]
-    width = payload["meta"]["width"]
-    height = payload["meta"]["height"]
+    width = payload["meta"].get("width")
+    height = payload["meta"].get("height")
+    if width is None or height is None:
+        raise ValueError(f"Fixture missing meta width/height: {fixture_path}")
 
     def brightness(val: int) -> float:
         return float(val)
@@ -494,6 +501,16 @@ def main(argv: Iterable[str] | None = None) -> int:
         help="Post-stream pause to let the bridge emit its final MSP frame",
     )
     parser.add_argument(
+        "--neutralize-after",
+        type=int,
+        default=0,
+        help=(
+            "Toggle consent back off after N fixture frames to exercise the safety"
+            " path and confirm neutral MSP payloads still flow. 0 leaves consent on"
+            " until shutdown."
+        ),
+    )
+    parser.add_argument(
         "--log-events",
         action="store_true",
         help="Write ops_events audit entries while the harness runs.",
@@ -504,12 +521,26 @@ def main(argv: Iterable[str] | None = None) -> int:
     fixture_path = args.fixture
     mapping_path = args.mapping
 
-    fixture_vectors = load_fixture_vectors(fixture_path)
+    try:
+        fixture_vectors = load_fixture_vectors(fixture_path)
+    except FileNotFoundError as exc:
+        print(f"[check_stack] {exc}", file=sys.stderr)
+        return 2
+    except (json.JSONDecodeError, ValueError, KeyError) as exc:
+        print(f"[check_stack] Failed to parse fixture {fixture_path}: {exc}", file=sys.stderr)
+        return 2
+
     if args.max_frames:
         fixture_vectors = fixture_vectors[: args.max_frames]
+
     serial_link = MSPSerialLoopback()
     audit = bridge.AuditLogger() if args.log_events else None
-    harness = BridgeHarness(mapping_path, serial_link, osc_port=args.osc_port, audit=audit)
+    try:
+        harness = BridgeHarness(mapping_path, serial_link, osc_port=args.osc_port, audit=audit)
+    except Exception as exc:  # pragma: no cover - defensive for ops runs
+        print(f"[check_stack] Unable to boot harness: {exc}", file=sys.stderr)
+        return 2
+
     harness.start()
     harness.wait_ready()
     client = udp_client.SimpleUDPClient("127.0.0.1", harness.listening_port)
@@ -517,15 +548,44 @@ def main(argv: Iterable[str] | None = None) -> int:
 
     client.send_message(harness.addresses["consent"], 1)
     time.sleep(max(0.0, min(args.send_interval, 0.05)))
-    for vec in fixture_vectors:
+    neutralize_after = args.neutralize_after if args.neutralize_after > 0 else None
+
+    for idx, vec in enumerate(fixture_vectors):
         client.send_message(harness.addresses["lateral"], vec.lat)
         client.send_message(harness.addresses["altitude"], vec.alt)
         client.send_message(harness.addresses["yaw"], vec.yaw)
         client.send_message(harness.addresses["crowd"], vec.crowd)
         time.sleep(max(0.0, args.send_interval))
+        if neutralize_after and idx + 1 == neutralize_after:
+            client.send_message(harness.addresses["consent"], 0)
+            if args.log_events and audit:
+                audit.write(
+                    "osc_bridge_stream",
+                    status="neutralized",
+                    message="Consent toggled off mid-run by neutralize-after flag.",
+                )
 
-    time.sleep(max(0.0, args.cooldown))
+    neutral_pause = max(0.0, args.cooldown)
+    if neutralize_after:
+        neutral_pause = max(neutral_pause, (1.0 / harness.hz) * 2)
+    time.sleep(neutral_pause)
     harness.stop()
+
+    if neutralize_after:
+        try:
+            last_rc, _aux = decode_msp_frame(serial_link.packets()[-1])
+            neutral_rc = (
+                bridge.map_float_to_rc(0.0),
+                bridge.map_float_to_rc(0.0),
+                bridge.map_float_to_rc(-1.0),
+                bridge.map_float_to_rc(0.0),
+            )
+            if last_rc != neutral_rc:
+                raise AssertionError(
+                    "Consent neutralization failed; last MSP frame was not neutral"
+                )
+        except IndexError:  # pragma: no cover - defensive guard
+            raise AssertionError("No MSP frames emitted before neutralization check")
 
     assert_msp_activity(serial_link)
     run_led_mock_check()
