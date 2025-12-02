@@ -1,0 +1,50 @@
+# Platform profile for development on a generic desktop/laptop.
+# These values favor simplicity: OpenCV capture, local window output, and CPU processing.
+platform: "desktop"
+
+video:
+  # Toggle camera capture entirely (useful for headless testing).
+  enabled: true
+  # OpenCV VideoCapture backend is the friendliest option on most laptops.
+  backend: "opencv"
+  # Device index for the default USB or built-in webcam.
+  device_index: 0
+  # Resolution and frame rate targets; actual capture may negotiate differently.
+  width: 1280
+  height: 720
+  fps: 30
+
+audio:
+  # Audio capture is disabled by default until drift metrics use it.
+  enabled: false
+  # ALSA/Pulse device name; update if audio capture is enabled.
+  device: "default"
+
+outputs:
+  window:
+    # Render a preview window locally for debugging.
+    enabled: true
+    width: 1280
+    height: 720
+  osc:
+    # Send OSC to a local or remote host for instrumentation.
+    enabled: false
+    host: "127.0.0.1"
+    port: 9000
+  midi:
+    # MIDI routing is disabled until a controller/virtual port is present.
+    enabled: false
+    port_name: "perceptual-drift"
+
+performance:
+  # CPU-only by default on desktop to avoid GPU dependency surprises.
+  use_gpu: false
+  # Cap frame rate to avoid runaway CPU usage (0 disables limiting).
+  max_fps: 60
+  # Log timing information for each stage when profiling loops.
+  log_timing: false
+
+mappings:
+  # Paths to mapping files that describe how drift metrics hit OSC/MIDI.
+  osc_mapping_file: "config/mappings/osc.yaml"
+  midi_mapping_file: "config/mappings/midi.yaml"

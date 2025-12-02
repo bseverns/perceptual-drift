@@ -1,0 +1,50 @@
+# Platform profile for running perceptual-drift on a Jetson Orin Nano.
+# Tuned for GStreamer capture, GPU-friendly settings, and headless output by default.
+platform: "jetson_orin_nano"
+
+video:
+  # Disable to run headless tests without camera hardware.
+  enabled: true
+  # Prefer the GStreamer backend to leverage Jetson hardware acceleration.
+  backend: "gstreamer"
+  # Example CSI camera pipeline; tweak sensor-mode/format for your module or USB camera.
+  # For USB cameras, replace nvarguscamerasrc with v4l2src and adjust caps accordingly.
+  gstreamer_pipeline: "nvarguscamerasrc ! video/x-raw(memory:NVMM), width=1280, height=720, framerate=30/1 ! nvvidconv flip-method=0 ! video/x-raw, format=BGRx ! videoconvert ! video/x-raw, format=BGR ! appsink"
+  # Fallback device index if switching to OpenCV backend.
+  device_index: 0
+  width: 1280
+  height: 720
+  fps: 30
+
+audio:
+  # Audio capture is typically off on headless Jetson nodes unless explicitly used.
+  enabled: false
+  device: "default"
+
+outputs:
+  window:
+    # Headless by default; enable if an X11 session is available.
+    enabled: false
+    width: 1280
+    height: 720
+  osc:
+    # Send OSC to a laptop or live rig on the same network; update host accordingly.
+    enabled: true
+    host: "192.168.1.50"  # TODO: set to your control laptop's IP
+    port: 9000
+  midi:
+    # MIDI output typically requires extra setup on Jetson; keep disabled unless needed.
+    enabled: false
+    port_name: "perceptual-drift-jetson"
+
+performance:
+  # Expect to use GPU-accelerated paths when available (OpenCV CUDA, custom kernels, etc.).
+  use_gpu: true
+  max_fps: 60
+  log_timing: true
+  # Optional profiling sample size for scripts that gather timing statistics.
+  profiling_samples: 300
+
+mappings:
+  osc_mapping_file: "config/mappings/osc.yaml"
+  midi_mapping_file: "config/mappings/midi.yaml"

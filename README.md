@@ -27,6 +27,31 @@ Treat that order as gospel for newcomers: prototype, secure, rehearse, reflect, 
 
 ---
 
+## Platform-aware drift lab (Jetson + laptop)
+
+Ready to treat a Jetson Orin Nano as a node in the drift constellation without breaking laptop dev flow? Use the new platform profiles + scripts as your rails:
+
+- **Pick a platform profile**
+  - Laptop/dev box: [`config/platform_desktop.yaml`](config/platform_desktop.yaml) (OpenCV capture, preview window on, CPU-first).
+  - Jetson Orin Nano: [`config/platform_jetson_orin_nano.yaml`](config/platform_jetson_orin_nano.yaml) (GStreamer CSI/USB pipeline placeholder, window off by default, GPU encouraged). Tweak the `gstreamer_pipeline` string to match your camera sensor/port.
+- **Wire your mappings**
+  - OSC: [`config/mappings/osc.yaml`](config/mappings/osc.yaml) names the drift metrics → OSC addresses. Drop it into TouchDesigner/Max or any OSC monitor to watch the numbers wiggle.
+  - MIDI: [`config/mappings/midi.yaml`](config/mappings/midi.yaml) mirrors the same parameters on CCs so you can slam sliders or route into Ableton rigs.
+- **Bootstrap a Jetson**
+  - Run [`scripts/setup_jetson.sh`](scripts/setup_jetson.sh) on a fresh flash. It installs system deps, spins a venv at `~/venvs/perceptual-drift`, and pulls this repo to `~/code/perceptual-drift`. Edit the Git remote inside if you’re not `git@github.com:<you>/perceptual-drift.git`.
+  - Sanity-check the camera bus with [`scripts/check_sensors.py`](scripts/check_sensors.py). It’ll yell if indices 0–5 are dead.
+  - Time the pipeline with [`scripts/profile_pipeline.py`](scripts/profile_pipeline.py --config config/platform_jetson_orin_nano.yaml). It grabs frames, computes a tiny drift metric, and prints per-stage timing so you know if GStreamer/CUDA are doing their job.
+- **Run a headless-ish hello**
+  - `python3 examples/jetson_hello_camera.py --config config/platform_jetson_orin_nano.yaml`
+  - Watch the console FPS/drift log; if `outputs.window.enabled` is `true` you also get an OpenCV window with a pulsing circle sized to drift. Smash `q` to bail.
+- **Field notes as living log**
+  - Jetson runs: log successes + weirdness in [`notes/jetson_field_notes.md`](notes/jetson_field_notes.md).
+  - Laptop dev sessions: mirror the habit in [`notes/lap_field_notes.md`](notes/lap_field_notes.md) so future you remembers which USB hub or lighting tweak fixed things.
+
+This is half studio notebook, half teaching guide: copy/paste the configs straight into workshops, then scribble what broke. Novelty < utility.
+
+---
+
 ## Why this repo
 - **Rapid pilot → exhibition‑scale**: start with 1 drone, 1 projector; scale to a swarm and multi‑screen projections.
 - **Open & reproducible**: off‑the‑shelf micro‑FPV, open libraries, simple wiring.

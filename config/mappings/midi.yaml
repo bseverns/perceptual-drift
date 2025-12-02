@@ -1,0 +1,22 @@
+# MIDI mapping file for routing drift metrics to Control Change messages.
+# TODO: Reconcile CC numbers with your DAW/rig conventions and drift-core outputs.
+output:
+  channel: 1
+
+controls:
+  - name: "frame_drift"
+    type: "cc"
+    cc_number: 20
+    description: "Overall frame-to-frame drift"
+  - name: "motion_center_x"
+    type: "cc"
+    cc_number: 21
+    description: "Horizontal centroid of motion"
+  - name: "motion_center_y"
+    type: "cc"
+    cc_number: 22
+    description: "Vertical centroid of motion"
+  - name: "entropy"
+    type: "cc"
+    cc_number: 23
+    description: "Entropy/complexity estimate"
