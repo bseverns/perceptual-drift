@@ -2,7 +2,7 @@
 
 | Status board | Signal |
 | --- | --- |
-| CI (full stack, all envs) | [![CI](https://github.com/bseverns/perceptual-drift/actions/.github/workflows/ci.yml/badge.svg)](https://github.com/bseverns/perceptual-drift/actions/workflows/ci.yml) |
+| CI (full stack, all envs) | [![CI](https://github.com/bseverns/perceptual-drift/actions/workflows/ci.yml/badge.svg)](https://github.com/bseverns/perceptual-drift/actions/workflows/ci.yml) |
 
 Perceptual Drift is a participatory drone‑based installation where **audience motion** modulates **FPV drone** behavior and **live video processing**. It centers shared authorship: many bodies → probabilistic control → drones that “drift” perceptually. The installation leans on **DIY‑friendly stacks**: Betaflight micro‑drones, Raspberry Pi video processing (GStreamer/OBS), Processing for gesture tracking, and an OSC→MSP control bridge. Optional **Teensy DSP/LED** layers extend visual/sonic feedback. Think of it as an unholy jam session between [Betaflight](https://betaflight.com/), [Processing](https://processing.org/), [GStreamer](https://gstreamer.freedesktop.org/), and [python-osc](https://pypi.org/project/python-osc/) with a splash of [Mozzi](https://sensorium.github.io/Mozzi/) and [CrazySwarm2](https://crazyswarm.readthedocs.io/).
 
