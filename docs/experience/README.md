@@ -12,6 +12,8 @@ This is the bird's-eye choreography for how humans orbit the drone cage. Treat i
 
 Peek the quick-glance map below before diving into the table; it mirrors the same phases and actions so you can grok the flow at a glance.
 
+Need the spiel version? Grab the [spectator script crib](spectator_script.md) for a one-page pre-show patter you can riff from.
+
 ```mermaid
 journey
     title Parallel Tracks — Operator & Spectator
