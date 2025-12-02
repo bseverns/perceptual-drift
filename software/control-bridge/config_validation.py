@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
-from typing import Iterable, List, Mapping, MutableMapping
+from typing import Iterable, Mapping, MutableMapping
 
 import yaml
 
@@ -45,7 +45,7 @@ VALID_AUX_STRATEGIES = {"full", "crowd_only"}
 
 
 def _require_mapping(
-    section: Mapping, key: str, path: str, errors: List[str]
+    section: Mapping, key: str, path: str, errors: list[str]
 ) -> Mapping:
     if key not in section:
         errors.append(f"missing required key '{path}.{key}'")
@@ -63,7 +63,7 @@ def _require_number(
     *,
     minimum=None,
     maximum=None,
-    errors: List[str],
+    errors: list[str],
 ):
     if key not in section:
         errors.append(f"missing required key '{path}.{key}'")
@@ -79,7 +79,7 @@ def _require_number(
     return value
 
 
-def _check_palette(section: Mapping, path: str, errors: List[str]) -> None:
+def _check_palette(section: Mapping, path: str, errors: list[str]) -> None:
     palette = section.get("palette")
     if palette is None:
         return
@@ -90,7 +90,7 @@ def _check_palette(section: Mapping, path: str, errors: List[str]) -> None:
         errors.append(f"'{path}.palette' must contain at least one entry when provided")
 
 
-def validate_bridge_modes(bridge_cfg: Mapping, source: str, errors: List[str]) -> None:
+def validate_bridge_modes(bridge_cfg: Mapping, source: str, errors: list[str]) -> None:
     modes = bridge_cfg.get("modes")
     if not isinstance(modes, Mapping) or not modes:
         errors.append(f"{source}: bridge.modes must be a non-empty mapping")
@@ -145,7 +145,7 @@ def validate_bridge_modes(bridge_cfg: Mapping, source: str, errors: List[str]) -
 
 
 def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
-    errors: List[str] = []
+    errors: list[str] = []
     if not isinstance(cfg, Mapping):
         raise ValidationError([f"{source}: config must be a mapping"])
 
