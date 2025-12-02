@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from pathlib import Path
-from typing import Iterable, List, Mapping, MutableMapping
+from typing import Iterable, Mapping, MutableMapping
 
 import yaml
 
@@ -45,7 +45,7 @@ VALID_AUX_STRATEGIES = {"full", "crowd_only"}
 
 
 def _require_mapping(
-    section: Mapping, key: str, path: str, errors: List[str]
+    section: Mapping, key: str, path: str, errors: list[str]
 ) -> Mapping:
     if key not in section:
         errors.append(f"missing required key '{path}.{key}'")
@@ -63,7 +63,7 @@ def _require_number(
     *,
     minimum=None,
     maximum=None,
-    errors: List[str],
+    errors: list[str],
 ):
     if key not in section:
         errors.append(f"missing required key '{path}.{key}'")
@@ -79,7 +79,7 @@ def _require_number(
     return value
 
 
-def _check_palette(section: Mapping, path: str, errors: List[str]) -> None:
+def _check_palette(section: Mapping, path: str, errors: list[str]) -> None:
     palette = section.get("palette")
     if palette is None:
         return
@@ -87,14 +87,10 @@ def _check_palette(section: Mapping, path: str, errors: List[str]) -> None:
         errors.append(f"'{path}.palette' must be a list of color strings")
         return
     if not palette:
-        errors.append(
-            f"'{path}.palette' must contain at least one entry when provided"
-        )
+        errors.append(f"'{path}.palette' must contain at least one entry when provided")
 
 
-def validate_bridge_modes(
-    bridge_cfg: Mapping, source: str, errors: List[str]
-) -> None:
+def validate_bridge_modes(bridge_cfg: Mapping, source: str, errors: list[str]) -> None:
     modes = bridge_cfg.get("modes")
     if not isinstance(modes, Mapping) or not modes:
         errors.append(f"{source}: bridge.modes must be a non-empty mapping")
@@ -108,14 +104,11 @@ def validate_bridge_modes(
         if aux_strategy not in VALID_AUX_STRATEGIES:
             allowed_aux = sorted(VALID_AUX_STRATEGIES)
             errors.append(
-                f"{source}: {mode_path}.aux_strategy must be one of "
-                f"{allowed_aux}"
+                f"{source}: {mode_path}.aux_strategy must be one of {allowed_aux}"
             )
         neutral = mode_cfg.get("neutral_rc", False)
         if not isinstance(neutral, bool):
-            errors.append(
-                f"{source}: {mode_path}.neutral_rc must be true/false"
-            )
+            errors.append(f"{source}: {mode_path}.neutral_rc must be true/false")
         jitter_scale = mode_cfg.get("jitter_scale", 1.0)
         if not isinstance(jitter_scale, (int, float)) or jitter_scale < 0:
             errors.append(f"{source}: {mode_path}.jitter_scale must be >= 0")
@@ -137,25 +130,22 @@ def validate_bridge_modes(
         if gain_scale:
             if not isinstance(gain_scale, Mapping):
                 errors.append(
-                    f"{source}: {mode_path}.gain_scale must be a mapping "
-                    "of axis→value"
+                    f"{source}: {mode_path}.gain_scale must be a mapping of axis→value"
                 )
             else:
                 for axis, val in gain_scale.items():
                     if not isinstance(val, (int, float)):
                         errors.append(
-                            f"{source}: {mode_path}.gain_scale.{axis} must "
-                            "be numeric"
+                            f"{source}: {mode_path}.gain_scale.{axis} must be numeric"
                         )
                     elif val < 0:
                         errors.append(
-                            f"{source}: {mode_path}.gain_scale.{axis} must be "
-                            f">= 0"
+                            f"{source}: {mode_path}.gain_scale.{axis} must be >= 0"
                         )
 
 
 def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
-    errors: List[str] = []
+    errors: list[str] = []
     if not isinstance(cfg, Mapping):
         raise ValidationError([f"{source}: config must be a mapping"])
 
@@ -168,13 +158,9 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
     )
     for path_name in REQUIRED_OSC_PATHS:
         if path_name not in address_space:
-            errors.append(
-                f"{source}: osc.address_space missing '{path_name}' path"
-            )
+            errors.append(f"{source}: osc.address_space missing '{path_name}' path")
         elif not isinstance(address_space[path_name], str):
-            errors.append(
-                f"{source}: osc.address_space.{path_name} must be a string"
-            )
+            errors.append(f"{source}: osc.address_space.{path_name} must be a string")
 
     mapping = _require_mapping(cfg, "mapping", source, errors)
     for axis in REQUIRED_AXES:
@@ -197,8 +183,7 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
             if curve not in VALID_CURVES:
                 allowed_curves = sorted(VALID_CURVES)
                 errors.append(
-                    f"{source}.mapping.{axis}.curve must be one of "
-                    f"{allowed_curves}"
+                    f"{source}.mapping.{axis}.curve must be one of {allowed_curves}"
                 )
             gain = axis_cfg.get("gain", 1.0)
             if not isinstance(gain, (int, float)) or gain < 0:
@@ -208,8 +193,7 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
                 axis_cfg.get("expo", 0.5),
             )
             if curve == "expo" and (
-                not isinstance(expo_strength, (int, float))
-                or expo_strength < 0
+                not isinstance(expo_strength, (int, float)) or expo_strength < 0
             ):
                 errors.append(
                     f"{source}.mapping.{axis}.expo_strength must be >= 0 "
@@ -228,16 +212,12 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
                 errors.append(f"{source}.mapping.yaw_bias.jitter must be >= 0")
             bias = yaw_cfg.get("bias", 0.0)
             if not isinstance(bias, (int, float)) or not -1.0 <= bias <= 1.0:
-                errors.append(
-                    f"{source}.mapping.yaw_bias.bias must be within [-1, 1]"
-                )
+                errors.append(f"{source}.mapping.yaw_bias.bias must be within [-1, 1]")
 
     glitch_cfg = mapping.get("glitch_intensity", {})
     if glitch_cfg:
         if not isinstance(glitch_cfg, Mapping):
-            errors.append(
-                f"{source}.mapping.glitch_intensity must be a mapping"
-            )
+            errors.append(f"{source}.mapping.glitch_intensity must be a mapping")
         else:
             base = _require_number(
                 glitch_cfg,
@@ -292,9 +272,7 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
         else:
             mode = consent_cfg.get("mode", "binary")
             if mode not in {"binary", "smooth"}:
-                errors.append(
-                    f"{source}.consent.mode must be 'binary' or 'smooth'"
-                )
+                errors.append(f"{source}.consent.mode must be 'binary' or 'smooth'")
             if "idle_altitude" in consent_cfg:
                 _require_number(
                     consent_cfg,
@@ -313,9 +291,7 @@ def load_yaml(path: Path) -> MutableMapping:
     return yaml.safe_load(Path(path).read_text()) or {}
 
 
-def validate_file(
-    path: Path, *, source_label: str | None = None
-) -> MutableMapping:
+def validate_file(path: Path, *, source_label: str | None = None) -> MutableMapping:
     cfg = load_yaml(path)
     validate_mapping_config(cfg, source_label or path.name)
     return cfg
