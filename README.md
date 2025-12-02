@@ -88,6 +88,7 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 4. **Stack health check**
    - Fire `./scripts/check_stack.py` once your Processing tracker and OSC bridge are humming. The [operations playbook](docs/operations/playbook.md) is the annotated score: it maps each printout, tells you what “normal” feels like, and lists the weird smells plus triage moves when the script throws shade.
    - The run hammers the Processing tracker, OSC bridge, MSP framing, and Teensy mocks — a full dress rehearsal for the control artery — so you know the whole stack is breathing before you unleash a drone.
+   - Bonus robustness drills: pass `--neutralize-after 12` to flip consent off mid-stream and confirm the MSP feed actually chills out to neutral RC values. If you typo the fixture path or hand it garbage JSON, the harness now bails with a loud error instead of pretending everything is fine.
 5. **Video pipeline**
    - `sudo apt install gstreamer1.0-tools` or use OBS.
    - Run `./software/video-pipeline/gst_launch.sh clean_low_latency` for tight monitoring or `delayed_glitch` for delayed projection loops. Adapted from [Scanlines’ GStreamer recipes](https://scanlines.xyz/t/gstreamer-recipes/1414).

@@ -68,6 +68,14 @@ def test_cli_entrypoint_runs_fast():
     assert exit_code == 0
 
 
+def test_cli_rejects_missing_fixture(tmp_path, capsys):
+    missing_fixture = tmp_path / "nope.json"
+    exit_code = check_stack.main(["--osc-port", "0", "--fixture", str(missing_fixture)])
+    captured = capsys.readouterr()
+    assert exit_code == 2
+    assert "Fixture file not found" in captured.err
+
+
 def test_each_recipe_initializes_bridge():
     fixture_vectors = check_stack.load_fixture_vectors(FIXTURE)[:5]
     recipe_dir = REPO_ROOT / "config" / "recipes"
@@ -96,6 +104,40 @@ def test_each_recipe_initializes_bridge():
         finally:
             harness.stop()
         check_stack.assert_msp_activity(serial_link)
+
+
+def test_bridge_neutralizes_after_consent_drop():
+    serial_link = check_stack.MSPSerialLoopback()
+    harness = check_stack.BridgeHarness(MAPPING, serial_link, osc_port=0)
+    fixture_vectors = check_stack.load_fixture_vectors(FIXTURE)[:10]
+    harness.start()
+    try:
+        assert harness.wait_ready(), "OSC server never announced readiness"
+        client = udp_client.SimpleUDPClient("127.0.0.1", harness.listening_port)
+        client.send_message(harness.addresses["consent"], 1)
+        time.sleep(0.01)
+        for idx, vec in enumerate(fixture_vectors):
+            client.send_message(harness.addresses["lateral"], vec.lat)
+            client.send_message(harness.addresses["altitude"], vec.alt)
+            client.send_message(harness.addresses["yaw"], vec.yaw)
+            client.send_message(harness.addresses["crowd"], vec.crowd)
+            if idx == 4:
+                client.send_message(harness.addresses["consent"], 0)
+            time.sleep(0.003)
+        client.send_message(harness.addresses["consent"], 0)
+        time.sleep(0.1)
+    finally:
+        harness.stop()
+
+    check_stack.assert_msp_activity(serial_link)
+    last_rc, _aux = check_stack.decode_msp_frame(serial_link.packets()[-1])
+    neutral_rc = (
+        check_stack.bridge.map_float_to_rc(0.0),
+        check_stack.bridge.map_float_to_rc(0.0),
+        check_stack.bridge.map_float_to_rc(-1.0),
+        check_stack.bridge.map_float_to_rc(0.0),
+    )
+    assert last_rc == neutral_rc
 
 
 def test_check_stack_logs_audit_events(tmp_path, monkeypatch):
