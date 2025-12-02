@@ -62,11 +62,7 @@ def deep_merge(base, override):
         return override
     merged = dict(base)
     for key, value in override.items():
-        if (
-            key in merged
-            and isinstance(merged[key], dict)
-            and isinstance(value, dict)
-        ):
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
             merged[key] = deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -173,9 +169,7 @@ def resolve_mode_settings(cfg, requested_mode=None):
             aux_strategy="full",
         )
     if mode_name not in modes_cfg:
-        raise ValidationError(
-            [f"bridge.mode '{mode_name}' not found in bridge.modes"]
-        )
+        raise ValidationError([f"bridge.mode '{mode_name}' not found in bridge.modes"])
     mode_cfg = modes_cfg[mode_name] or {}
     return ModeSettings(
         name=mode_name,
@@ -252,7 +246,7 @@ class DryRunSerial:
             size = payload[3]
             cmd = payload[4]
             if cmd == MSP_SET_RAW_RC and size == 16:
-                frame = struct.unpack("<8H", payload[5:5 + size])
+                frame = struct.unpack("<8H", payload[5 : 5 + size])
                 self._last_frame = frame
         now = time.time()
         if now - self._last_report >= 1.0:
@@ -435,8 +429,7 @@ def main():
         "--config",
         default=str(DEFAULT_MAPPING_PATH),
         help=(
-            "Path to the OSC/MSP mapping YAML (default: "
-            f"{DEFAULT_MAPPING_PATH})."
+            "Path to the OSC/MSP mapping YAML (default: " f"{DEFAULT_MAPPING_PATH})."
         ),
     )
     ap.add_argument(
