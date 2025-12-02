@@ -30,7 +30,9 @@ flowchart LR
     end
 ```
 
-The flow above is the bird’s-eye view: humans throw gestures, the Processing sketch chews them into signals, the mapping layer translates vibe into control packets, and the drone both flies and beams video back for remixing.
+The flow above is the bird’s-eye view: humans enter/throw gestures, the Processing sketch chews them into signals, the mapping layer translates vibe into control packets, and the drone both flies and beams video back for remixing.
+
+![Diagram of vision zone](Diagram-monitoring.png)
 
 ## Stepwise Breakdown: Gesture to Flight
 
@@ -52,6 +54,7 @@ sequenceDiagram
     FC->>Drone: Motor PWM + LED Patterns
     Drone-->>Performer: Motion + Light Feedback
 ```
+![Everything I am thinking off adding in here](rough_proposal.png)
 
 **Teach-back checklist:**
 
