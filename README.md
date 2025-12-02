@@ -10,11 +10,6 @@ Perceptual Drift is a participatory drone‑based installation where **audience 
 
 ---
 
-## Onboarding flight school (start here)
-New to the drift lab? Hit the staged walkthroughs in [`docs/quickstart.md`](docs/quickstart.md#onboarding-flight-school-start-here) — the same four moves (minimal sketch, onboarding playbook, artifact logging, sign-off) live there with "do this now" prompts so you build muscle memory fast.
-
----
-
 ## How to tour this notebook (a.k.a. your flight school syllabus)
 Want the full syllabus with reasons to care for every doc? The [touring guide lives in `docs/quickstart.md`](docs/quickstart.md#how-to-tour-this-notebook-aka-your-flight-school-syllabus) and calls out where each playbook and diagram fits in the rehearsal arc.
 
@@ -91,11 +86,6 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 
 ---
 
-## Quickstart (Pilot: 1 drone, 1 projector)
-Ready to fly a single drone with a projector? Follow the bulletproof runbook in [`docs/quickstart.md`](docs/quickstart.md#quickstart-pilot-1-drone-1-projector). It keeps the cage build, Processing tracker, OSC→MSP bridge, stack health check, video pipeline, and safety dance in one linear checklist so workshops can move fast without losing consent rituals.
-
----
-
 ## Drift Minimal example (hello world)
 
 Need a zero-risk sandbox for class demos? `examples/drift_minimal/drift_minimal.py` is the repo’s new training wheels:
@@ -111,7 +101,8 @@ Use it as an icebreaker in classes before graduating students to the full Contro
 ## Config
 - [`config/mapping.yaml`](config/mapping.yaml) provides tunable curves for **altitude**, **lateral drift**, **yaw bias**, **LED color**, and **glitch intensity**.
 - [`config/video-presets.json`](config/video-presets.json) defines named GStreamer pipeline presets for OBS/GStreamer hybrids (clean, glitchy, mirrored, infrared, and scope overlays).
-- [`config/recipes/`](config/recipes) bundles “whole mood” presets — gesture curves, video chains, LED notes — ready to load via the `--recipe` flag. The [recipe playbook](docs/recipes.md) carries the load-and-go moods plus authoring tips.
+- **See the [Video pipeline map](docs/video-pipeline.md)** for a mermaid sketch (camera/VRX → gst_launch/OBS → projector) plus a worked `gst_launch.sh` command matched to the `clean_low_latency` preset so you can trace the capture path end-to-end before you start improvising.
+- [`config/recipes/`](config/recipes) bundles “whole mood” presets — gesture curves, video chains, LED notes — ready to load via the new `--recipe` flag.
 - [`hardware/`](hardware) includes a fleshed-out [hardware BOM](hardware/README.md), wiring, and net rig notes based on [Drone Cage DIY](https://hackaday.io/project/19102-drone-safety-cage) write-ups.
 
 ---
