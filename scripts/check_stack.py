@@ -229,6 +229,8 @@ class BridgeHarness:
         osc_port: int,
         cfg: Mapping | None = None,
         audit: bridge.AuditLogger | None = None,
+        ghost_mode: bool = False,
+        ghost_buffer_seconds: float = 2.0,
     ) -> None:
         if cfg is None:
             mapping_path = resolve_repo_path(mapping_path or REPO_ROOT / "config" / "mapping.yaml")
@@ -242,6 +244,11 @@ class BridgeHarness:
         self.serial = serial_link
         self.audit = audit
         self.osc_port = osc_port
+        self.ghost_buffer = (
+            bridge.GhostGestureBuffer(ghost_buffer_seconds)
+            if ghost_mode
+            else None
+        )
         self._stop = threading.Event()
         self._started = threading.Event()
         self._loop_thread: threading.Thread | None = None
@@ -250,6 +257,7 @@ class BridgeHarness:
         self._last = 0.0
         self._streaming_live = False
         self._update_interval = 1.0 / self.hz
+        self._gesture_keys = ("alt", "lat", "yaw", "crowd")
 
         addresses = cfg["osc"]["address_space"]
         disp = dispatcher.Dispatcher()
@@ -264,8 +272,13 @@ class BridgeHarness:
     def _mk_handler(self, key: str, lo: float, hi: float):
         def handler(_addr: str, value: float) -> None:
             self.mapper.state[key] = float(bridge.clamp(value, lo, hi))
+            if self.ghost_buffer and self.mapper.state["consent"] != 1:
+                self.ghost_buffer.record(time.monotonic(), self._gesture_snapshot())
 
         return handler
+
+    def _gesture_snapshot(self) -> dict[str, float]:
+        return {k: self.mapper.state[k] for k in self._gesture_keys}
 
     def _consent_handler(self, _addr: str, value: float) -> None:
         prev = self.mapper.state["consent"]
@@ -287,6 +300,16 @@ class BridgeHarness:
                 self._streaming_live = False
         if self.mapper.state["consent"] != 1 and prev == 1:
             self.mapper.state.update({"alt": 0.0, "lat": 0.0, "yaw": 0.0, "crowd": 0.0})
+        if self.ghost_buffer and self.mapper.state["consent"] != 1 and prev == 1:
+            self.ghost_buffer.reset()
+        if self.ghost_buffer and self.mapper.state["consent"] == 1 and prev != 1:
+            self.ghost_buffer.arm_replay(time.monotonic())
+            if self.audit and self.ghost_buffer.replaying:
+                self.audit.write(
+                    "ghost_buffer_replay",
+                    status="info",
+                    details={"buffer_depth": self.ghost_buffer.depth()},
+                )
 
     def start(self) -> None:
         self._stop.clear()
@@ -323,7 +346,11 @@ class BridgeHarness:
         )
         neutral_aux = (1500, 1500, 1500, 1500)
         while not self._stop.is_set():
-            now = time.time()
+            now = time.monotonic()
+            if self.ghost_buffer:
+                snapshot = self.ghost_buffer.snapshot_for(now)
+                if snapshot:
+                    self.mapper.state.update(snapshot)
             if now - self._last > self._update_interval:
                 rc_channels, aux_channels = self.mapper.apply()
                 payload = struct.pack(
@@ -515,6 +542,17 @@ def main(argv: Iterable[str] | None = None) -> int:
         action="store_true",
         help="Write ops_events audit entries while the harness runs.",
     )
+    parser.add_argument(
+        "--ghost-mode",
+        action="store_true",
+        help="Record OSC gestures while consent is low and replay them on first arm.",
+    )
+    parser.add_argument(
+        "--ghost-buffer-seconds",
+        type=float,
+        default=2.0,
+        help="How long the harness should keep gesture history when ghost-mode is on.",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     random.seed(0)
@@ -536,7 +574,14 @@ def main(argv: Iterable[str] | None = None) -> int:
     serial_link = MSPSerialLoopback()
     audit = bridge.AuditLogger() if args.log_events else None
     try:
-        harness = BridgeHarness(mapping_path, serial_link, osc_port=args.osc_port, audit=audit)
+        harness = BridgeHarness(
+            mapping_path,
+            serial_link,
+            osc_port=args.osc_port,
+            audit=audit,
+            ghost_mode=args.ghost_mode,
+            ghost_buffer_seconds=args.ghost_buffer_seconds,
+        )
     except Exception as exc:  # pragma: no cover - defensive for ops runs
         print(f"[check_stack] Unable to boot harness: {exc}", file=sys.stderr)
         return 2
@@ -546,8 +591,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     client = udp_client.SimpleUDPClient("127.0.0.1", harness.listening_port)
     time.sleep(max(0.0, args.warmup))
 
-    client.send_message(harness.addresses["consent"], 1)
-    time.sleep(max(0.0, min(args.send_interval, 0.05)))
+    if args.ghost_mode:
+        client.send_message(harness.addresses["consent"], 0)
+    else:
+        client.send_message(harness.addresses["consent"], 1)
+        time.sleep(max(0.0, min(args.send_interval, 0.05)))
     neutralize_after = args.neutralize_after if args.neutralize_after > 0 else None
 
     for idx, vec in enumerate(fixture_vectors):
@@ -566,7 +614,11 @@ def main(argv: Iterable[str] | None = None) -> int:
                 )
 
     neutral_pause = max(0.0, args.cooldown)
-    if neutralize_after:
+    if args.ghost_mode:
+        client.send_message(harness.addresses["consent"], 1)
+        replay_window = max(neutral_pause, len(fixture_vectors) * args.send_interval)
+        neutral_pause = max(replay_window, args.ghost_buffer_seconds)
+    elif neutralize_after:
         neutral_pause = max(neutral_pause, (1.0 / harness.hz) * 2)
     time.sleep(neutral_pause)
     harness.stop()
