@@ -1,0 +1,48 @@
+# Platform profile for Raspberry Pi nodes that run the OSC→MSP bridge and light camera tasks.
+# Stays headless-first, leans on GStreamer/libcamera, and ships a localhost OSC target so the
+# bridge + gesture tracker can live on the same Pi without extra routing.
+platform: "raspberry_pi"
+
+video:
+  # Camera capture stays on so libcamera can validate your ribbon cable/USB grabbers.
+  enabled: true
+  # Pi OS prefers GStreamer with libcamerasrc; swap to "opencv" if you need cv2.VideoCapture.
+  backend: "gstreamer"
+  # Default libcamera pipeline tuned for HQ/IMX219 sensors. Adjust width/height/framerate per lens.
+  gstreamer_pipeline: "libcamerasrc ! video/x-raw,width=1280,height=720,framerate=30/1 ! videoconvert ! video/x-raw,format=BGR ! appsink"
+  # Fallback device index when leaning on OpenCV instead of GStreamer.
+  device_index: 0
+  width: 1280
+  height: 720
+  fps: 30
+
+audio:
+  # Most Pi rigs skip audio; flip this on when testing mic-driven drift ideas.
+  enabled: false
+  device: "default"
+
+outputs:
+  window:
+    # Keep GUI off on headless Pis; enable when running with an attached HDMI preview.
+    enabled: false
+    width: 1280
+    height: 720
+  osc:
+    # Point OSC at the local bridge by default; override for remote sinks.
+    enabled: true
+    host: "127.0.0.1"
+    port: 9000
+  midi:
+    enabled: false
+    port_name: "perceptual-drift-pi"
+
+performance:
+  # No CUDA here; stay lean and predictable.
+  use_gpu: false
+  max_fps: 50
+  log_timing: true
+  profiling_samples: 200
+
+mappings:
+  osc_mapping_file: "config/mappings/osc.yaml"
+  midi_mapping_file: "config/mappings/midi.yaml"
