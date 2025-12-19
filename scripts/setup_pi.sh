@@ -6,9 +6,26 @@ set -euo pipefail
 # --- Configurable bits -------------------------------------------------------
 REPO_DIR="${REPO_DIR:-$HOME/code/perceptual-drift}"
 VENV_DIR="${VENV_DIR:-$HOME/venvs/perceptual-drift}"
-GIT_SSH_URL="${GIT_SSH_URL:-git@github.com:YOUR_GITHUB_USERNAME/perceptual-drift.git}"  # swap username
-GIT_HTTPS_URL="${GIT_HTTPS_URL:-https://github.com/YOUR_GITHUB_USERNAME/perceptual-drift.git}"  # fallback clone
+DEFAULT_REPO_URL="https://github.com/bseverns/perceptual-drift.git"
+REPO_URL="${REPO_URL:-$DEFAULT_REPO_URL}"
 SERIAL_PORT="${SERIAL_PORT:-/dev/ttyACM0}"  # change to /dev/ttyUSB0 if your FC enumerates there
+
+if [[ "$REPO_URL" =~ ^git@github\.com:(.*)$ ]]; then
+  REPO_PATH="${BASH_REMATCH[1]}"
+  GIT_SSH_URL="$REPO_URL"
+  GIT_HTTPS_URL="https://github.com/${REPO_PATH}"
+elif [[ "$REPO_URL" =~ ^https://github\.com/(.*)$ ]]; then
+  REPO_PATH="${BASH_REMATCH[1]}"
+  GIT_HTTPS_URL="$REPO_URL"
+  GIT_SSH_URL="git@github.com:${REPO_PATH}"
+else
+  echo "[setup] Unsupported REPO_URL: $REPO_URL" >&2
+  echo "[setup] Use either git@github.com:owner/repo.git or https://github.com/owner/repo.git" >&2
+  exit 1
+fi
+
+echo "[setup] Repo source defaults to ${DEFAULT_REPO_URL}".
+echo "[setup] To point at your fork, rerun with REPO_URL=https://github.com/YOU/perceptual-drift.git (SSH/HTTPS auto-derived)."
 
 # --- System packages ---------------------------------------------------------
 echo "[setup] Updating apt and installing Pi-friendly packages..."
@@ -89,4 +106,5 @@ cat <<'MSG'
 - Activate env when hacking: source ~/venvs/perceptual-drift/bin/activate
 - Edit /etc/systemd/system/osc-msp-bridge.service if your serial port/hz change, then sudo systemctl daemon-reload && sudo systemctl restart osc-msp-bridge
 - For lab loops without a flight controller, run: python software/control-bridge/osc_msp_bridge.py --dry-run --config config/mapping.yaml --hz 30
+- Repo remote defaults to https://github.com/bseverns/perceptual-drift.git; override by rerunning with REPO_URL set to your fork (SSH/HTTPS auto-derived).
 MSG
