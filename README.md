@@ -15,13 +15,14 @@ Want the full syllabus with reasons to care for every doc? The [touring guide li
 
 ---
 
-## Platform-aware drift lab (Jetson + laptop)
+## Platform-aware drift lab (Jetson + laptop + Pi)
 
 Ready to treat a Jetson Orin Nano as a node in the drift constellation without breaking laptop dev flow? Use the new platform profiles + scripts as your rails:
 
 - **Pick a platform profile**
   - Laptop/dev box: [`config/platform_desktop.yaml`](config/platform_desktop.yaml) (OpenCV capture, preview window on, CPU-first).
   - Jetson Orin Nano: [`config/platform_jetson_orin_nano.yaml`](config/platform_jetson_orin_nano.yaml) (GStreamer CSI/USB pipeline placeholder, window off by default, GPU encouraged). Tweak the `gstreamer_pipeline` string to match your camera sensor/port.
+  - Raspberry Pi bridge/camera node: [`config/platform_pi.yaml`](config/platform_pi.yaml) (libcamerasrc pipeline baked in, window off, OSC pointed at localhost so the bridge + gesture tracker can live on the same box). Flip `backend` to `opencv` if you’re debugging with `cv2.VideoCapture` instead of GStreamer.
 - **Wire your mappings**
   - OSC: [`config/mappings/osc.yaml`](config/mappings/osc.yaml) names the drift metrics → OSC addresses. Drop it into TouchDesigner/Max or any OSC monitor to watch the numbers wiggle.
   - MIDI: [`config/mappings/midi.yaml`](config/mappings/midi.yaml) mirrors the same parameters on CCs so you can slam sliders or route into Ableton rigs.
@@ -29,12 +30,17 @@ Ready to treat a Jetson Orin Nano as a node in the drift constellation without b
   - Run [`scripts/setup_jetson.sh`](scripts/setup_jetson.sh) on a fresh flash. It installs system deps, spins a venv at `~/venvs/perceptual-drift`, and pulls this repo to `~/code/perceptual-drift`. Edit the Git remote inside if you’re not `git@github.com:<you>/perceptual-drift.git`.
   - Sanity-check the camera bus with [`scripts/check_sensors.py`](scripts/check_sensors.py). It’ll yell if indices 0–5 are dead.
   - Time the pipeline with [`scripts/profile_pipeline.py`](scripts/profile_pipeline.py --config config/platform_jetson_orin_nano.yaml). It grabs frames, computes a tiny drift metric, and prints per-stage timing so you know if GStreamer/CUDA are doing their job.
+- **Drop in a Pi control bridge (copy/paste setup)**
+  - Run [`scripts/setup_pi.sh`](scripts/setup_pi.sh) on Raspberry Pi OS. It installs `python-osc`/`pyserial`, GStreamer bits, and writes a `systemd` unit that keeps [`osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py) alive against `/dev/ttyACM0` (swap to `/dev/ttyUSB0` if your FC shows up there).
+  - The unit defaults to `--hz 50` with `config/mapping.yaml`; edit `/etc/systemd/system/osc-msp-bridge.service` then `sudo systemctl daemon-reload && sudo systemctl restart osc-msp-bridge` whenever you change ports or mapping files.
+  - Serial fallback / heartbeat loop: pass `--dry-run` to `osc_msp_bridge.py` when the flight controller is unplugged; the dry-run serial stub logs every MSP frame so you can rehearse OSC mappings without arming props. When `/pd/consent` drops to `0`, the bridge auto-blasts neutral RC values so Betaflight still sees a heartbeat while the quad stays napping — a safe rehearsal loop layered on top of radio failsafes.
 - **Run a headless-ish hello**
   - `python3 examples/jetson_hello_camera.py --config config/platform_jetson_orin_nano.yaml`
   - Watch the console FPS/drift log; if `outputs.window.enabled` is `true` you also get an OpenCV window with a pulsing circle sized to drift. Smash `q` to bail.
 - **Field notes as living log**
   - Jetson runs: log successes + weirdness in [`notes/jetson_field_notes.md`](notes/jetson_field_notes.md).
   - Laptop dev sessions: mirror the habit in [`notes/lap_field_notes.md`](notes/lap_field_notes.md) so future you remembers which USB hub or lighting tweak fixed things.
+  - Pi bridge bring-up: jot what worked in a local notebook or inline comments near [`scripts/setup_pi.sh`](scripts/setup_pi.sh) so the next swap of SD cards is painless.
 
 This is half studio notebook, half teaching guide: copy/paste the configs straight into workshops, then scribble what broke. Novelty < utility.
 
