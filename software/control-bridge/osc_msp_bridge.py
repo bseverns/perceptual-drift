@@ -63,11 +63,12 @@ def deep_merge(base, override):
         return override
     merged = dict(base)
     for key, value in override.items():
-        if (
+        nested_override = (
             key in merged
             and isinstance(merged[key], dict)
             and isinstance(value, dict)
-        ):
+        )
+        if nested_override:
             merged[key] = deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -175,7 +176,7 @@ def resolve_mode_settings(cfg, requested_mode=None):
         )
     if mode_name not in modes_cfg:
         raise ValidationError(
-            [f"bridge.mode '{mode_name}' not found in bridge.modes"]
+            [f"bridge.mode '{mode_name}' missing from bridge.modes section"]
         )
     mode_cfg = modes_cfg[mode_name] or {}
     return ModeSettings(
@@ -254,7 +255,9 @@ class DryRunSerial:
             size = payload[3]
             cmd = payload[4]
             if cmd == MSP_SET_RAW_RC and size == 16:
-                frame = struct.unpack("<8H", payload[5: 5 + size])
+                # fmt: off
+                frame = struct.unpack("<8H", payload[5:5 + size])
+                # fmt: on
                 self._last_frame = frame
         now = time.time()
         if now - self._last_report >= 1.0:
@@ -264,11 +267,11 @@ class DryRunSerial:
                 if self._last_frame:
                     rc = list(self._last_frame[:4])
                     aux = list(self._last_frame[4:])
+                    message = (
+                        "[dry-run] RC={} AUX={} (frame bytes={} total={}){}"
+                    )
                     print(
-                        (
-                            "[dry-run] RC={} AUX={} "
-                            "(frame bytes={} total={}){}"
-                        ).format(
+                        message.format(
                             rc,
                             aux,
                             len(payload),
@@ -537,10 +540,7 @@ def main():
     ap.add_argument(
         "--ghost-buffer-seconds",
         type=float,
-        help=(
-            "How many seconds of pre-roll gesture history to keep in ghost "
-            "mode"
-        ),
+        help=("How many seconds of gesture pre-roll to keep while ghosting"),
     )
     args = ap.parse_args()
 
@@ -638,9 +638,8 @@ def main():
     mode_settings = resolve_mode_settings(cfg, args.mode)
     hz = resolve_bridge_rate(cfg, args.hz)
     bridge_cfg = cfg.get("bridge", {}) or {}
-    ghost_mode_enabled = bool(
-        args.ghost_mode or bridge_cfg.get("ghost_mode", False)
-    )
+    ghost_default = bridge_cfg.get("ghost_mode", False)
+    ghost_mode_enabled = bool(args.ghost_mode or ghost_default)
     ghost_buffer_seconds = args.ghost_buffer_seconds
     if ghost_buffer_seconds is None:
         ghost_buffer_seconds = float(
@@ -700,13 +699,10 @@ def main():
         if not ghost_buffer:
             return "ghost:off"
         mode = "replaying" if ghost_buffer.replaying else "buffering"
-        return (
-            "ghost:{mode} depth={depth} "
-            "window={window:.1f}s".format(
-                mode=mode,
-                depth=ghost_buffer.depth(),
-                window=ghost_buffer.window_seconds,
-            )
+        return "ghost:{mode} depth={depth} window={window:.1f}s".format(
+            mode=mode,
+            depth=ghost_buffer.depth(),
+            window=ghost_buffer.window_seconds,
         )
 
     # Fire up the serial link to the flight controller.  MSP is just bytes over

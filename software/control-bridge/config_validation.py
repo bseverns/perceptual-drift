@@ -87,9 +87,7 @@ def _check_palette(section: Mapping, path: str, errors: list[str]) -> None:
         errors.append(f"'{path}.palette' must be a list of color strings")
         return
     if not palette:
-        errors.append(
-            f"'{path}.palette' must contain at least one entry when provided"
-        )
+        errors.append(f"'{path}.palette' needs at least one color entry")
 
 
 def validate_bridge_modes(
@@ -107,17 +105,14 @@ def validate_bridge_modes(
         aux_strategy = mode_cfg.get("aux_strategy", "full")
         if aux_strategy not in VALID_AUX_STRATEGIES:
             allowed_aux = sorted(VALID_AUX_STRATEGIES)
+            # fmt: off
             errors.append(
-                (
-                    f"{source}: {mode_path}.aux_strategy "
-                    f"must be one of {allowed_aux}"
-                )
+                f"{source}: {mode_path}.aux_strategy must be in {allowed_aux}"
             )
+            # fmt: on
         neutral = mode_cfg.get("neutral_rc", False)
         if not isinstance(neutral, bool):
-            errors.append(
-                f"{source}: {mode_path}.neutral_rc must be true/false"
-            )
+            errors.append(f"{source}: {mode_path}.neutral_rc must be boolean")
         jitter_scale = mode_cfg.get("jitter_scale", 1.0)
         if not isinstance(jitter_scale, (int, float)) or jitter_scale < 0:
             errors.append(f"{source}: {mode_path}.jitter_scale must be >= 0")
@@ -152,10 +147,12 @@ def validate_bridge_modes(
                             "must be numeric"
                         )
                     elif val < 0:
+                        # fmt: off
                         errors.append(
                             f"{source}: {mode_path}.gain_scale.{axis} "
-                            "must be >= 0"
+                            "must be >=0"
                         )
+                        # fmt: on
 
 
 def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
@@ -200,10 +197,12 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
             curve = axis_cfg.get("curve", "linear")
             if curve not in VALID_CURVES:
                 allowed_curves = sorted(VALID_CURVES)
+                # fmt: off
                 errors.append(
-                    f"{source}.mapping.{axis}.curve must be one of "
+                    f"{source}.mapping.{axis}.curve must be in "
                     f"{allowed_curves}"
                 )
+                # fmt: on
             gain = axis_cfg.get("gain", 1.0)
             if not isinstance(gain, (int, float)) or gain < 0:
                 errors.append(f"{source}.mapping.{axis}.gain must be >= 0")
@@ -284,7 +283,7 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
         ghost_mode = bridge_cfg.get("ghost_mode")
         if ghost_mode is not None and not isinstance(ghost_mode, bool):
             errors.append(
-                f"{source}.bridge.ghost_mode must be true/false when set"
+                f"{source}.bridge.ghost_mode must be boolean when set"
             )
         ghost_buffer = bridge_cfg.get("ghost_buffer_seconds")
         if ghost_buffer is not None:
