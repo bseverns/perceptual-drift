@@ -12,7 +12,23 @@ Run a single-camera drift metric on the Jetson and stream it via OSC to a laptop
 
 ## Configuration
 1. Edit `config/platform_jetson_orin_nano.yaml`:
-   - Set `outputs.osc.host` to the laptop's IP on the LAN.
+   - `outputs.osc.host` defaults to `raspberrypi.local`, pointing at the Pi that soaks up
+     `/vision/gesture` and other OSC payloads in the hybrid chain. Override it when pairing
+     to a different listener (e.g., the lead laptop or a stage box) without committing changes
+     by exporting an env var and piping through `yq`:
+
+     ```bash
+     export PD_OSC_HOST=10.0.0.42  # whatever IP/hostname your OSC bridge is listening on
+     yq '.outputs.osc.host = env(PD_OSC_HOST)' \
+       config/platform_jetson_orin_nano.yaml > /tmp/pd_jetson_osc.yaml
+     ```
+
+     Then point the scene at the patched file via the CLI:
+
+     ```bash
+     python examples/jetson_hello_camera.py --config /tmp/pd_jetson_osc.yaml
+     ```
+
    - Tweak `video.gstreamer_pipeline` if your camera requires different caps.
 2. Ensure `config/mappings/osc.yaml` includes `frame_drift` (and any other metrics you expect).
 
