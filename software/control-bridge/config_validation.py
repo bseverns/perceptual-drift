@@ -257,6 +257,15 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
         mode = bridge_cfg.get("mode", "smooth")
         if not isinstance(mode, str):
             errors.append(f"{source}.bridge.mode must be a string")
+        ghost_mode = bridge_cfg.get("ghost_mode")
+        if ghost_mode is not None and not isinstance(ghost_mode, bool):
+            errors.append(f"{source}.bridge.ghost_mode must be true/false when set")
+        ghost_buffer = bridge_cfg.get("ghost_buffer_seconds")
+        if ghost_buffer is not None:
+            if not isinstance(ghost_buffer, (int, float)):
+                errors.append(f"{source}.bridge.ghost_buffer_seconds must be numeric")
+            elif ghost_buffer < 0:
+                errors.append(f"{source}.bridge.ghost_buffer_seconds must be >= 0")
         validate_bridge_modes(bridge_cfg, source, errors)
         modes_mapping = bridge_cfg.get("modes")
         if isinstance(modes_mapping, Mapping) and isinstance(mode, str):
