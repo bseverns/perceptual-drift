@@ -16,10 +16,14 @@ Keep these tabs open while you hack:
 
 1. **OSC listeners** soak up altitude/lateral/yaw/crowd/consent values from
    whatever instruments you throw at port `9000`.
-2. The `Mapper` class shapes those normalized floats into RC-style microsecond
+2. **MIDI intake** mirrors the OSC handlers so CC/Note gestures can ride the
+   same shaping curves. Edit `config/mappings/midi.yaml` to point your faders
+   and pads at mapper targets; run the bridge with `--dry-run` to watch those
+   moves bend RC microseconds in real time.
+3. The `Mapper` class shapes those normalized floats into RC-style microsecond
    values, applying deadzones, expo/linear curves, gains, and trim+jitter bias
    from `config/mapping.yaml`.
-3. We slam the values into an MSP `SET_RAW_RC` packet and yeet it down a serial
+4. We slam the values into an MSP `SET_RAW_RC` packet and yeet it down a serial
    line to your flight controller at `115200` baud.  MSP is literally bytes over
    UART — sniff it with `screen /dev/ttyUSB0 115200` to see the `$M<` framing.
 

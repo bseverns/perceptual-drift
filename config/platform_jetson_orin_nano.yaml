@@ -35,8 +35,8 @@ outputs:
     host: "raspberrypi.local"  # Pi-side OSC bridge; override via PD_OSC_HOST when pairing
     port: 9000
   midi:
-    # MIDI output typically requires extra setup on Jetson; keep disabled unless needed.
-    enabled: false
+    # Flip on MIDI so CC/notes from the rig feed the mapper alongside OSC.
+    enabled: true
     port_name: "perceptual-drift-jetson"
 
 performance:

@@ -14,7 +14,9 @@ if str(BRIDGE_DIR) not in sys.path:
 
 import config_validation as cv
 from osc_msp_bridge import load_recipe
+
 DEFAULT_MAPPING = REPO_ROOT / "config" / "mapping.yaml"
+DEFAULT_MIDI_MAPPING = REPO_ROOT / "config" / "mappings" / "midi.yaml"
 DEFAULT_RECIPE_DIR = REPO_ROOT / "config" / "recipes"
 
 
@@ -24,12 +26,22 @@ def _iter_recipe_paths(recipe_dir: Path) -> Iterable[Path]:
     return sorted(p for p in recipe_dir.iterdir() if p.suffix.lower() in {".yaml", ".yml", ".json"})
 
 
-def validate(mapping_path: Path, recipe_dir: Path, *, verbose: bool = False) -> List[Path]:
+def validate(
+    mapping_path: Path,
+    recipe_dir: Path,
+    midi_path: Path,
+    *,
+    verbose: bool = False,
+) -> List[Path]:
     mapping_path = mapping_path.resolve()
     recipe_dir = recipe_dir.resolve()
+    midi_path = midi_path.resolve()
     if verbose:
         print(f"[validate] mapping → {mapping_path}")
     cv.validate_file(mapping_path, source_label="mapping")
+    if verbose:
+        print(f"[validate] midi    → {midi_path}")
+    cv.validate_midi_file(midi_path, source_label="midi")
     failures: List[Path] = []
     for recipe in _iter_recipe_paths(recipe_dir):
         if verbose:
@@ -49,12 +61,13 @@ def validate(mapping_path: Path, recipe_dir: Path, *, verbose: bool = False) -> 
 def main(argv: Iterable[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Sanity-check OSC/MSP bridge configs")
     ap.add_argument("--mapping", type=Path, default=DEFAULT_MAPPING, help="Path to mapping.yaml")
+    ap.add_argument("--midi-map", type=Path, default=DEFAULT_MIDI_MAPPING, help="Path to MIDI mapping YAML")
     ap.add_argument("--recipes", type=Path, default=DEFAULT_RECIPE_DIR, help="Directory containing recipes")
     ap.add_argument("--quiet", action="store_true", help="Suppress success chatter")
     args = ap.parse_args(list(argv) if argv is not None else None)
 
     try:
-        validate(args.mapping, args.recipes, verbose=not args.quiet)
+        validate(args.mapping, args.recipes, args.midi_map, verbose=not args.quiet)
     except cv.ValidationError as exc:  # noqa: BLE001
         if not args.quiet:
             print("[validate] config errors detected")

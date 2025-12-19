@@ -32,9 +32,9 @@ outputs:
     host: "127.0.0.1"
     port: 9000
   midi:
-    # MIDI routing is disabled until a controller/virtual port is present.
-    enabled: false
-    port_name: "perceptual-drift"
+    # Enable the virtual/perf MIDI port so controllers and DAWs can steer the mapper.
+    enabled: true
+    port_name: "perceptual-drift-midi"
 
 performance:
   # CPU-only by default on desktop to avoid GPU dependency surprises.
