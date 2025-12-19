@@ -1,17 +1,31 @@
-# OSC mapping file describing how drift metrics are exposed over OSC.
-# TODO: Align parameter names with the actual drift-core outputs once they solidify.
-root: "/perceptual_drift"
+# OSC mapping file describing how drift + gesture metrics leave the vision loop.
+# Source references live in docs/control-stack-playbook.md (Processing tracker section)
+# and the Processing sketch at software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde.
+# Keep these names/addresses in sync so Pi/Jetson/DAW consumers agree on what each float means.
+root: "/pd"
 
 parameters:
-  - name: "frame_drift"
-    address: "/drift/frame"
+  - name: "motion_centroid_x"
+    address: "/pd/lat"
+    range: [-1.0, 1.0]
+    # Processing tracker maps the average motion centroid X (left=-1, right=+1) to lateral drift.
+  - name: "motion_centroid_y"
+    address: "/pd/alt"
+    range: [-1.0, 1.0]
+    # Processing tracker maps the average motion centroid Y (up=+1 because we invert camera Y) to altitude drift.
+  - name: "yaw_drift"
+    address: "/pd/yaw"
+    range: [-1.0, 1.0]
+    # Derived from motion_centroid_x inside the Processing tracker to bias yaw slightly with lateral movement.
+  - name: "crowd_energy"
+    address: "/pd/crowd"
     range: [0.0, 1.0]
-  - name: "motion_center_x"
-    address: "/drift/motion_center/x"
-    range: [0.0, 1.0]
-  - name: "motion_center_y"
-    address: "/drift/motion_center/y"
-    range: [0.0, 1.0]
-  - name: "entropy"
-    address: "/drift/entropy"
-    range: [0.0, 1.0]
+    # Normalized motion magnitude (frame differencing) used to drive LEDs/FX; same signal DAWs and the MSP bridge consume.
+  - name: "consent_state"
+    address: "/pd/consent"
+    range: [0, 1]
+    # Boolean opt-in gate from the consent zone overlay; 0 forces bridges into neutral/idle.
+  - name: "consent_population"
+    address: "/pd/consent_count"
+    range: [0, 10]
+    # Number of tracked centroids inside the consent zone (helps swarm rigs or DAWs scale responses to group size).
