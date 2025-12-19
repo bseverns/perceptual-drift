@@ -63,7 +63,11 @@ def deep_merge(base, override):
         return override
     merged = dict(base)
     for key, value in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+        if (
+            key in merged
+            and isinstance(merged[key], dict)
+            and isinstance(value, dict)
+        ):
             merged[key] = deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -170,7 +174,9 @@ def resolve_mode_settings(cfg, requested_mode=None):
             aux_strategy="full",
         )
     if mode_name not in modes_cfg:
-        raise ValidationError([f"bridge.mode '{mode_name}' not found in bridge.modes"])
+        raise ValidationError(
+            [f"bridge.mode '{mode_name}' not found in bridge.modes"]
+        )
     mode_cfg = modes_cfg[mode_name] or {}
     return ModeSettings(
         name=mode_name,
@@ -248,25 +254,28 @@ class DryRunSerial:
             size = payload[3]
             cmd = payload[4]
             if cmd == MSP_SET_RAW_RC and size == 16:
-                frame = struct.unpack("<8H", payload[5 : 5 + size])
+                frame = struct.unpack("<8H", payload[5: 5 + size])
                 self._last_frame = frame
         now = time.time()
         if now - self._last_report >= 1.0:
             suffix = ""
             if self._status_cb:
                 suffix = f" | {self._status_cb()}"
-            if self._last_frame:
-                rc = list(self._last_frame[:4])
-                aux = list(self._last_frame[4:])
-                print(
-                    "[dry-run] RC={} AUX={} (frame bytes={} total={}){}".format(
-                        rc,
-                        aux,
-                        len(payload),
-                        self.byte_count,
-                        suffix,
+                if self._last_frame:
+                    rc = list(self._last_frame[:4])
+                    aux = list(self._last_frame[4:])
+                    print(
+                        (
+                            "[dry-run] RC={} AUX={} "
+                            "(frame bytes={} total={}){}"
+                        ).format(
+                            rc,
+                            aux,
+                            len(payload),
+                            self.byte_count,
+                            suffix,
+                        )
                     )
-                )
             else:
                 total = self.byte_count
                 message = "[dry-run] would stream {} bytes ({} total so far)"
@@ -455,7 +464,10 @@ class GhostGestureBuffer:
         elapsed = now - self._replay_origin
         target_time = self._buffer_origin + elapsed
         snapshot = None
-        while self._replay_idx < len(self._frozen) and self._frozen[self._replay_idx][0] <= target_time:
+        while (
+            self._replay_idx < len(self._frozen)
+            and self._frozen[self._replay_idx][0] <= target_time
+        ):
             snapshot = dict(self._frozen[self._replay_idx][1])
             self._replay_idx += 1
         if snapshot:
@@ -475,6 +487,7 @@ class GhostGestureBuffer:
     def depth(self) -> int:
         return len(self.buffer)
 
+
 def main():
     ap = argparse.ArgumentParser(
         description=(
@@ -487,7 +500,10 @@ def main():
     ap.add_argument(
         "--config",
         default=str(DEFAULT_MAPPING_PATH),
-        help=(f"Path to the OSC/MSP mapping YAML (default: {DEFAULT_MAPPING_PATH})."),
+        help=(
+            "Path to the OSC/MSP mapping YAML "
+            f"(default: {DEFAULT_MAPPING_PATH})."
+        ),
     )
     ap.add_argument(
         "--recipe",
@@ -506,20 +522,25 @@ def main():
     ap.add_argument(
         "--mode",
         help=(
-            "Bridge mode name declared under bridge.modes (smooth, triggers_only, ...)"
+            "Bridge mode name declared under bridge.modes "
+            "(smooth, triggers_only, ...)"
         ),
     )
     ap.add_argument(
         "--ghost-mode",
         action="store_true",
         help=(
-            "Buffer OSC gestures until consent flips high, then replay them before going live."
+            "Buffer OSC gestures until consent flips high, then replay them "
+            "before going live."
         ),
     )
     ap.add_argument(
         "--ghost-buffer-seconds",
         type=float,
-        help="How many seconds of pre-roll gesture history to keep in ghost mode",
+        help=(
+            "How many seconds of pre-roll gesture history to keep in ghost "
+            "mode"
+        ),
     )
     args = ap.parse_args()
 
@@ -617,12 +638,20 @@ def main():
     mode_settings = resolve_mode_settings(cfg, args.mode)
     hz = resolve_bridge_rate(cfg, args.hz)
     bridge_cfg = cfg.get("bridge", {}) or {}
-    ghost_mode_enabled = bool(args.ghost_mode or bridge_cfg.get("ghost_mode", False))
+    ghost_mode_enabled = bool(
+        args.ghost_mode or bridge_cfg.get("ghost_mode", False)
+    )
     ghost_buffer_seconds = args.ghost_buffer_seconds
     if ghost_buffer_seconds is None:
-        ghost_buffer_seconds = float(bridge_cfg.get("ghost_buffer_seconds", 2.0))
+        ghost_buffer_seconds = float(
+            bridge_cfg.get("ghost_buffer_seconds", 2.0)
+        )
     mapper = Mapper(cfg, mode=mode_settings)
-    ghost_buffer = GhostGestureBuffer(ghost_buffer_seconds) if ghost_mode_enabled else None
+    ghost_buffer = (
+        GhostGestureBuffer(ghost_buffer_seconds)
+        if ghost_mode_enabled
+        else None
+    )
     audit.write(
         "osc_bridge_mode",
         status="info",
@@ -671,7 +700,14 @@ def main():
         if not ghost_buffer:
             return "ghost:off"
         mode = "replaying" if ghost_buffer.replaying else "buffering"
-        return f"ghost:{mode} depth={ghost_buffer.depth()} window={ghost_buffer.window_seconds:.1f}s"
+        return (
+            "ghost:{mode} depth={depth} "
+            "window={window:.1f}s".format(
+                mode=mode,
+                depth=ghost_buffer.depth(),
+                window=ghost_buffer.window_seconds,
+            )
+        )
 
     # Fire up the serial link to the flight controller.  MSP is just bytes over
     # UART, so as long as the port is right you're golden.
@@ -743,26 +779,28 @@ def main():
         mapper.state["consent"] = 1 if new_val == 1 else 0
         if ghost_buffer and mapper.state["consent"] != 1 and prev == 1:
             ghost_buffer.reset()
-        if ghost_buffer and mapper.state["consent"] == 1 and prev != 1:
-            ghost_buffer.arm_replay(time.monotonic())
-            if ghost_buffer.replaying:
-                audit.write(
-                    "ghost_buffer_replay",
-                    status="info",
-                    message=(
-                        "Consent opened; replaying buffered gestures before live passthrough."
-                    ),
-                    details={
-                        "buffer_depth": ghost_buffer.depth(),
-                        "window_seconds": ghost_buffer.window_seconds,
-                    },
-                )
-                if args.dry_run:
-                    print(
-                        "[dry-run][ghost] Replaying {count} buffered frames before live.".format(
-                            count=ghost_buffer.depth()
-                        )
+            if ghost_buffer and mapper.state["consent"] == 1 and prev != 1:
+                ghost_buffer.arm_replay(time.monotonic())
+                if ghost_buffer.replaying:
+                    audit.write(
+                        "ghost_buffer_replay",
+                        status="info",
+                        message=(
+                            "Consent opened; replaying buffered gestures "
+                            "before live passthrough."
+                        ),
+                        details={
+                            "buffer_depth": ghost_buffer.depth(),
+                            "window_seconds": ghost_buffer.window_seconds,
+                        },
                     )
+                    if args.dry_run:
+                        print(
+                            (
+                                "[dry-run][ghost] Replaying {count} buffered "
+                                "frames before live."
+                            ).format(count=ghost_buffer.depth())
+                        )
         if mapper.state["consent"] != prev:
             status = "armed" if mapper.state["consent"] == 1 else "disarmed"
             audit.write(
