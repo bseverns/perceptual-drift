@@ -4,8 +4,12 @@
 
 ## Board + OS
 - Board: NVIDIA Jetson Orin Nano (4GB/8GB; note SKU)
-- JetPack / L4T: TODO fill with installed version (e.g., 6.x / Ubuntu 20.04)
-- Storage: note microSD / NVMe size and remaining headroom
+- JetPack / L4T: **Validated on JetPack 6.0 GA (L4T 36.3) running Ubuntu 20.04.6 LTS**. Treat this as the golden image when cloning nodes; mismatched L4T kernels tend to break camera drivers.
+- Known quirks on this combo:
+  - First boot sometimes wobbles the HDMI link; a reboot settles it.
+  - `nvargus-daemon` will chew a core for ~60 seconds on first camera open while it builds caches; be patient instead of killing it.
+  - GStreamer `nvh264dec` occasionally disappears after an OTA update—reinstall `nvidia-l4t-gstreamer` if hardware decode vanishes.
+- Storage: 64 GB microSD is the floor; 128 GB NVMe feels like breathing room. Expect ~18–22 GB consumed after flashing + deps + our venv, so leave at least 40 GB free for logs and captures.
 
 ## Hostname + identity
 - Suggested hostname: `perceptual-drift-jetson-01`
@@ -31,6 +35,10 @@ sudo apt-get install -y python3 python3-venv python3-pip git \
 - Virtualenv: `~/venvs/perceptual-drift` (created by setup script below)
 - Activate: `source ~/venvs/perceptual-drift/bin/activate`
 - Repo path: `~/code/perceptual-drift`
+- GStreamer/OpenCV alignment notes (for Pi↔Jetson parity):
+  - JetPack 6.0 GA ships GStreamer 1.20.x via `nvidia-l4t-gstreamer`; keep Raspberry Pi images on GStreamer 1.20.x as well so pipeline strings stay portable.
+  - OpenCV from apt is 4.5.x on JetPack 6.0. Pin Pi builds to the same major/minor (4.5) to avoid ABI roulette with `cv2.VideoCapture` backends.
+  - If you must rebuild either stack, freeze the versions in your image notes and keep `gst-inspect-1.0 --version` + `python3 -c "import cv2; print(cv2.__version__)"` outputs in the field log.
 
 ## Repo layout on Jetson
 - `config/` platform + mapping YAMLs
