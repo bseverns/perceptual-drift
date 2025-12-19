@@ -86,3 +86,21 @@ recipes stay sane. If it fails, fix the YAML before you fly.
 
 Now go make something gloriously noisy.  Bonus: use
 [`scripts/record_fpv.sh`](../../scripts/record_fpv.sh) to capture your chaos.
+
+## Ghost mode: buffer before you unleash it
+
+Flip on ghost mode with `--ghost-mode` (or `bridge.ghost_mode: true` in your YAML)
+to capture a rolling buffer of gesture vectors while consent stays low. The
+bridge keeps pushing the neutral RC heartbeat the whole time so Betaflight never
+gets lonely. When consent flips high, that pre-roll deque replays in order using
+monotonic timestamps, then live OSC data takes over.
+
+Tweak `--ghost-buffer-seconds` (or `bridge.ghost_buffer_seconds`) to set how much
+history to stash. Dropping consent back to zero flushes the buffer so the next
+arm starts fresh. In `--dry-run` you'll see a HUD suffix like
+`ghost:buffering depth=12 window=2.0s` so you know how much is queued.
+
+Need to rehearse end-to-end? `scripts/check_stack.py --ghost-mode` pumps the
+fixture frames through the buffer with deterministic timing. Wipe old logs and
+artifacts between takes with `scripts/purge_buffers.sh` to keep your captures
+clean.

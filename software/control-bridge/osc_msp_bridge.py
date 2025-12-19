@@ -25,6 +25,7 @@ import struct
 import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -66,7 +67,12 @@ def deep_merge(base, override):
         return override
     merged = dict(base)
     for key, value in override.items():
-        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+        nested_override = (
+            key in merged
+            and isinstance(merged[key], dict)
+            and isinstance(value, dict)
+        )
+        if nested_override:
             merged[key] = deep_merge(merged[key], value)
         else:
             merged[key] = value
@@ -182,7 +188,9 @@ def resolve_mode_settings(cfg, requested_mode=None):
             aux_strategy="full",
         )
     if mode_name not in modes_cfg:
-        raise ValidationError([f"bridge.mode '{mode_name}' not found in bridge.modes"])
+        raise ValidationError(
+            [f"bridge.mode '{mode_name}' missing from bridge.modes section"]
+        )
     mode_cfg = modes_cfg[mode_name] or {}
     return ModeSettings(
         name=mode_name,
@@ -248,10 +256,11 @@ class AuditLogger:
 class DryRunSerial:
     """Lightweight stand-in for ``serial.Serial`` during dry runs."""
 
-    def __init__(self):
+    def __init__(self, status_cb=None):
         self.byte_count = 0
         self._last_report = time.time()
         self._last_frame = None
+        self._status_cb = status_cb
 
     def write(self, payload: bytes) -> None:
         self.byte_count += len(payload)
@@ -259,30 +268,34 @@ class DryRunSerial:
             size = payload[3]
             cmd = payload[4]
             if cmd == MSP_SET_RAW_RC and size == 16:
-                frame = struct.unpack("<8H", payload[5 : 5 + size])
+                # fmt: off
+                frame = struct.unpack("<8H", payload[5:5 + size])
+                # fmt: on
                 self._last_frame = frame
         now = time.time()
         if now - self._last_report >= 1.0:
-            if self._last_frame:
-                rc = list(self._last_frame[:4])
-                aux = list(self._last_frame[4:])
-                print(
-                    "[dry-run] RC={} AUX={} (frame bytes={} total={})".format(
-                        rc,
-                        aux,
-                        len(payload),
-                        self.byte_count,
+            suffix = ""
+            if self._status_cb:
+                suffix = f" | {self._status_cb()}"
+                if self._last_frame:
+                    rc = list(self._last_frame[:4])
+                    aux = list(self._last_frame[4:])
+                    message = (
+                        "[dry-run] RC={} AUX={} (frame bytes={} total={}){}"
                     )
-                )
+                    print(
+                        message.format(
+                            rc,
+                            aux,
+                            len(payload),
+                            self.byte_count,
+                            suffix,
+                        )
+                    )
             else:
                 total = self.byte_count
                 message = "[dry-run] would stream {} bytes ({} total so far)"
-                print(
-                    message.format(
-                        len(payload),
-                        total,
-                    )
-                )
+                print(message.format(len(payload), total) + suffix)
             self._last_report = now
 
     def close(self) -> None:
@@ -526,6 +539,68 @@ class Mapper:
         return rc_channels, aux_channels
 
 
+class GhostGestureBuffer:
+    """Pre-roll gesture buffer that replays once consent goes live."""
+
+    def __init__(self, window_seconds: float = 2.0):
+        self.window_seconds = max(0.0, float(window_seconds))
+        self.buffer: deque[tuple[float, dict[str, float]]] = deque()
+        self._frozen: list[tuple[float, dict[str, float]]] = []
+        self._replay_idx = 0
+        self._replay_origin = 0.0
+        self._buffer_origin = 0.0
+        self.replaying = False
+
+    def _prune(self, now: float) -> None:
+        cutoff = now - self.window_seconds
+        while self.buffer and self.buffer[0][0] < cutoff:
+            self.buffer.popleft()
+
+    def record(self, now: float, snapshot: dict[str, float]) -> None:
+        if self.window_seconds <= 0:
+            return
+        self._prune(now)
+        self.buffer.append((now, dict(snapshot)))
+
+    def arm_replay(self, now: float) -> None:
+        self._prune(now)
+        self._frozen = list(self.buffer)
+        self._replay_idx = 0
+        self._replay_origin = now
+        self.replaying = bool(self._frozen)
+        if self.replaying:
+            self._buffer_origin = self._frozen[0][0]
+
+    def snapshot_for(self, now: float) -> dict[str, float] | None:
+        if not self.replaying:
+            return None
+        elapsed = now - self._replay_origin
+        target_time = self._buffer_origin + elapsed
+        snapshot = None
+        while (
+            self._replay_idx < len(self._frozen)
+            and self._frozen[self._replay_idx][0] <= target_time
+        ):
+            snapshot = dict(self._frozen[self._replay_idx][1])
+            self._replay_idx += 1
+        if snapshot:
+            return snapshot
+        if self._replay_idx >= len(self._frozen):
+            self.reset()
+        return None
+
+    def reset(self) -> None:
+        self.buffer.clear()
+        self._frozen = []
+        self._replay_idx = 0
+        self._replay_origin = 0.0
+        self._buffer_origin = 0.0
+        self.replaying = False
+
+    def depth(self) -> int:
+        return len(self.buffer)
+
+
 def main():
     ap = argparse.ArgumentParser(
         description=(
@@ -538,7 +613,10 @@ def main():
     ap.add_argument(
         "--config",
         default=str(DEFAULT_MAPPING_PATH),
-        help=(f"Path to the OSC/MSP mapping YAML (default: {DEFAULT_MAPPING_PATH})."),
+        help=(
+            "Path to the OSC/MSP mapping YAML "
+            f"(default: {DEFAULT_MAPPING_PATH})."
+        ),
     )
     ap.add_argument(
         "--midi_map",
@@ -565,8 +643,22 @@ def main():
     ap.add_argument(
         "--mode",
         help=(
-            "Bridge mode name declared under bridge.modes (smooth, triggers_only, ...)"
+            "Bridge mode name declared under bridge.modes "
+            "(smooth, triggers_only, ...)"
         ),
+    )
+    ap.add_argument(
+        "--ghost-mode",
+        action="store_true",
+        help=(
+            "Buffer OSC gestures until consent flips high, then replay them "
+            "before going live."
+        ),
+    )
+    ap.add_argument(
+        "--ghost-buffer-seconds",
+        type=float,
+        help=("How many seconds of gesture pre-roll to keep while ghosting"),
     )
     args = ap.parse_args()
 
@@ -695,12 +787,30 @@ def main():
 
     mode_settings = resolve_mode_settings(cfg, args.mode)
     hz = resolve_bridge_rate(cfg, args.hz)
+    bridge_cfg = cfg.get("bridge", {}) or {}
+    ghost_default = bridge_cfg.get("ghost_mode", False)
+    ghost_mode_enabled = bool(args.ghost_mode or ghost_default)
+    ghost_buffer_seconds = args.ghost_buffer_seconds
+    if ghost_buffer_seconds is None:
+        ghost_buffer_seconds = float(
+            bridge_cfg.get("ghost_buffer_seconds", 2.0)
+        )
     mapper = Mapper(cfg, mode=mode_settings)
+    ghost_buffer = (
+        GhostGestureBuffer(ghost_buffer_seconds)
+        if ghost_mode_enabled
+        else None
+    )
     audit.write(
         "osc_bridge_mode",
         status="info",
         message=f"Bridge mode set to {mode_settings.name} at {hz:.1f} Hz",
-        details={"mode": mode_settings.name, "hz": hz},
+        details={
+            "mode": mode_settings.name,
+            "hz": hz,
+            "ghost_mode": ghost_mode_enabled,
+            "ghost_buffer_seconds": ghost_buffer_seconds,
+        },
     )
 
     midi_listener: MidiListener | None = None
@@ -739,10 +849,29 @@ def main():
             details={"source": "cli"},
         )
 
+    gesture_keys = ("alt", "lat", "yaw", "crowd")
+
+    def gesture_snapshot() -> dict[str, float]:
+        return {k: mapper.state[k] for k in gesture_keys}
+
+    def maybe_record_gesture() -> None:
+        if ghost_buffer and mapper.state["consent"] != 1:
+            ghost_buffer.record(time.monotonic(), gesture_snapshot())
+
+    def ghost_status() -> str:
+        if not ghost_buffer:
+            return "ghost:off"
+        mode = "replaying" if ghost_buffer.replaying else "buffering"
+        return "ghost:{mode} depth={depth} window={window:.1f}s".format(
+            mode=mode,
+            depth=ghost_buffer.depth(),
+            window=ghost_buffer.window_seconds,
+        )
+
     # Fire up the serial link to the flight controller.  MSP is just bytes over
     # UART, so as long as the port is right you're golden.
     if args.dry_run:
-        ser = DryRunSerial()
+        ser = DryRunSerial(status_cb=ghost_status if ghost_buffer else None)
         print("[dry-run] Serial writes suppressed; MSP frames logged locally.")
         audit.write(
             "osc_bridge_dry_run",
@@ -762,6 +891,7 @@ def main():
         """
 
         mapper.state["alt"] = float(clamp(vals[0], -1.0, 1.0))
+        maybe_record_gesture()
 
     def on_lat(addr, *vals):
         """OSC handler for lateral (roll) channel.
@@ -770,6 +900,7 @@ def main():
         """
 
         mapper.state["lat"] = float(clamp(vals[0], -1.0, 1.0))
+        maybe_record_gesture()
 
     def on_yaw(addr, *vals):
         """OSC handler for yaw channel.
@@ -779,6 +910,7 @@ def main():
         """
 
         mapper.state["yaw"] = float(clamp(vals[0], -1.0, 1.0))
+        maybe_record_gesture()
 
     def on_crowd(addr, *vals):
         """OSC handler for crowd/aux data.
@@ -788,6 +920,7 @@ def main():
         """
 
         mapper.state["crowd"] = float(clamp(vals[0], 0.0, 1.0))
+        maybe_record_gesture()
 
     def on_consent(addr, *vals):
         """OSC handler for the go/no-go toggle.
@@ -803,6 +936,30 @@ def main():
         prev = mapper.state["consent"]
         new_val = int(vals[0])
         mapper.state["consent"] = 1 if new_val == 1 else 0
+        if ghost_buffer and mapper.state["consent"] != 1 and prev == 1:
+            ghost_buffer.reset()
+            if ghost_buffer and mapper.state["consent"] == 1 and prev != 1:
+                ghost_buffer.arm_replay(time.monotonic())
+                if ghost_buffer.replaying:
+                    audit.write(
+                        "ghost_buffer_replay",
+                        status="info",
+                        message=(
+                            "Consent opened; replaying buffered gestures "
+                            "before live passthrough."
+                        ),
+                        details={
+                            "buffer_depth": ghost_buffer.depth(),
+                            "window_seconds": ghost_buffer.window_seconds,
+                        },
+                    )
+                    if args.dry_run:
+                        print(
+                            (
+                                "[dry-run][ghost] Replaying {count} buffered "
+                                "frames before live."
+                            ).format(count=ghost_buffer.depth())
+                        )
         if mapper.state["consent"] != prev:
             status = "armed" if mapper.state["consent"] == 1 else "disarmed"
             audit.write(
@@ -864,7 +1021,11 @@ def main():
 
     try:
         while True:
-            now = time.time()
+            now = time.monotonic()
+            if ghost_buffer:
+                snapshot = ghost_buffer.snapshot_for(now)
+                if snapshot:
+                    mapper.state.update(snapshot)
             if now - last > update_interval:
                 rc_channels, aux_channels = mapper.apply()
                 # 8 channels: roll, pitch, throttle, yaw, AUX1..AUX4.  If you

@@ -1,6 +1,9 @@
-# MIDI mapping for shaping gesture input alongside OSC.
-# Channel numbers are 1-indexed to match most DAWs and controller silkscreens.
-input:
+# MIDI mapping file for routing drift metrics to Control Change messages.
+# DAW template: Live/Bitwig racks with the first macro bank pinned to CC20–27.
+# Knob 1/2 ride the motion centroid (lat/alt), knob 3 is entropy/energy, knob 4
+# is the consent gate, knob 5 mirrors population inside the consent zone. The
+# remaining CCs stay open for scene-specific macros.
+output:
   channel: 1
   port_name: "perceptual-drift-midi"
 
@@ -40,3 +43,24 @@ gestures:
     target: "consent"
     mode: "gate"
     description: "Middle C gates MSP streaming on/off"
+controls:
+  - name: "motion_centroid_x"
+    type: "cc"
+    cc_number: 20
+    description: "Horizontal centroid of motion (left=-1, right=+1)"
+  - name: "motion_centroid_y"
+    type: "cc"
+    cc_number: 21
+    description: "Vertical centroid of motion (down=-1, up=+1)"
+  - name: "entropy"
+    type: "cc"
+    cc_number: 22
+    description: "Crowd entropy/energy estimate"
+  - name: "consent_state"
+    type: "cc"
+    cc_number: 23
+    description: "Boolean consent gate (0=idle, 1=armed)"
+  - name: "consent_population"
+    type: "cc"
+    cc_number: 24
+    description: "Tracked centroids inside consent zone"
