@@ -42,6 +42,11 @@ video_pipeline:
   story: |
     Soft-focus mirror. Minimal latency, gentle saturation dip, subtle blue lift
     to match the LED aura.
+  obs_scene: "FPV + Telemetry — ambient_soften"
+  obs_overlay_notes: |
+    Build the OBS scene with the ambient_soften chain plus the telemetry Text
+    source pointing at runtime/obs_overlay/telemetry_overlay.txt (white text,
+    drop shadow on). Scene name above is the one to export.
   default_chain: ambient_soften
   gst_chains:
     ambient_soften: |

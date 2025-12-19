@@ -42,4 +42,9 @@ video_pipeline:
   story: |
     Use the picture-in-picture scope so facilitators can point at the consent
     overlay while the live feed plays underneath.
+  obs_scene: "FPV + Telemetry — crowd_scope"
+  obs_overlay_notes: |
+    Build the crowd_scope scene in OBS and layer the telemetry Text source on
+    top (runtime/obs_overlay/telemetry_overlay.txt) so facilitators can read
+    battery/link health while pointing at the consent gate.
   default_chain: crowd_scope

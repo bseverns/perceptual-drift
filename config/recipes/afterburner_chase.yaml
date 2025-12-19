@@ -42,6 +42,12 @@ video_pipeline:
   story: |
     Feed the mirror twins preset into riot feedback for a neon sci-fi chase.
     Display the chain name on screen so operators can call it out live.
+  obs_scene: "FPV + Telemetry — mirror_twins (riot_afterburn alt)"
+  obs_overlay_notes: |
+    OBS scene should ship with the telemetry Text source on top
+    (runtime/obs_overlay/telemetry_overlay.txt). Use the mirror_twins capture
+    chain for low latency; swap to the riot_afterburn chain and keep the same
+    telemetry overlay if you want the heavier glitch.
   default_chain: mirror_twins
   gst_chains:
     riot_afterburn: |
