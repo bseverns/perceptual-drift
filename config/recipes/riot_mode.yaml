@@ -41,6 +41,11 @@ video_pipeline:
   story: |
     Maximum drama: crank saturation, delay the feed a few seconds, fold it back
     on itself with horizontal tear and contrast pump.
+  obs_scene: "FPV + Telemetry — riot_feedback"
+  obs_overlay_notes: |
+    Scene should include the riot_feedback delay and color push plus the
+    telemetry Text source (runtime/obs_overlay/telemetry_overlay.txt). Name the
+    scene exactly like above so ops can call it out mid-show.
   default_chain: riot_feedback
   gst_chains:
     riot_feedback: |

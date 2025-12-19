@@ -47,3 +47,4 @@ flowchart LR
 - Copy/paste any `gst` string from `config/video-presets.json` into the launcher, then tweak saturation/queue values live in rehearsal.
 - When experimenting in OBS, keep the same ordering: capture → optional queue/buffer → color/balance nodes → sink/projector. Matching structure keeps latency math consistent.
 - New moods? Add a preset to `config/video-presets.json`, then run `./software/video-pipeline/gst_launch.sh <new_name>`. Pin that chain in a recipe if you need it bundled with control/LED settings.
+- Need battery + RSSI in the shot? Follow the [OBS telemetry overlay recipe](operations/obs_telemetry_overlay.md) for a scene that mirrors these chains and reads live link health at 2–5 Hz.

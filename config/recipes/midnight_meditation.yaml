@@ -40,4 +40,9 @@ video_pipeline:
   story: |
     Lean into noir. Use the infrared-style preset so the audience watches a
     ghost of themselves sway without jitter.
+  obs_scene: "FPV + Telemetry — infrared_memory"
+  obs_overlay_notes: |
+    Scene should mirror the infrared_memory preset and park the telemetry Text
+    source (runtime/obs_overlay/telemetry_overlay.txt) in the lower corner so
+    spotters can read it at a glance.
   default_chain: infrared_memory

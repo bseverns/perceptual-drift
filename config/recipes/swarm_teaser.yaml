@@ -41,6 +41,11 @@ video_pipeline:
   story: |
     Duplicate + offset the live feed with alpha blend to imply ghosts. Keep
     latency respectable so pilots still feel the machine.
+  obs_scene: "FPV + Telemetry — mirror_twins"
+  obs_overlay_notes: |
+    Mirror the mirror_twins chain in OBS and tack the telemetry Text source on
+    top (runtime/obs_overlay/telemetry_overlay.txt). Keep the ghost overlay and
+    telemetry high-contrast so pilots can read it from 10 ft.
   default_chain: mirror_twins
   gst_chains:
     mirror_twins: |
