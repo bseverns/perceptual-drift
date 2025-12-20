@@ -345,11 +345,14 @@ class MidiListener:
             return
         if MIDI_BACKEND != "rtmidi":
             reason = (
-                "python-rtmidi is missing" if MIDI_BACKEND_ERROR else "backend not available"
+                "python-rtmidi is missing"
+                if MIDI_BACKEND_ERROR
+                else "backend not available"
             )
             msg = (
-                "MIDI listener disabled: {reason}. OSC still flows; install the "
-                "optional MIDI deps when you want faders in the loop."
+                "MIDI listener disabled: {reason}. OSC still flows; "
+                "install the optional MIDI deps when you want faders "
+                "in the loop."
             ).format(reason=reason)
             print(msg)
             self.audit.write(
@@ -358,11 +361,17 @@ class MidiListener:
                 message=msg,
                 details={
                     "backend": MIDI_BACKEND,
-                    "error": str(MIDI_BACKEND_ERROR) if MIDI_BACKEND_ERROR else None,
+                    "error": (
+                        str(MIDI_BACKEND_ERROR) if MIDI_BACKEND_ERROR else None
+                    ),
                 },
             )
             return
-        self._port = mido.open_input(self.port_name) if self.port_name else mido.open_input()
+        self._port = (
+            mido.open_input(self.port_name)
+            if self.port_name
+            else mido.open_input()
+        )
         msg = "MIDI listener bound to {port} (channel {channel})".format(
             port=self._port.name,
             channel=(self.channel + 1) if self.channel is not None else "any",
@@ -379,7 +388,9 @@ class MidiListener:
                 "note_gestures": sorted(self.note_routes.keys()),
             },
         )
-        self._thread = threading.Thread(target=self._loop, name="midi_listener", daemon=True)
+        self._thread = threading.Thread(
+            target=self._loop, name="midi_listener", daemon=True
+        )
         self._thread.start()
 
     def stop(self) -> None:
@@ -427,7 +438,12 @@ class MidiListener:
         if target is None:
             return
         if target in {"altitude", "lateral", "yaw"}:
-            key = "alt" if target == "altitude" else "lat" if target == "lateral" else "yaw"
+            if target == "altitude":
+                key = "alt"
+            elif target == "lateral":
+                key = "lat"
+            else:
+                key = "yaw"
             self.mapper.state[key] = float(clamp(value, -1.0, 1.0))
         elif target == "crowd":
             self.mapper.state["crowd"] = float(clamp(value, 0.0, 1.0))
@@ -654,8 +670,8 @@ def main():
         "--midi_map",
         default=str(DEFAULT_MIDI_MAPPING_PATH),
         help=(
-            "Path to the MIDI mapping YAML used to merge CC/note gestures into "
-            "the MSP mapper (default: config/mappings/midi.yaml)."
+            "Path to the MIDI mapping YAML used to merge CC/note gestures "
+            "into the MSP mapper (default: config/mappings/midi.yaml)."
         ),
     )
     ap.add_argument(
