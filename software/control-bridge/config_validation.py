@@ -93,9 +93,7 @@ def _check_palette(section: Mapping, path: str, errors: list[str]) -> None:
         errors.append(f"'{path}.palette' needs at least one color entry")
 
 
-def _check_midi_input(
-    section: Mapping, path: str, errors: list[str]
-) -> None:
+def _check_midi_input(section: Mapping, path: str, errors: list[str]) -> None:
     if not isinstance(section, Mapping):
         errors.append(f"{path} must be a mapping")
         return
@@ -209,15 +207,11 @@ def validate_midi_mapping_config(
             if gesture_type == "cc":
                 cc_number = gesture.get("cc_number")
                 if not isinstance(cc_number, int) or not 0 <= cc_number <= 127:
-                    errors.append(
-                        f"{path}.cc_number must be an integer 0-127"
-                    )
+                    errors.append(f"{path}.cc_number must be an integer 0-127")
                 response = gesture.get("response", "bipolar")
                 if response not in VALID_MIDI_RESPONSES:
                     allowed = sorted(VALID_MIDI_RESPONSES)
-                    errors.append(
-                        f"{path}.response must be one of {allowed}"
-                    )
+                    errors.append(f"{path}.response must be one of {allowed}")
             if gesture_type == "note":
                 note_number = gesture.get("note_number")
                 valid_note = (
