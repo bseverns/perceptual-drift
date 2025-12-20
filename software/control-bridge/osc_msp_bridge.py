@@ -29,10 +29,23 @@ from collections import deque
 from datetime import datetime, timezone
 from pathlib import Path
 
-import mido
 import serial
 import yaml
 from pythonosc import dispatcher, osc_server
+import mido
+
+MIDI_BACKEND = "rtmidi"
+MIDI_BACKEND_ERROR: Exception | None = None
+try:
+    # This pulls in python-rtmidi if it exists; otherwise we fall back to the
+    # no-op dummy backend so OSC users aren't blocked by missing native libs.
+    import mido.backends.rtmidi  # type: ignore # noqa: F401
+
+    mido.set_backend("mido.backends.rtmidi")
+except Exception as exc:  # noqa: BLE001
+    MIDI_BACKEND = "dummy"
+    MIDI_BACKEND_ERROR = exc
+    mido.set_backend("mido.backends.dummy")
 
 BRIDGE_DIR = Path(__file__).resolve().parent
 if str(BRIDGE_DIR) not in sys.path:
@@ -329,6 +342,25 @@ class MidiListener:
 
     def start(self) -> None:
         if not (self.cc_routes or self.note_routes):
+            return
+        if MIDI_BACKEND != "rtmidi":
+            reason = (
+                "python-rtmidi is missing" if MIDI_BACKEND_ERROR else "backend not available"
+            )
+            msg = (
+                "MIDI listener disabled: {reason}. OSC still flows; install the "
+                "optional MIDI deps when you want faders in the loop."
+            ).format(reason=reason)
+            print(msg)
+            self.audit.write(
+                "midi_bridge_boot",
+                status="warning",
+                message=msg,
+                details={
+                    "backend": MIDI_BACKEND,
+                    "error": str(MIDI_BACKEND_ERROR) if MIDI_BACKEND_ERROR else None,
+                },
+            )
             return
         self._port = mido.open_input(self.port_name) if self.port_name else mido.open_input()
         msg = "MIDI listener bound to {port} (channel {channel})".format(
