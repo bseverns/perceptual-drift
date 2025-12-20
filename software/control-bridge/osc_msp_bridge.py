@@ -986,28 +986,28 @@ def main():
         mapper.state["consent"] = 1 if new_val == 1 else 0
         if ghost_buffer and mapper.state["consent"] != 1 and prev == 1:
             ghost_buffer.reset()
-            if ghost_buffer and mapper.state["consent"] == 1 and prev != 1:
-                ghost_buffer.arm_replay(time.monotonic())
-                if ghost_buffer.replaying:
-                    audit.write(
-                        "ghost_buffer_replay",
-                        status="info",
-                        message=(
-                            "Consent opened; replaying buffered gestures "
-                            "before live passthrough."
-                        ),
-                        details={
-                            "buffer_depth": ghost_buffer.depth(),
-                            "window_seconds": ghost_buffer.window_seconds,
-                        },
+        if ghost_buffer and mapper.state["consent"] == 1 and prev != 1:
+            ghost_buffer.arm_replay(time.monotonic())
+            if ghost_buffer.replaying:
+                audit.write(
+                    "ghost_buffer_replay",
+                    status="info",
+                    message=(
+                        "Consent opened; replaying buffered gestures "
+                        "before live passthrough."
+                    ),
+                    details={
+                        "buffer_depth": ghost_buffer.depth(),
+                        "window_seconds": ghost_buffer.window_seconds,
+                    },
+                )
+                if args.dry_run:
+                    print(
+                        (
+                            "[dry-run][ghost] Replaying {count} buffered "
+                            "frames before live."
+                        ).format(count=ghost_buffer.depth())
                     )
-                    if args.dry_run:
-                        print(
-                            (
-                                "[dry-run][ghost] Replaying {count} buffered "
-                                "frames before live."
-                            ).format(count=ghost_buffer.depth())
-                        )
         if mapper.state["consent"] != prev:
             status = "armed" if mapper.state["consent"] == 1 else "disarmed"
             audit.write(
