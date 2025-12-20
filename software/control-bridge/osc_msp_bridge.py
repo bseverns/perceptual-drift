@@ -708,6 +708,14 @@ def main():
         type=float,
         help=("How many seconds of gesture pre-roll to keep while ghosting"),
     )
+    ap.add_argument(
+        "--stale-after",
+        type=float,
+        help=(
+            "Seconds of OSC silence before we force gestures back to neutral "
+            "while consent stays high. 0 or negative disables the watchdog."
+        ),
+    )
     args = ap.parse_args()
 
     audit = AuditLogger()
@@ -843,6 +851,11 @@ def main():
         ghost_buffer_seconds = float(
             bridge_cfg.get("ghost_buffer_seconds", 2.0)
         )
+    stale_after = args.stale_after
+    if stale_after is None:
+        stale_after = float(bridge_cfg.get("stale_after", 0.0) or 0.0)
+    if stale_after <= 0:
+        stale_after = 0.0
     mapper = Mapper(cfg, mode=mode_settings)
     ghost_buffer = (
         GhostGestureBuffer(ghost_buffer_seconds)
@@ -858,6 +871,7 @@ def main():
             "hz": hz,
             "ghost_mode": ghost_mode_enabled,
             "ghost_buffer_seconds": ghost_buffer_seconds,
+            "stale_after": stale_after,
         },
     )
 
@@ -930,6 +944,20 @@ def main():
     else:
         ser = serial.Serial(args.serial, args.baud, timeout=0.01)
 
+    last_osc_time = time.monotonic()
+    stale_logged = False
+
+    def _mark_osc_tick() -> None:
+        nonlocal last_osc_time, stale_logged
+        last_osc_time = time.monotonic()
+        if stale_logged:
+            audit.write(
+                "osc_stale_guard",
+                status="info",
+                message="OSC stream resumed; watchdog un-neutered the sticks.",
+            )
+            stale_logged = False
+
     def on_alt(addr, *vals):
         """OSC handler for altitude channel.
 
@@ -939,6 +967,7 @@ def main():
         """
 
         mapper.state["alt"] = float(clamp(vals[0], -1.0, 1.0))
+        _mark_osc_tick()
         maybe_record_gesture()
 
     def on_lat(addr, *vals):
@@ -948,6 +977,7 @@ def main():
         """
 
         mapper.state["lat"] = float(clamp(vals[0], -1.0, 1.0))
+        _mark_osc_tick()
         maybe_record_gesture()
 
     def on_yaw(addr, *vals):
@@ -958,6 +988,7 @@ def main():
         """
 
         mapper.state["yaw"] = float(clamp(vals[0], -1.0, 1.0))
+        _mark_osc_tick()
         maybe_record_gesture()
 
     def on_crowd(addr, *vals):
@@ -968,6 +999,7 @@ def main():
         """
 
         mapper.state["crowd"] = float(clamp(vals[0], 0.0, 1.0))
+        _mark_osc_tick()
         maybe_record_gesture()
 
     def on_consent(addr, *vals):
@@ -984,6 +1016,7 @@ def main():
         prev = mapper.state["consent"]
         new_val = int(vals[0])
         mapper.state["consent"] = 1 if new_val == 1 else 0
+        _mark_osc_tick()
         if ghost_buffer and mapper.state["consent"] != 1 and prev == 1:
             ghost_buffer.reset()
         if ghost_buffer and mapper.state["consent"] == 1 and prev != 1:
@@ -1070,11 +1103,33 @@ def main():
     try:
         while True:
             now = time.monotonic()
+            is_stale = False
+            if stale_after and now - last_osc_time > stale_after:
+                is_stale = True
+                if not stale_logged:
+                    audit.write(
+                        "osc_stale_guard",
+                        status="warning",
+                        message=(
+                            "OSC stream stalled past {:.2f}s; soft-neutralizing "
+                            "live gestures."
+                        ).format(stale_after),
+                    )
+                    stale_logged = True
             if ghost_buffer:
                 snapshot = ghost_buffer.snapshot_for(now)
                 if snapshot:
                     mapper.state.update(snapshot)
             if now - last > update_interval:
+                if is_stale and mapper.state["consent"] == 1:
+                    mapper.state.update(
+                        {
+                            "alt": 0.0,
+                            "lat": 0.0,
+                            "yaw": 0.0,
+                            "crowd": 0.0,
+                        }
+                    )
                 rc_channels, aux_channels = mapper.apply()
                 # 8 channels: roll, pitch, throttle, yaw, AUX1..AUX4.  If you
                 # need more, change the struct format and append extra values.

@@ -43,6 +43,7 @@ mapping:
 bridge:
   hz: 50
   mode: smooth
+  stale_after: 0.35      # watchdog neutralizes live gestures after N seconds of OSC silence (0 disables)
   modes:
     smooth:
       description: "Continuous mapping for rehearsal and most shows."

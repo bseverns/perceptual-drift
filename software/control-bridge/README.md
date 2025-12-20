@@ -81,6 +81,11 @@ selects one of the `bridge.modes` presets in `config/mapping.yaml`:
 * `triggers_only` — fatter deadzones, softer gains, jitter scaled down.
 * `idle_visuals` — RC channels park neutral while AUX still reflects the crowd.
 
+Nervous about stale OSC? Flip on the freshness watchdog with `--stale-after` or
+`bridge.stale_after` in `config/mapping.yaml` so the bridge forces all gestures
+back to neutral after a configurable silence window while consent is still high.
+Set it to `0` to disable; `0.35` seconds is our go-to safety edge during shows.
+
 Pre-show ritual: run `python3 scripts/validate_config.py` to make sure mapping and
 recipes stay sane. If it fails, fix the YAML before you fly.
 

@@ -370,6 +370,12 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
                 errors.append(
                     f"{source}.bridge.ghost_buffer_seconds must be >= 0"
                 )
+        stale_after = bridge_cfg.get("stale_after")
+        if stale_after is not None:
+            if not isinstance(stale_after, (int, float)):
+                errors.append(f"{source}.bridge.stale_after must be numeric")
+            elif stale_after < 0:
+                errors.append(f"{source}.bridge.stale_after must be >= 0")
         validate_bridge_modes(bridge_cfg, source, errors)
         modes_mapping = bridge_cfg.get("modes")
         if isinstance(modes_mapping, Mapping) and isinstance(mode, str):
