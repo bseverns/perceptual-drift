@@ -5,7 +5,44 @@
 # remaining CCs stay open for scene-specific macros.
 output:
   channel: 1
+  port_name: "perceptual-drift-midi"
 
+# Each gesture entry binds a CC or Note to one of the mapper's axes.
+# ``response`` controls how values are normalized:
+#   * ``bipolar``  → 0..127 maps to -1..1 (good for stick-like axes)
+#   * ``unipolar`` → 0..127 maps to 0..1 (great for intensity layers)
+# Notes default to gates: velocity > 0 sets 1, note off sets 0.
+gestures:
+  - name: "altitude_fader"
+    type: "cc"
+    cc_number: 20
+    target: "altitude"
+    response: "bipolar"
+    description: "Push/pull quad altitude from a hardware fader"
+  - name: "lateral_fader"
+    type: "cc"
+    cc_number: 21
+    target: "lateral"
+    response: "bipolar"
+    description: "Slide roll/strafe from a second fader or encoder"
+  - name: "yaw_ribbon"
+    type: "cc"
+    cc_number: 22
+    target: "yaw"
+    response: "bipolar"
+    description: "Twist ribbon/knob for yaw bias"
+  - name: "crowd_intensity"
+    type: "cc"
+    cc_number: 23
+    target: "crowd"
+    response: "unipolar"
+    description: "0..1 crowd/visual intensity straight from CC"
+  - name: "consent_note"
+    type: "note"
+    note_number: 60
+    target: "consent"
+    mode: "gate"
+    description: "Middle C gates MSP streaming on/off"
 controls:
   - name: "motion_centroid_x"
     type: "cc"

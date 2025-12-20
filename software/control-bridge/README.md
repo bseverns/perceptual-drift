@@ -16,10 +16,14 @@ Keep these tabs open while you hack:
 
 1. **OSC listeners** soak up altitude/lateral/yaw/crowd/consent values from
    whatever instruments you throw at port `9000`.
-2. The `Mapper` class shapes those normalized floats into RC-style microsecond
+2. **MIDI intake** mirrors the OSC handlers so CC/Note gestures can ride the
+   same shaping curves. Edit `config/mappings/midi.yaml` to point your faders
+   and pads at mapper targets; run the bridge with `--dry-run` to watch those
+   moves bend RC microseconds in real time.
+3. The `Mapper` class shapes those normalized floats into RC-style microsecond
    values, applying deadzones, expo/linear curves, gains, and trim+jitter bias
    from `config/mapping.yaml`.
-3. We slam the values into an MSP `SET_RAW_RC` packet and yeet it down a serial
+4. We slam the values into an MSP `SET_RAW_RC` packet and yeet it down a serial
    line to your flight controller at `115200` baud.  MSP is literally bytes over
    UART — sniff it with `screen /dev/ttyUSB0 115200` to see the `$M<` framing.
 
@@ -79,6 +83,28 @@ selects one of the `bridge.modes` presets in `config/mapping.yaml`:
 
 Pre-show ritual: run `python3 scripts/validate_config.py` to make sure mapping and
 recipes stay sane. If it fails, fix the YAML before you fly.
+
+### Install paths: OSC-only vs. MIDI-capable
+
+Out of the box we bias toward the OSC path (no native builds, instant install):
+
+```bash
+python3 -m pip install -r software/control-bridge/requirements.txt
+```
+
+If you want MIDI controllers in the mix, opt into the rtmidi backend and its
+native deps. The bridge now falls back to a dummy backend when python-rtmidi
+isn't installed, so OSC users don't get blocked—you'll just see a "MIDI listener
+disabled" warning until you add the extras.
+
+```bash
+sudo apt-get update && sudo apt-get install -y libasound2-dev libjack-jackd2-dev
+python3 -m pip install -r software/control-bridge/requirements.midi.txt
+```
+
+JACK stays optional; drop `libjack-jackd2-dev` if you're keeping it lean. ALSA
+headers are the mandatory bit that keeps meson from yelling about
+`Dependency "alsa" not found` when it builds `python-rtmidi`.
 
 Now go make something gloriously noisy.  Bonus: use
 [`scripts/record_fpv.sh`](../../scripts/record_fpv.sh) to capture your chaos.

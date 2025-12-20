@@ -23,6 +23,7 @@ import os
 import random
 import struct
 import sys
+import threading
 import time
 from collections import deque
 from datetime import datetime, timezone
@@ -31,6 +32,20 @@ from pathlib import Path
 import serial
 import yaml
 from pythonosc import dispatcher, osc_server
+import mido
+
+MIDI_BACKEND = "rtmidi"
+MIDI_BACKEND_ERROR: Exception | None = None
+try:
+    # This pulls in python-rtmidi if it exists; otherwise we fall back to the
+    # no-op dummy backend so OSC users aren't blocked by missing native libs.
+    import mido.backends.rtmidi  # type: ignore # noqa: F401
+
+    mido.set_backend("mido.backends.rtmidi")
+except Exception as exc:  # noqa: BLE001
+    MIDI_BACKEND = "dummy"
+    MIDI_BACKEND_ERROR = exc
+    mido.set_backend("mido.backends.dummy")
 
 BRIDGE_DIR = Path(__file__).resolve().parent
 if str(BRIDGE_DIR) not in sys.path:
@@ -40,10 +55,12 @@ from config_validation import (  # noqa: E402
     ModeSettings,
     ValidationError,
     validate_mapping_config,
+    validate_midi_mapping_config,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MAPPING_PATH = (REPO_ROOT / "config/mapping.yaml").resolve()
+DEFAULT_MIDI_MAPPING_PATH = (REPO_ROOT / "config/mappings/midi.yaml").resolve()
 
 # --- MSP minimal helpers (subset) ---
 # The header and command IDs live here so you can tweak them without grepping.
@@ -156,6 +173,15 @@ def map_float_to_rc(value, gain=1.0, center=1500, span=400):
     """
 
     return int(clamp(center + value * span * gain, 1100, 1900))
+
+
+def normalize_cc(value: int, response: str = "bipolar") -> float:
+    """Map a 0..127 MIDI value into the mapper's normalized ranges."""
+
+    norm = clamp(value / 127.0, 0.0, 1.0)
+    if response == "unipolar":
+        return norm
+    return norm * 2 - 1
 
 
 def resolve_mode_settings(cfg, requested_mode=None):
@@ -291,6 +317,138 @@ class DryRunSerial:
             aux = list(self._last_frame[4:])
             print(f"[dry-run] last frame RC={rc} AUX={aux}")
         print(f"[dry-run] serial stub wrote {self.byte_count} bytes total")
+
+
+class MidiListener:
+    def __init__(self, mapper: "Mapper", midi_cfg: dict, audit: AuditLogger):
+        self.mapper = mapper
+        self.audit = audit
+        self.midi_cfg = midi_cfg or {}
+        self._stop_event = threading.Event()
+        self._thread: threading.Thread | None = None
+        self._port: mido.ports.BaseInput | None = None
+        input_cfg = self.midi_cfg.get("input", {}) or {}
+        channel = input_cfg.get("channel")
+        self.channel = channel - 1 if isinstance(channel, int) else None
+        self.port_name = input_cfg.get("port_name")
+        self.cc_routes: dict[int, dict] = {}
+        self.note_routes: dict[int, dict] = {}
+        self.note_states: dict[int, int] = {}
+        for gesture in self.midi_cfg.get("gestures", []):
+            if gesture.get("type") == "cc":
+                self.cc_routes[int(gesture["cc_number"])] = gesture
+            elif gesture.get("type") == "note":
+                self.note_routes[int(gesture["note_number"])] = gesture
+
+    def start(self) -> None:
+        if not (self.cc_routes or self.note_routes):
+            return
+        if MIDI_BACKEND != "rtmidi":
+            reason = (
+                "python-rtmidi is missing"
+                if MIDI_BACKEND_ERROR
+                else "backend not available"
+            )
+            msg = (
+                "MIDI listener disabled: {reason}. OSC still flows; "
+                "install the optional MIDI deps when you want faders "
+                "in the loop."
+            ).format(reason=reason)
+            print(msg)
+            self.audit.write(
+                "midi_bridge_boot",
+                status="warning",
+                message=msg,
+                details={
+                    "backend": MIDI_BACKEND,
+                    "error": (
+                        str(MIDI_BACKEND_ERROR) if MIDI_BACKEND_ERROR else None
+                    ),
+                },
+            )
+            return
+        self._port = (
+            mido.open_input(self.port_name)
+            if self.port_name
+            else mido.open_input()
+        )
+        msg = "MIDI listener bound to {port} (channel {channel})".format(
+            port=self._port.name,
+            channel=(self.channel + 1) if self.channel is not None else "any",
+        )
+        print(msg)
+        self.audit.write(
+            "midi_bridge_boot",
+            status="info",
+            message=msg,
+            details={
+                "port": self._port.name,
+                "channel": self.channel,
+                "cc_gestures": sorted(self.cc_routes.keys()),
+                "note_gestures": sorted(self.note_routes.keys()),
+            },
+        )
+        self._thread = threading.Thread(
+            target=self._loop, name="midi_listener", daemon=True
+        )
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop_event.set()
+        if self._thread:
+            self._thread.join(timeout=1.0)
+        if self._port:
+            self._port.close()
+
+    def _loop(self) -> None:
+        while not self._stop_event.is_set():
+            if self._port is None:
+                break
+            for msg in self._port.iter_pending():
+                self._handle_message(msg)
+            time.sleep(0.01)
+
+    def _handle_message(self, msg: mido.Message) -> None:
+        if self.channel is not None and hasattr(msg, "channel"):
+            if msg.channel != self.channel:
+                return
+        if msg.type == "control_change":
+            gesture = self.cc_routes.get(msg.control)
+            if not gesture:
+                return
+            response = gesture.get("response", "bipolar")
+            value = normalize_cc(msg.value, response)
+            self._update_state(gesture.get("target"), value)
+        elif msg.type in {"note_on", "note_off"}:
+            gesture = self.note_routes.get(msg.note)
+            if not gesture:
+                return
+            mode = gesture.get("mode", "gate")
+            velocity = getattr(msg, "velocity", 0)
+            if mode == "toggle" and msg.type == "note_on" and velocity > 0:
+                prev = self.note_states.get(msg.note, 0)
+                new_val = 0 if prev else 1
+                self.note_states[msg.note] = new_val
+                self._update_state(gesture.get("target"), new_val)
+            else:
+                active = 1 if msg.type == "note_on" and velocity > 0 else 0
+                self._update_state(gesture.get("target"), active)
+
+    def _update_state(self, target: str | None, value: float) -> None:
+        if target is None:
+            return
+        if target in {"altitude", "lateral", "yaw"}:
+            if target == "altitude":
+                key = "alt"
+            elif target == "lateral":
+                key = "lat"
+            else:
+                key = "yaw"
+            self.mapper.state[key] = float(clamp(value, -1.0, 1.0))
+        elif target == "crowd":
+            self.mapper.state["crowd"] = float(clamp(value, 0.0, 1.0))
+        elif target == "consent":
+            self.mapper.state["consent"] = 1 if value >= 0.5 else 0
 
 
 class Mapper:
@@ -509,6 +667,14 @@ def main():
         ),
     )
     ap.add_argument(
+        "--midi_map",
+        default=str(DEFAULT_MIDI_MAPPING_PATH),
+        help=(
+            "Path to the MIDI mapping YAML used to merge CC/note gestures "
+            "into the MSP mapper (default: config/mappings/midi.yaml)."
+        ),
+    )
+    ap.add_argument(
         "--recipe",
         help=(
             "Path to a YAML/JSON recipe bundling MSP curves, LED palettes, "
@@ -635,6 +801,38 @@ def main():
             message="Loaded mapping config",
             details={"path": str(config_path.resolve())},
         )
+    midi_cfg = {}
+    midi_path = Path(args.midi_map).expanduser()
+    if not midi_path.is_absolute():
+        midi_path = (Path.cwd() / midi_path).resolve()
+    else:
+        midi_path = midi_path.resolve()
+    try:
+        midi_cfg = load_yaml(midi_path)
+        validate_midi_mapping_config(midi_cfg, midi_path.name)
+    except ValidationError as exc:  # noqa: BLE001
+        audit.write(
+            "midi_mapping_validation",
+            status="error",
+            message="MIDI mapping validation failed",
+            details={"errors": exc.errors},
+        )
+        raise
+    except Exception as exc:  # noqa: BLE001
+        audit.write(
+            "midi_mapping_load",
+            status="error",
+            message=f"Failed to load MIDI mapping config {midi_path}",
+            details={"path": str(midi_path.resolve()), "error": str(exc)},
+        )
+        raise
+    audit.write(
+        "midi_mapping_load",
+        status="info",
+        message="Loaded MIDI mapping config",
+        details={"path": str(midi_path.resolve())},
+    )
+
     mode_settings = resolve_mode_settings(cfg, args.mode)
     hz = resolve_bridge_rate(cfg, args.hz)
     bridge_cfg = cfg.get("bridge", {}) or {}
@@ -662,6 +860,19 @@ def main():
             "ghost_buffer_seconds": ghost_buffer_seconds,
         },
     )
+
+    midi_listener: MidiListener | None = None
+    try:
+        midi_listener = MidiListener(mapper, midi_cfg, audit)
+        midi_listener.start()
+    except Exception as exc:  # noqa: BLE001
+        audit.write(
+            "midi_bridge_boot",
+            status="error",
+            message="Failed to start MIDI listener",
+            details={"path": str(midi_path), "error": str(exc)},
+        )
+        raise
 
     default_port = ap.get_default("osc_port")
     osc_port = args.osc_port
@@ -923,6 +1134,8 @@ def main():
             message="Operator interrupted bridge (Ctrl+C).",
         )
     finally:
+        if midi_listener:
+            midi_listener.stop()
         # Close the serial port so the next run doesn't start with a fight.
         ser.close()
         audit.write(

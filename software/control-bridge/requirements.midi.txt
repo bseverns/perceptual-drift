@@ -1,0 +1,2 @@
+# Optional MIDI backend with native build deps (ALSA/JACK)
+python-rtmidi==1.5.8

@@ -39,6 +39,9 @@ REQUIRED_OSC_PATHS = {"altitude", "lateral", "yaw", "crowd", "consent"}
 REQUIRED_AXES = {"altitude", "lateral"}
 VALID_CURVES = {"linear", "expo"}
 VALID_AUX_STRATEGIES = {"full", "crowd_only"}
+VALID_MIDI_TARGETS = {"altitude", "lateral", "yaw", "crowd", "consent"}
+VALID_MIDI_RESPONSES = {"bipolar", "unipolar"}
+VALID_MIDI_NOTE_MODES = {"gate", "toggle"}
 
 
 # ---- validation primitives -------------------------------------------------
@@ -88,6 +91,21 @@ def _check_palette(section: Mapping, path: str, errors: list[str]) -> None:
         return
     if not palette:
         errors.append(f"'{path}.palette' needs at least one color entry")
+
+
+def _check_midi_input(section: Mapping, path: str, errors: list[str]) -> None:
+    if not isinstance(section, Mapping):
+        errors.append(f"{path} must be a mapping")
+        return
+    channel = section.get("channel")
+    if channel is not None:
+        if not isinstance(channel, int) or not 1 <= channel <= 16:
+            errors.append(
+                f"{path}.channel must be an integer 1-16 when provided"
+            )
+    port_name = section.get("port_name")
+    if port_name is not None and not isinstance(port_name, str):
+        errors.append(f"{path}.port_name must be a string when provided")
 
 
 def validate_bridge_modes(
@@ -153,6 +171,63 @@ def validate_bridge_modes(
                             "must be >=0"
                         )
                         # fmt: on
+
+
+def validate_midi_mapping_config(
+    cfg: Mapping, source: str = "midi_mapping"
+) -> None:
+    errors: list[str] = []
+    if not isinstance(cfg, Mapping):
+        raise ValidationError([f"{source}: config must be a mapping"])
+
+    midi_input = cfg.get("input", {})
+    _check_midi_input(midi_input, f"{source}.input", errors)
+
+    gestures = cfg.get("gestures")
+    if gestures is None:
+        errors.append(f"{source}: gestures list required")
+    elif not isinstance(gestures, list) or not gestures:
+        errors.append(f"{source}: gestures must be a non-empty list")
+    else:
+        for idx, gesture in enumerate(gestures):
+            path = f"{source}.gestures[{idx}]"
+            if not isinstance(gesture, Mapping):
+                errors.append(f"{path} must be a mapping")
+                continue
+            target = gesture.get("target")
+            if target not in VALID_MIDI_TARGETS:
+                allowed_targets = sorted(VALID_MIDI_TARGETS)
+                errors.append(
+                    f"{path}.target must be one of {allowed_targets}"
+                )
+            gesture_type = gesture.get("type")
+            if gesture_type not in {"cc", "note"}:
+                errors.append(f"{path}.type must be 'cc' or 'note'")
+                continue
+            if gesture_type == "cc":
+                cc_number = gesture.get("cc_number")
+                if not isinstance(cc_number, int) or not 0 <= cc_number <= 127:
+                    errors.append(f"{path}.cc_number must be an integer 0-127")
+                response = gesture.get("response", "bipolar")
+                if response not in VALID_MIDI_RESPONSES:
+                    allowed = sorted(VALID_MIDI_RESPONSES)
+                    errors.append(f"{path}.response must be one of {allowed}")
+            if gesture_type == "note":
+                note_number = gesture.get("note_number")
+                valid_note = (
+                    isinstance(note_number, int) and 0 <= note_number <= 127
+                )
+                if not valid_note:
+                    errors.append(
+                        f"{path}.note_number must be an integer 0-127"
+                    )
+                mode = gesture.get("mode", "gate")
+                if mode not in VALID_MIDI_NOTE_MODES:
+                    allowed = sorted(VALID_MIDI_NOTE_MODES)
+                    errors.append(f"{path}.mode must be one of {allowed}")
+
+    if errors:
+        raise ValidationError(errors)
 
 
 def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
@@ -336,6 +411,14 @@ def validate_file(
 ) -> MutableMapping:
     cfg = load_yaml(path)
     validate_mapping_config(cfg, source_label or path.name)
+    return cfg
+
+
+def validate_midi_file(
+    path: Path, *, source_label: str | None = None
+) -> MutableMapping:
+    cfg = load_yaml(path)
+    validate_midi_mapping_config(cfg, source_label or path.name)
     return cfg
 
 
