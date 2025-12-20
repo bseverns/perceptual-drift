@@ -84,6 +84,28 @@ selects one of the `bridge.modes` presets in `config/mapping.yaml`:
 Pre-show ritual: run `python3 scripts/validate_config.py` to make sure mapping and
 recipes stay sane. If it fails, fix the YAML before you fly.
 
+### Install paths: OSC-only vs. MIDI-capable
+
+Out of the box we bias toward the OSC path (no native builds, instant install):
+
+```bash
+python3 -m pip install -r software/control-bridge/requirements.txt
+```
+
+If you want MIDI controllers in the mix, opt into the rtmidi backend and its
+native deps. The bridge now falls back to a dummy backend when python-rtmidi
+isn't installed, so OSC users don't get blocked—you'll just see a "MIDI listener
+disabled" warning until you add the extras.
+
+```bash
+sudo apt-get update && sudo apt-get install -y libasound2-dev libjack-jackd2-dev
+python3 -m pip install -r software/control-bridge/requirements.midi.txt
+```
+
+JACK stays optional; drop `libjack-jackd2-dev` if you're keeping it lean. ALSA
+headers are the mandatory bit that keeps meson from yelling about
+`Dependency "alsa" not found` when it builds `python-rtmidi`.
+
 Now go make something gloriously noisy.  Bonus: use
 [`scripts/record_fpv.sh`](../../scripts/record_fpv.sh) to capture your chaos.
 
