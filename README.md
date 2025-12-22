@@ -70,6 +70,7 @@ This is half studio notebook, half teaching guide: copy/paste the configs straig
    - Serial protocol lets the control bridge or Ableton-style rigs paint colors/intensity.
 5. **Swarm experiments (stretch goal)**
    - [`software/swarm`](software/swarm) sketches how to extend the control patterns into [CrazySwarm2](https://crazyswarm.readthedocs.io/) + ROS 2 for multiple quads.
+   - Ready to graduate from the single-drone loop? The [Swarm Quickstart](docs/swarm-quickstart.md) maps OSC routes into the bridge, lists the ROS 2/CrazySwarm2 must-haves, and hands you dry-run commands for sim and hardware.
 
 See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the above together.
 
