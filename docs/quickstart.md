@@ -51,3 +51,4 @@ Treat that order as gospel for newcomers: prototype, secure, rehearse, reflect, 
    - Live inside [`docs/checklists/safety_checklist.md`](checklists/safety_checklist.md). That single source of truth covers consent rituals, kill-switch drills, and spotter call-and-response. Bring it to every rehearsal so wording never drifts.
 
 Use this quickstart when you need to teach or test the core loop fast. Once you have it down, graduate to the deeper playbooks referenced above.
+Want the next rung (OSC → CrazySwarm2) once your single whoop feels solid? Jump to the [Swarm Quickstart](swarm-quickstart.md) for mapping notes plus sim and props-off drills.
