@@ -11,6 +11,7 @@ rotors. Read it like a zine, treat it like a checklist.
 | **Consent latch** (`/pd/consent`) | `pd_swarm_bridge` refuses to issue new service calls. `pd_sim_pose_driver` keeps the models frozen at their last pose. | Map the same boolean to the CrazySwarm2 `/emergency` or `/all/emergency` service. Hardware version should also trip a physical estop (power strip or deck kill) when the bit flips low. |
 | **Altitude floor + ceiling** | `ALTITUDE_FLOOR_M` / `ALTITUDE_SCALE_M` parameters limit commands to a 0.3–1.3 m bubble. The fake telemetry echoes the clamp so overlays never lie. | Match the envelope to your net height. If your venue ceiling is lower, change the params before the show. Never let the crowd stretch it past what your mocap volume supports. |
 | **Lateral bounding box** | `lateral_range` + `lateral_scale_m` restrict crowd pushes to ±1.6 m. Formation offsets keep each quad from trying to occupy the same air. | Mirror the same limits inside your CrazySwarm2 YAML (per-drone `motion_constraints`). Tape the actual floor footprint and rehearse inside it. |
+| **Collision envelope guard** | `pd_swarm_bridge.py` enforces `min_separation_m` and velocity clamps (`max_lateral_velocity_mps`, `max_altitude_velocity_mps`). `swarm_demo.py --simulate` can enforce `--sim-min-separation` on virtual drones. | Mirror the same minimum spacing in hardware planning and treat any violation as an immediate stop-and-reset trigger. |
 | **Kill zone** | If Ignition reports a pose outside the configured world bounds, `pd_sim_pose_driver` will fail to move the model (service rejects it) and you see the freeze instantly. | Use motion capture monitoring to slam an estop when tracking is lost or a drone exits the “safe cage.” CrazySwarm2 has watchdog timers—set them aggressively. |
 | **Manual overrides** | You can `Ctrl+C` the `swarm_rehearsal.py` script or smash the Ignition GUI stop button. Both immediately tear down the ROS graph. | Keep a human pilot with an NRF dongle + Commander ready. Someone else owns the wall power. No single point of failure. |
 
@@ -49,9 +50,16 @@ rotors. Read it like a zine, treat it like a checklist.
 3. **Drive it with OSC.** Feed `/pd/*` data from the tracker. Verify the drones
    stay in their lanes and the GUI shows the same motion as the raw telemetry
    topics.
-4. **Trigger every interlock.** Drop consent, slam the OSC inputs, and confirm
+4. **Run latency + replay drills.**
+
+   ```bash
+   python3 software/swarm/latency_benchmark.py --samples 200 --listen-port 9101
+   python3 software/swarm/replay_scenario.py --scenario config/test-fixtures/swarm/scenario_dual_wave.yaml
+   ```
+
+5. **Trigger every interlock.** Drop consent, slam the OSC inputs, and confirm
    the simulated swarm stops cold. Repeat in hardware until it’s muscle memory.
-5. **Document weirdness.** Treat this README like a lab notebook—add quirks,
+6. **Document weirdness.** Treat this README like a lab notebook—add quirks,
    postmortems, and per-venue tweaks so the next gig launches smoother.
 
 Stay loud, stay safe.

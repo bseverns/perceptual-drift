@@ -1,0 +1,30 @@
+name: "consent_handoff"
+description: "Three participants pulse consent and hand off control in sequence."
+frame_rate: 25
+aggregation: weighted
+duration_s: 15
+participants:
+  - id: "facilitator"
+    weight: 1.4
+    keyframes:
+      - { t: 0.0, alt: 0.18, lat: 0.00, yaw: 0.00, crowd: 0.12, consent: 1.0 }
+      - { t: 5.0, alt: 0.25, lat: 0.20, yaw: 0.10, crowd: 0.30, consent: 1.0 }
+      - { t: 7.0, alt: 0.20, lat: 0.00, yaw: 0.00, crowd: 0.18, consent: 0.0 }
+      - { t: 10.0, alt: 0.22, lat: -0.10, yaw: -0.10, crowd: 0.20, consent: 1.0 }
+      - { t: 15.0, alt: 0.18, lat: 0.00, yaw: 0.00, crowd: 0.15, consent: 1.0 }
+  - id: "participant_a"
+    weight: 1.0
+    keyframes:
+      - { t: 0.0, alt: 0.22, lat: -0.40, yaw: -0.20, crowd: 0.20, consent: 1.0 }
+      - { t: 4.0, alt: 0.55, lat: -0.70, yaw: -0.45, crowd: 0.72, consent: 1.0 }
+      - { t: 8.0, alt: 0.28, lat: -0.20, yaw: -0.15, crowd: 0.30, consent: 0.0 }
+      - { t: 12.0, alt: 0.42, lat: 0.10, yaw: 0.10, crowd: 0.48, consent: 1.0 }
+      - { t: 15.0, alt: 0.25, lat: 0.00, yaw: 0.00, crowd: 0.22, consent: 1.0 }
+  - id: "participant_b"
+    weight: 0.9
+    keyframes:
+      - { t: 0.0, alt: 0.20, lat: 0.35, yaw: 0.15, crowd: 0.18, consent: 1.0 }
+      - { t: 4.0, alt: 0.45, lat: 0.65, yaw: 0.40, crowd: 0.62, consent: 1.0 }
+      - { t: 8.0, alt: 0.30, lat: 0.25, yaw: 0.18, crowd: 0.35, consent: 1.0 }
+      - { t: 11.0, alt: 0.18, lat: 0.00, yaw: 0.00, crowd: 0.12, consent: 0.0 }
+      - { t: 15.0, alt: 0.24, lat: -0.05, yaw: -0.08, crowd: 0.25, consent: 1.0 }

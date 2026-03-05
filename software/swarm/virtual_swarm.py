@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 import random
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Iterable, List, Tuple
 
 ROOM_BOUND = 5.0
 
@@ -83,3 +83,76 @@ class VirtualDrone:
         self.z = max(0.0, min(ROOM_BOUND, self.z))
         # Keep yaw bounded-ish for readability while allowing wrap-around feel.
         self.yaw = math.fmod(self.yaw, math.tau)
+
+
+def pairwise_distances(drones: Iterable[VirtualDrone]) -> List[Tuple[int, int, float]]:
+    """Return all pairwise Euclidean distances between drones."""
+
+    fleet = list(drones)
+    pairs: List[Tuple[int, int, float]] = []
+    for i in range(len(fleet)):
+        for j in range(i + 1, len(fleet)):
+            dx = fleet[j].x - fleet[i].x
+            dy = fleet[j].y - fleet[i].y
+            dz = fleet[j].z - fleet[i].z
+            dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+            pairs.append((i, j, dist))
+    return pairs
+
+
+def minimum_pairwise_distance(drones: Iterable[VirtualDrone]) -> float:
+    """Return minimum pairwise distance, inf when <2 drones."""
+
+    pairs = pairwise_distances(drones)
+    if not pairs:
+        return math.inf
+    return min(dist for _, _, dist in pairs)
+
+
+def enforce_min_separation(
+    drones: Iterable[VirtualDrone],
+    min_separation_m: float,
+    max_passes: int = 3,
+) -> int:
+    """Nudge drones apart in XY if they violate ``min_separation_m``.
+
+    Returns the number of pair adjustments performed.
+    """
+
+    if min_separation_m <= 0.0:
+        return 0
+
+    fleet = list(drones)
+    adjustments = 0
+    for _ in range(max_passes):
+        changed = False
+        for i in range(len(fleet)):
+            for j in range(i + 1, len(fleet)):
+                a = fleet[i]
+                b = fleet[j]
+                dx = b.x - a.x
+                dy = b.y - a.y
+                # Keep this horizontal: avoid surprise altitude snaps.
+                dist = math.sqrt(dx * dx + dy * dy)
+                if dist >= min_separation_m:
+                    continue
+
+                # Degenerate overlap: choose a deterministic axis.
+                if dist < 1e-9:
+                    ux, uy = 1.0, 0.0
+                else:
+                    ux = dx / dist
+                    uy = dy / dist
+
+                push = (min_separation_m - dist) * 0.5
+                a.x -= ux * push
+                a.y -= uy * push
+                b.x += ux * push
+                b.y += uy * push
+                a._clamp_position()
+                b._clamp_position()
+                adjustments += 1
+                changed = True
+        if not changed:
+            break
+    return adjustments

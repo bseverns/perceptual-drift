@@ -71,6 +71,15 @@ stress the score without ever arming a real quad.
    parameters inside `pd_swarm_bridge.py`. Every knob is annotated; treat them
    like safety rails, not style suggestions.
 
+### Safety guardrails (new in M4)
+
+- `pd_swarm_bridge.py` now includes:
+  - `min_separation_m` (default `0.35`) to enforce a minimum target spacing.
+  - `max_lateral_velocity_mps` and `max_altitude_velocity_mps` to clamp
+    command step size.
+- `swarm_demo.py --simulate` now enforces the same minimum-separation concept via
+  `--sim-min-separation`.
+
 ## OSC-only sandbox (no ROS, no real props)
 
 Want to feel the mapping without arming anything? `swarm_demo.py` now ships a
@@ -91,11 +100,40 @@ back out over OSC at the given update rate. Feed that into your dashboard or VJ
 patch for classroom demos, choreography sketching, or late-night debugging with
 no flight risk.
 
+### Latency benchmark harness
+
+With simulation running, benchmark OSC latency (p50/p95) using:
+
+```bash
+python3 software/swarm/latency_benchmark.py \
+  --target-host 127.0.0.1 \
+  --target-port 9010 \
+  --listen-port 9101 \
+  --samples 200
+```
+
+The benchmark pings `/pd/bench/ping` and reads acks on `/pd/sim/bench/ack`.
+
+### Multi-user scenario replay
+
+Replay repeatable multi-user interaction patterns into `/pd/*`:
+
+```bash
+python3 software/swarm/replay_scenario.py \
+  --scenario config/test-fixtures/swarm/scenario_dual_wave.yaml \
+  --host 127.0.0.1 \
+  --port 9010
+```
+
+Additional fixture scenarios live in `config/test-fixtures/swarm/`.
+
 ## ROS 2 nodes in this folder
 
 | File | Role |
 | ---- | ---- |
 | `swarm_demo.py` | Multi-drone OSC→CrazySwarm2 bridge with per-craft overrides and telemetry snapshots. |
+| `latency_benchmark.py` | Measures swarm OSC benchmark latency and reports p50/p95 stats. |
+| `replay_scenario.py` | Replays multi-user gesture fixtures into `/pd/*` routes for repeatable rehearsals. |
 | `ros2_nodes/pd_swarm_bridge.py` | Multi-drone ROS 2 node that consumes `/pd/*` topics, fans them out to CrazySwarm2 services, and publishes simulated telemetry. |
 | `ros2_nodes/pd_sim_pose_driver.py` | Mirrors those telemetry messages into Ignition by calling `/world/<name>/set_pose`. |
 | `swarm_rehearsal.py` | Launch helper that spins up Ignition + both ROS nodes with one command. |

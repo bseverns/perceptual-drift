@@ -12,7 +12,7 @@ criteria.
 | M1: Starter bundle | Weeks 2-3 | in progress | One-command local launch for tracker + bridge (+ optional video) |
 | M2: Environment reproducibility | Weeks 4-6 | in progress | Pinned dependency flow for desktop and Jetson |
 | M3: Docs consolidation | Weeks 7-8 | completed | Canonical mapping contract and reduced doc duplication |
-| M4: Swarm hardening | Weeks 9-10 | planned | Latency and collision safety checks with replayable tests |
+| M4: Swarm hardening | Weeks 9-10 | completed | Latency and collision safety checks with replayable tests |
 | M5: Operator UI alpha | Weeks 11-12 | planned | Non-CLI control surface for recipes, consent, and curves |
 
 ## M0 Deliverables (baseline + scope lock)
@@ -76,9 +76,9 @@ criteria.
 
 ## M4 Deliverables (swarm hardening)
 
-- [ ] Add swarm latency benchmark harness with p50/p95 capture.
-- [ ] Add collision envelope checks in bridge/sim loop.
-- [ ] Add multi-user gesture replay scenarios for swarm mode.
+- [x] Add swarm latency benchmark harness with p50/p95 capture.
+- [x] Add collision envelope checks in bridge/sim loop.
+- [x] Add multi-user gesture replay scenarios for swarm mode.
 
 ### M4 exit criteria
 

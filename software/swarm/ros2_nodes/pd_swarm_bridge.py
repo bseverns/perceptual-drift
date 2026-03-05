@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass, field
 from typing import Dict, Iterable, List
 
@@ -63,6 +64,9 @@ class PdSwarmBridge(Node):
         self.declare_parameter("takeoff_duration_s", 1.5)
         self.declare_parameter("land_duration_s", 2.0)
         self.declare_parameter("publish_rate_hz", 20.0)
+        self.declare_parameter("min_separation_m", 0.35)
+        self.declare_parameter("max_lateral_velocity_mps", 1.2)
+        self.declare_parameter("max_altitude_velocity_mps", 0.9)
 
         names = self.get_parameter("drones").get_parameter_value().string_array_value
         self.drones: Dict[str, DroneState] = {name: DroneState(name=name) for name in names}
@@ -106,8 +110,17 @@ class PdSwarmBridge(Node):
         self._go_to_duration = self.get_parameter("go_to_duration_s").get_parameter_value().double_value
         self._takeoff_duration = self.get_parameter("takeoff_duration_s").get_parameter_value().double_value
         self._land_duration = self.get_parameter("land_duration_s").get_parameter_value().double_value
+        self._min_separation_m = self.get_parameter("min_separation_m").get_parameter_value().double_value
+        self._max_lateral_velocity_mps = (
+            self.get_parameter("max_lateral_velocity_mps").get_parameter_value().double_value
+        )
+        self._max_altitude_velocity_mps = (
+            self.get_parameter("max_altitude_velocity_mps").get_parameter_value().double_value
+        )
 
         self._consent_enabled = True
+        self._last_target_update = time.time()
+        self._last_collision_warn = 0.0
 
         self.get_logger().info("PD swarm bridge ready for %s", ", ".join(self.drones.keys()))
 
@@ -117,18 +130,37 @@ class PdSwarmBridge(Node):
     def on_alt(self, msg: Float32) -> None:
         value = self._clamp(msg.data, self._altitude_range)
         target_alt = self._altitude_floor + value * self._altitude_scale
+        dt = self._command_dt()
+        max_step = max(0.0, self._max_altitude_velocity_mps * dt)
         self.get_logger().debug("/pd/alt -> %.2fm", target_alt)
         for name, drone in self.drones.items():
-            drone.target[2] = target_alt
-            self._call_takeoff(name, target_alt)
+            drone.target[2] = self._clamp_step(drone.target[2], target_alt, max_step)
+            self._call_takeoff(name, drone.target[2])
 
     def on_lat(self, msg: Float32) -> None:
         value = self._clamp(msg.data, self._lateral_range)
         span = (len(self.drones) - 1) / 2.0
+        dt = self._command_dt()
+        max_step = max(0.0, self._max_lateral_velocity_mps * dt)
         for idx, (name, drone) in enumerate(self.drones.items()):
             formation_offset = (idx - span) * 0.8
             axis_index = 1 if self._lateral_axis == "y" else 0
-            drone.target[axis_index] = value * self._lateral_scale + formation_offset
+            desired = value * self._lateral_scale + formation_offset
+            drone.target[axis_index] = self._clamp_step(
+                drone.target[axis_index], desired, max_step
+            )
+        adjustments = self._enforce_target_separation()
+        if adjustments > 0:
+            now = time.time()
+            if now - self._last_collision_warn >= 1.0:
+                min_sep = self._min_target_distance()
+                self.get_logger().warning(
+                    "Collision guard applied %d adjustments (min target sep %.2fm)",
+                    adjustments,
+                    min_sep,
+                )
+                self._last_collision_warn = now
+        for name, drone in self.drones.items():
             self._call_go_to(name, drone)
 
     def on_yaw(self, msg: Float32) -> None:
@@ -225,6 +257,68 @@ class PdSwarmBridge(Node):
             drone.step_toward_target(alpha=0.15)
             msg = drone.to_pose(self)
             self.publishers[name].publish(msg)
+
+    def _command_dt(self) -> float:
+        now = time.time()
+        dt = now - self._last_target_update
+        self._last_target_update = now
+        return max(dt, 1.0 / 60.0)
+
+    @staticmethod
+    def _clamp_step(current: float, target: float, max_step: float) -> float:
+        if max_step <= 0.0:
+            return target
+        delta = target - current
+        if abs(delta) <= max_step:
+            return target
+        return current + math.copysign(max_step, delta)
+
+    def _min_target_distance(self) -> float:
+        names = list(self.drones.keys())
+        min_dist = math.inf
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                a = self.drones[names[i]]
+                b = self.drones[names[j]]
+                dx = b.target[0] - a.target[0]
+                dy = b.target[1] - a.target[1]
+                dz = b.target[2] - a.target[2]
+                dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+                min_dist = min(min_dist, dist)
+        return min_dist if math.isfinite(min_dist) else 0.0
+
+    def _enforce_target_separation(self) -> int:
+        if self._min_separation_m <= 0.0:
+            return 0
+        states = list(self.drones.values())
+        adjustments = 0
+        for _ in range(3):
+            changed = False
+            for i in range(len(states)):
+                for j in range(i + 1, len(states)):
+                    a = states[i]
+                    b = states[j]
+                    dx = b.target[0] - a.target[0]
+                    dy = b.target[1] - a.target[1]
+                    dist_xy = math.sqrt(dx * dx + dy * dy)
+                    if dist_xy >= self._min_separation_m:
+                        continue
+
+                    if dist_xy < 1e-9:
+                        ux, uy = 1.0, 0.0
+                    else:
+                        ux = dx / dist_xy
+                        uy = dy / dist_xy
+                    push = (self._min_separation_m - dist_xy) * 0.5
+                    a.target[0] -= ux * push
+                    a.target[1] -= uy * push
+                    b.target[0] += ux * push
+                    b.target[1] += uy * push
+                    adjustments += 1
+                    changed = True
+            if not changed:
+                break
+        return adjustments
 
     @staticmethod
     def _clamp(value: float, bounds: Iterable[float]) -> float:

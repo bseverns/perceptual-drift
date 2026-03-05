@@ -42,6 +42,13 @@ Everything above rides on your existing OSC mappings (`config/mapping.yaml` or r
    Add `--dry-run` to print the composed launch and bail if you’re just verifying paths.
 3. **Point your OSC sender** (Processing tracker, TouchDesigner, etc.) at `udp://<bridge-host>:9010` and drive `/pd/alt`, `/pd/lat`, `/pd/yaw`, and `/pd/consent`.
 4. **Watch simulated telemetry** on `/pd/sim/<craft>/pose` or in Ignition. When consent drops, the bridge auto-lands and freezes inputs; confirm that behavior before moving to hardware.
+5. **Measure latency budget + replay fixtures** before hardware:
+   ```bash
+   python3 software/swarm/latency_benchmark.py --samples 200 --listen-port 9101
+   python3 software/swarm/replay_scenario.py --scenario config/test-fixtures/swarm/scenario_consent_handoff.yaml
+   ```
+   The benchmark reports p50/p95 roundtrip latency; the replay script gives a
+   repeatable multi-user input pattern for regression checks.
 
 ---
 

@@ -1,0 +1,22 @@
+name: "dual_wave"
+description: "Two participants trade lateral influence while crowd energy rises."
+frame_rate: 20
+aggregation: weighted
+duration_s: 12
+participants:
+  - id: "left_wing"
+    weight: 1.0
+    keyframes:
+      - { t: 0.0, alt: 0.20, lat: -0.80, yaw: -0.20, crowd: 0.15, consent: 1.0 }
+      - { t: 3.0, alt: 0.45, lat: -0.30, yaw: -0.40, crowd: 0.45, consent: 1.0 }
+      - { t: 6.0, alt: 0.55, lat: 0.10, yaw: -0.10, crowd: 0.60, consent: 1.0 }
+      - { t: 9.0, alt: 0.35, lat: 0.35, yaw: 0.10, crowd: 0.40, consent: 1.0 }
+      - { t: 12.0, alt: 0.20, lat: 0.00, yaw: 0.00, crowd: 0.20, consent: 1.0 }
+  - id: "right_wing"
+    weight: 1.2
+    keyframes:
+      - { t: 0.0, alt: 0.25, lat: 0.70, yaw: 0.30, crowd: 0.25, consent: 1.0 }
+      - { t: 3.0, alt: 0.50, lat: 0.20, yaw: 0.45, crowd: 0.55, consent: 1.0 }
+      - { t: 6.0, alt: 0.60, lat: -0.20, yaw: 0.15, crowd: 0.70, consent: 1.0 }
+      - { t: 9.0, alt: 0.40, lat: -0.40, yaw: -0.10, crowd: 0.50, consent: 1.0 }
+      - { t: 12.0, alt: 0.25, lat: 0.00, yaw: 0.00, crowd: 0.25, consent: 1.0 }

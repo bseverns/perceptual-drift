@@ -10,16 +10,40 @@ from dataclasses import dataclass, field
 from functools import partial
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-import rclpy
 from pythonosc import dispatcher, osc_server, udp_client
-from rclpy.node import Node
-from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
-from rosidl_runtime_py.convert import message_to_ordereddict
-from rosidl_runtime_py.utilities import get_message
+try:
+    from software.swarm.mapping_loader import load_mapping
+    from software.swarm.virtual_swarm import (
+        VirtualDrone,
+        enforce_min_separation,
+        minimum_pairwise_distance,
+    )
+except ModuleNotFoundError:  # pragma: no cover - script-path fallback
+    from mapping_loader import load_mapping
+    from virtual_swarm import (
+        VirtualDrone,
+        enforce_min_separation,
+        minimum_pairwise_distance,
+    )
 
-from crazyflie_interfaces.srv import GoTo, Takeoff
-from software.swarm.mapping_loader import load_mapping
-from software.swarm.virtual_swarm import VirtualDrone
+ROS_IMPORT_ERROR: Optional[Exception] = None
+try:
+    import rclpy
+    from rclpy.node import Node
+    from rclpy.qos import QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+    from rosidl_runtime_py.convert import message_to_ordereddict
+    from rosidl_runtime_py.utilities import get_message
+    from crazyflie_interfaces.srv import GoTo, Takeoff
+
+    NodeBase = Node
+except Exception as exc:  # pragma: no cover - exercised only on non-ROS hosts
+    ROS_IMPORT_ERROR = exc
+    rclpy = None
+    NodeBase = object
+    QoSHistoryPolicy = QoSProfile = QoSReliabilityPolicy = None
+    message_to_ordereddict = None
+    get_message = None
+    GoTo = Takeoff = None
 
 # ---------------------------------------------------------------------------
 # Fleet layout + OSC wiring — tweak these to match your venue rig.
@@ -33,6 +57,10 @@ DEFAULT_RECIPES_DIR = "config/recipes"
 SIM_OSC_TARGET = "127.0.0.1"
 SIM_OSC_PORT = 9100
 CONSENT_STATE_BROADCAST = "/pd/current_consent"
+SIM_BENCH_PING_ROUTE = "/pd/bench/ping"
+SIM_BENCH_ACK_ROUTE = "/pd/sim/bench/ack"
+SIM_COLLISION_ROUTE = "/pd/sim/collision/min_distance"
+SIM_MIN_SEPARATION_M = 0.35
 
 # Global OSC routes still exist so legacy Processing sketches keep working.
 GLOBAL_OSC_ROUTES = {
@@ -109,7 +137,7 @@ class CraftState:
     telemetry: Optional[Dict[str, object]] = None
 
 
-class SwarmNode(Node):
+class SwarmNode(NodeBase):
     """ROS 2 node that listens for OSC and relays to a CrazySwarm2 fleet."""
 
     def __init__(
@@ -120,6 +148,11 @@ class SwarmNode(Node):
         base_mapping_path: str = DEFAULT_BASE_MAPPING_PATH,
         recipes_dir: str = DEFAULT_RECIPES_DIR,
     ):
+        if rclpy is None or GoTo is None or Takeoff is None:
+            raise RuntimeError(
+                "Real swarm mode requires ROS2 + CrazySwarm2 dependencies. "
+                f"Import failure: {ROS_IMPORT_ERROR}"
+            )
         super().__init__("swarm_node")
         self.fleet_cfg = fleet or DEFAULT_FLEET
         if not self.fleet_cfg:
@@ -181,6 +214,11 @@ class SwarmNode(Node):
             *self.server.server_address,
             ", ".join(self.crafts.keys()),
         )
+        swarm_cfg = self.mapping.get("swarm", {}) if isinstance(self.mapping, dict) else {}
+        self._min_separation_m = float(
+            swarm_cfg.get("min_separation_m", SIM_MIN_SEPARATION_M)
+        )
+        self._last_collision_warn_at = 0.0
 
         self.create_timer(STATUS_REPORT_INTERVAL_S, self._report_status)
 
@@ -387,13 +425,15 @@ class SwarmNode(Node):
         if consent_cfg.get("gate_motion", True) and self._consent_state == 0:
             normalized = 0.0
         target = LATERAL_HOME_M + state.formation_offset + normalized * LATERAL_SCALE_M
+        previous = state.current_lateral
         if not math.isclose(state.current_lateral, target, rel_tol=1e-3, abs_tol=1e-3):
             state.current_lateral = target
+            self._enforce_collision_envelope(craft, previous)
             self.get_logger().info(
                 "[%s] Lateral %.3f → %.3fm (%s)",
                 craft,
                 normalized,
-                target,
+                state.current_lateral,
                 source,
             )
         self._send_go_to(state)
@@ -462,6 +502,8 @@ class SwarmNode(Node):
     # Telemetry & logging helpers
     # ------------------------------------------------------------------
     def _wire_telemetry(self, cfg: CraftConfig, qos: QoSProfile) -> None:
+        if get_message is None:
+            return
         try:
             msg_type = get_message(cfg.telemetry_type) if cfg.telemetry_type else None
         except (AttributeError, ModuleNotFoundError, ValueError) as exc:
@@ -484,10 +526,13 @@ class SwarmNode(Node):
         )
 
     def _handle_telemetry(self, craft: str, msg) -> None:
-        try:
-            data = message_to_ordereddict(msg)
-        except Exception:  # pragma: no cover - defensive fallback
+        if message_to_ordereddict is None:
             data = {"repr": repr(msg)}
+        else:
+            try:
+                data = message_to_ordereddict(msg)
+            except Exception:  # pragma: no cover - defensive fallback
+                data = {"repr": repr(msg)}
         self.crafts[craft].telemetry = data
 
     def _report_status(self) -> None:
@@ -497,10 +542,53 @@ class SwarmNode(Node):
             if state.telemetry:
                 chunk += f" telem={self._summarize_telemetry(state.telemetry)}"
             chunks.append(chunk)
+        min_dist, pair = self._fleet_min_distance()
+        if math.isfinite(min_dist):
+            chunks.append(f"min_sep={min_dist:.2f}m pair={pair[0]}-{pair[1]}")
         snapshot = " | ".join(chunks)
         if snapshot != self._last_status_snapshot:
             self.get_logger().info("Fleet snapshot → %s", snapshot)
             self._last_status_snapshot = snapshot
+
+    def _fleet_min_distance(self) -> Tuple[float, Tuple[str, str]]:
+        names = list(self.crafts.keys())
+        min_dist = math.inf
+        min_pair = ("-", "-")
+        for i in range(len(names)):
+            for j in range(i + 1, len(names)):
+                a = self.crafts[names[i]]
+                b = self.crafts[names[j]]
+                if LATERAL_AXIS.lower() == "x":
+                    ax, ay = a.current_lateral, LATERAL_HOME_M
+                    bx, by = b.current_lateral, LATERAL_HOME_M
+                else:
+                    ax, ay = LATERAL_HOME_M, a.current_lateral
+                    bx, by = LATERAL_HOME_M, b.current_lateral
+                dz = b.current_altitude - a.current_altitude
+                dx = bx - ax
+                dy = by - ay
+                dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+                if dist < min_dist:
+                    min_dist = dist
+                    min_pair = (a.config.name, b.config.name)
+        return min_dist, min_pair
+
+    def _enforce_collision_envelope(self, craft: str, previous_lateral: float) -> None:
+        min_dist, pair = self._fleet_min_distance()
+        if min_dist >= self._min_separation_m:
+            return
+        self.crafts[craft].current_lateral = previous_lateral
+        now = time.time()
+        if now - self._last_collision_warn_at >= 1.0:
+            self.get_logger().warning(
+                "[guard] rejected lateral command for %s: pair %s-%s would dip below %.2fm (%.2fm)",
+                craft,
+                pair[0],
+                pair[1],
+                self._min_separation_m,
+                min_dist,
+            )
+            self._last_collision_warn_at = now
 
     @staticmethod
     def _summarize_telemetry(data: Dict[str, object]) -> str:
@@ -581,6 +669,12 @@ def _parse_cli(argv: Optional[List[str]] = None) -> Tuple[argparse.Namespace, Li
     )
     parser.add_argument(
         "--sim-osc-port", type=int, default=SIM_OSC_PORT, help="OSC port to publish simulated drone state"
+    )
+    parser.add_argument(
+        "--sim-min-separation",
+        type=float,
+        default=SIM_MIN_SEPARATION_M,
+        help="Minimum allowed distance in meters between simulated drones.",
     )
     return parser.parse_known_args(argv)
 
@@ -675,6 +769,9 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
     consent_state = 1 if (consent_cfg.get("default_state", 1) or 0) else 0
     gesture_state["consent"] = float(consent_state)
     last_sent_consent = consent_state
+    bench_seq = 0
+    pending_bench: Optional[Tuple[int, float]] = None
+    bench_clock_start = time.monotonic()
     disp = dispatcher.Dispatcher()
 
     def _mk_handler(label: str):
@@ -730,6 +827,19 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
     disp.map("/pd/crowd", _mk_handler("crowd"))
     disp.map("/pd/consent", _handle_sim_consent)
 
+    def _handle_bench_ping(addr: str, *vals) -> None:
+        nonlocal bench_seq, pending_bench
+        now_rel = time.monotonic() - bench_clock_start
+        seq = bench_seq
+        if vals:
+            maybe_seq = SwarmNode._extract_first_value(vals[:1])
+            if maybe_seq is not None:
+                seq = int(maybe_seq)
+        bench_seq = max(bench_seq + 1, seq + 1)
+        pending_bench = (seq, now_rel)
+
+    disp.map(SIM_BENCH_PING_ROUTE, _handle_bench_ping)
+
     server = osc_server.ThreadingOSCUDPServer((OSC_BIND_ADDRESS, OSC_BIND_PORT), disp)
     osc_thread = threading.Thread(target=server.serve_forever, daemon=True)
     osc_thread.start()
@@ -744,6 +854,13 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
 
     print(f"Simulation mode: ON ({len(drones)} virtual drones @ {update_rate} Hz)")
     print(f"Sim OSC publish target: {target}:{port}")
+    print(
+        f"Collision guard: min separation {max(parsed.sim_min_separation, 0.0):.2f}m"
+    )
+    print(
+        f"Benchmark ping route: {SIM_BENCH_PING_ROUTE} "
+        f"(ack on {SIM_BENCH_ACK_ROUTE})"
+    )
 
     last_summary = time.time()
     try:
@@ -755,6 +872,27 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
             behavior = _map_gestures_to_behavior(gesture_state, local_mapping)
             for drone in drones:
                 drone.update(dt, behavior)
+            adjustments = enforce_min_separation(
+                drones, max(parsed.sim_min_separation, 0.0)
+            )
+            min_dist = minimum_pairwise_distance(drones)
+
+            if adjustments > 0:
+                client.send_message(
+                    SIM_COLLISION_ROUTE,
+                    [float(min_dist), int(adjustments)],
+                )
+
+            if pending_bench is not None:
+                seq, recv_rel = pending_bench
+                pending_bench = None
+                emit_rel = time.monotonic() - bench_clock_start
+                client.send_message(
+                    SIM_BENCH_ACK_ROUTE,
+                    [int(seq), float(recv_rel), float(emit_rel)],
+                )
+
+            for drone in drones:
                 client.send_message(f"/pd/sim/drone/{drone.drone_id}/pos", [drone.x, drone.y, drone.z])
                 client.send_message(f"/pd/sim/drone/{drone.drone_id}/yaw", drone.yaw)
             if consent_state != last_sent_consent:
@@ -791,6 +929,12 @@ def main(argv: Optional[List[str]] = None) -> None:
     if parsed.simulate:
         _run_simulation(parsed, mapping, recipe_name)
         return
+
+    if rclpy is None:
+        raise RuntimeError(
+            "Real swarm mode requires ROS2 + CrazySwarm2 dependencies. "
+            f"Import failure: {ROS_IMPORT_ERROR}"
+        )
 
     print("Simulation mode: OFF (real drone path)")
 
