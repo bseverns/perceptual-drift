@@ -102,6 +102,9 @@ def make_handler(state: OperatorState, static_root: Path):
                     self, {"ok": True, "data": state.mapping_curves(points=points)}
                 )
                 return
+            if path == "/api/session/latest":
+                _json_response(self, {"ok": True, "session": state.latest_export()})
+                return
             _error_response(self, f"unknown endpoint: {path}", HTTPStatus.NOT_FOUND)
 
         def _handle_api_post(self, parsed) -> None:
@@ -132,6 +135,16 @@ def make_handler(state: OperatorState, static_root: Path):
                     _error_response(self, "invalid consent value", 400)
                     return
                 _json_response(self, {"ok": True, "state": snapshot})
+                return
+            if path == "/api/session/export":
+                label = str(payload.get("label", "")).strip()
+                notes = str(payload.get("notes", "")).strip()
+                try:
+                    session = state.export_session(label=label, notes=notes)
+                except Exception as exc:
+                    _error_response(self, f"session export failed: {exc}", 500)
+                    return
+                _json_response(self, {"ok": True, "session": session})
                 return
             _error_response(self, f"unknown endpoint: {path}", HTTPStatus.NOT_FOUND)
 
@@ -186,6 +199,16 @@ def parse_args() -> argparse.Namespace:
         default="/pd/consent",
         help="OSC route for runtime consent messages.",
     )
+    parser.add_argument(
+        "--session-export-dir",
+        default="runtime/operator_ui_sessions",
+        help="Directory where session export JSON files are written.",
+    )
+    parser.add_argument(
+        "--telemetry-file",
+        default="runtime/swarm_latency.json",
+        help="Optional telemetry snapshot JSON to include in session exports.",
+    )
     return parser.parse_args()
 
 
@@ -219,6 +242,8 @@ def main() -> int:
         runtime_targets=runtime_targets,
         recipe_route=args.recipe_route,
         consent_route=args.consent_route,
+        export_dir=Path(args.session_export_dir).resolve(),
+        telemetry_snapshot_file=Path(args.telemetry_file).resolve(),
     )
     static_root = Path(args.static_dir).resolve()
     handler = make_handler(state, static_root)
@@ -226,7 +251,8 @@ def main() -> int:
     print(f"[operator-ui] serving http://{args.host}:{args.port}")
     print(
         "[operator-ui] endpoints: /api/state /api/recipes "
-        "/api/recipe /api/consent /api/mapping/curves"
+        "/api/recipe /api/consent /api/mapping/curves "
+        "/api/session/export /api/session/latest"
     )
     print(
         "[operator-ui] runtime targets: "

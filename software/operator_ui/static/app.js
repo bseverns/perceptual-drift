@@ -51,6 +51,7 @@ async function refreshState() {
     ? `${dispatch.action} (${okCount}/${results.length} ok)`
     : "none";
   document.getElementById("lastDispatch").textContent = status;
+  document.getElementById("latestSession").textContent = state.last_export || "none";
 }
 
 async function refreshRecipes() {
@@ -94,10 +95,22 @@ async function setConsent(value) {
   await refreshState();
 }
 
+async function exportSession() {
+  const label = document.getElementById("sessionLabel").value || "";
+  const { session } = await fetchJson("/api/session/export", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ label }),
+  });
+  document.getElementById("latestSession").textContent = session.path;
+  await refreshState();
+}
+
 function wireEvents() {
   document.getElementById("applyRecipe").addEventListener("click", applyRecipe);
   document.getElementById("consentOn").addEventListener("click", () => setConsent(1));
   document.getElementById("consentOff").addEventListener("click", () => setConsent(0));
+  document.getElementById("exportSession").addEventListener("click", exportSession);
 }
 
 async function boot() {

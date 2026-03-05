@@ -91,7 +91,7 @@ criteria.
   - Recipe load/switch
   - Consent state monitor
   - Mapping curve visualization
-- [ ] Add session export: active config + telemetry snapshot.
+- [x] Add session export: active config + telemetry snapshot.
 
 ### M5 exit criteria
 

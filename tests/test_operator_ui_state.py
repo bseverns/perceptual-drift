@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -94,3 +95,56 @@ def test_operator_state_base_recipe_skips_runtime_patch():
     assert snapshot["active_recipe"] == "base"
     assert snapshot["last_dispatch"]["action"] == "recipe"
     assert snapshot["last_dispatch"]["results"] == []
+
+
+def test_operator_state_session_export_includes_state_and_telemetry(tmp_path):
+    export_dir = tmp_path / "exports"
+    telemetry_file = tmp_path / "telemetry.json"
+    telemetry_file.write_text(json.dumps({"p95_ms": 37.2}))
+
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+        export_dir=export_dir,
+        telemetry_snapshot_file=telemetry_file,
+    )
+
+    state.set_recipe("ambient")
+    state.set_consent(1)
+    session = state.export_session(label="rehearsal_01", notes="dry run")
+
+    out_path = Path(session["path"])
+    assert out_path.is_file()
+    assert out_path.parent == export_dir
+    assert session["bytes"] == out_path.stat().st_size
+
+    exported = json.loads(out_path.read_text())
+    assert exported["label"] == "rehearsal_01"
+    assert exported["notes"] == "dry run"
+    assert exported["state"]["active_recipe"] == "ambient"
+    assert exported["state"]["consent_state"] == 1
+    assert exported["dispatch_history"][-1]["action"] == "consent"
+    assert exported["telemetry_snapshot"]["ok"] is True
+    assert exported["telemetry_snapshot"]["data"]["p95_ms"] == 37.2
+    assert "altitude" in exported["curves"]["curves"]
+
+    latest = state.latest_export()
+    assert latest["ok"] is True
+    assert latest["exists"] is True
+    assert latest["path"] == session["path"]
+
+
+def test_operator_state_latest_export_and_missing_telemetry(tmp_path):
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+        export_dir=tmp_path / "exports",
+        telemetry_snapshot_file=tmp_path / "missing.json",
+    )
+
+    assert state.latest_export()["ok"] is False
+    session = state.export_session()
+
+    exported = json.loads(Path(session["path"]).read_text())
+    assert exported["telemetry_snapshot"]["ok"] is False
+    assert exported["telemetry_snapshot"]["reason"] == "missing_file"

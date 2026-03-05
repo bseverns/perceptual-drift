@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+import json
 import math
 import sys
 import threading
@@ -59,17 +61,29 @@ class OperatorState:
         runtime_targets: Optional[Sequence[Tuple[str, int]]] = None,
         recipe_route: str = "/pd/patch",
         consent_route: str = "/pd/consent",
+        export_dir: Optional[Path] = None,
+        telemetry_snapshot_file: Optional[Path] = None,
+        dispatch_history_limit: int = 50,
     ) -> None:
         self.base_mapping_path = base_mapping_path
         self.recipes_dir = recipes_dir
         self.runtime_targets = list(runtime_targets or [])
         self.recipe_route = recipe_route
         self.consent_route = consent_route
+        self.export_dir = (
+            export_dir
+            if export_dir is not None
+            else (REPO_ROOT / "runtime" / "operator_ui_sessions")
+        )
+        self.telemetry_snapshot_file = telemetry_snapshot_file
+        self.dispatch_history_limit = max(1, int(dispatch_history_limit))
         self._lock = threading.Lock()
         self._active_recipe: Optional[str] = None
         self._consent: int = 0
         self._updated_at: float = time.time()
         self._last_dispatch: Dict[str, Any] = {"action": "none", "results": []}
+        self._dispatch_history: List[Dict[str, Any]] = []
+        self._last_export_path: Optional[Path] = None
         self._mapping = load_mapping(base_path=str(self.base_mapping_path))
 
     def list_recipes(self) -> List[Dict[str, str]]:
@@ -123,6 +137,7 @@ class OperatorState:
                     "results": [],
                     "note": "base mapping selected; no runtime patch emitted",
                 }
+            self._record_dispatch(self._last_dispatch)
             return self.snapshot_unlocked()
 
     def set_consent(self, consent_value: Any) -> Dict[str, Any]:
@@ -135,6 +150,7 @@ class OperatorState:
                 route=self.consent_route,
                 payload=consent,
             )
+            self._record_dispatch(self._last_dispatch)
             return self.snapshot_unlocked()
 
     def _emit_runtime(self, action: str, route: str, payload: Any) -> Dict[str, Any]:
@@ -157,11 +173,92 @@ class OperatorState:
             "sent_at": time.time(),
         }
 
+    def _record_dispatch(self, event: Dict[str, Any]) -> None:
+        self._dispatch_history.append(copy.deepcopy(event))
+        if len(self._dispatch_history) > self.dispatch_history_limit:
+            overflow = len(self._dispatch_history) - self.dispatch_history_limit
+            if overflow > 0:
+                del self._dispatch_history[:overflow]
+
+    def _load_telemetry_snapshot(self) -> Dict[str, Any]:
+        if self.telemetry_snapshot_file is None:
+            return {"ok": False, "reason": "not_configured"}
+        path = Path(self.telemetry_snapshot_file)
+        if not path.is_file():
+            return {"ok": False, "reason": "missing_file", "path": str(path)}
+        try:
+            data = json.loads(path.read_text())
+        except json.JSONDecodeError as exc:
+            return {
+                "ok": False,
+                "reason": "invalid_json",
+                "path": str(path),
+                "error": str(exc),
+            }
+        return {"ok": True, "path": str(path), "data": data}
+
+    def export_session(
+        self, *, label: str = "", notes: str = ""
+    ) -> Dict[str, Any]:
+        safe_label = "".join(ch for ch in label.strip() if ch.isalnum() or ch in "-_")
+        timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+        filename = (
+            f"session_{timestamp}_{safe_label}.json"
+            if safe_label
+            else f"session_{timestamp}.json"
+        )
+        out_dir = Path(self.export_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / filename
+
+        with self._lock:
+            mapping_copy = copy.deepcopy(self._mapping)
+            mapping_section = dict(mapping_copy.get("mapping", {}))
+            payload = {
+                "exported_at": time.time(),
+                "label": label,
+                "notes": notes,
+                "state": self.snapshot_unlocked(),
+                "mapping": mapping_copy,
+                "dispatch_history": copy.deepcopy(self._dispatch_history),
+                "curves": self._mapping_curves_from_mapping(mapping_section, 81),
+                "telemetry_snapshot": self._load_telemetry_snapshot(),
+            }
+
+        out_path.write_text(json.dumps(payload, indent=2) + "\n")
+        with self._lock:
+            self._last_export_path = out_path
+
+        return {
+            "path": str(out_path),
+            "bytes": out_path.stat().st_size,
+            "label": label,
+            "exported_at": payload["exported_at"],
+        }
+
+    def latest_export(self) -> Dict[str, Any]:
+        with self._lock:
+            path = self._last_export_path
+        if path is None:
+            return {"ok": False, "reason": "no_exports_yet"}
+        exists = path.is_file()
+        return {
+            "ok": exists,
+            "path": str(path),
+            "exists": exists,
+            "bytes": path.stat().st_size if exists else 0,
+        }
+
     def mapping_curves(self, points: int = 101) -> Dict[str, Any]:
         points = int(_clamp(points, 5, 401))
         with self._lock:
             mapping = dict(self._mapping.get("mapping", {}))
+        return self._mapping_curves_from_mapping(mapping, points)
 
+    def _mapping_curves_from_mapping(
+        self, mapping: Dict[str, Any], points: int
+    ) -> Dict[str, Any]:
+        points = int(_clamp(points, 5, 401))
         x_values = [(-1.0 + 2.0 * idx / (points - 1)) for idx in range(points)]
         curves = {}
         for axis_name in ("altitude", "lateral"):
@@ -209,4 +306,6 @@ class OperatorState:
                 f"{host}:{port}" for host, port in self.runtime_targets
             ],
             "last_dispatch": self._last_dispatch,
+            "dispatch_events": len(self._dispatch_history),
+            "last_export": str(self._last_export_path) if self._last_export_path else "",
         }

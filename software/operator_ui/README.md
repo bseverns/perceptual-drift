@@ -5,6 +5,7 @@ This is the first M5 web UI slice:
 - recipe loading
 - consent monitoring/toggling
 - mapping curve visualization (altitude/lateral)
+- session export bundles (active config + curves + dispatch history + telemetry snapshot)
 
 ## Run
 
@@ -26,6 +27,8 @@ Open:
 - `POST /api/recipe` body: `{ "recipe": "ambient" }` (`"base"` resets)
 - `POST /api/consent` body: `{ "consent": 1 }`
 - `GET /api/mapping/curves?points=121`
+- `POST /api/session/export` body: `{ "label": "run_a", "notes": "optional" }`
+- `GET /api/session/latest`
 
 ## Runtime dispatch wiring
 
@@ -49,9 +52,31 @@ python3 software/operator_ui/server.py \
 Note: selecting recipe `base` resets local state but does not emit a runtime
 recipe patch.
 
+## Session exports
+
+Session exports are written to JSON files and include:
+
+- current operator state
+- active merged mapping
+- dispatch history
+- generated mapping curves
+- optional telemetry snapshot JSON
+
+Default paths:
+
+- export dir: `runtime/operator_ui_sessions`
+- telemetry snapshot input: `runtime/swarm_latency.json`
+
+Override export paths:
+
+```bash
+python3 software/operator_ui/server.py \
+  --session-export-dir runtime/operator_ui_sessions \
+  --telemetry-file runtime/swarm_latency.json
+```
+
 ## Scope notes
 
-This alpha now emits live OSC control intents, but it does not yet include:
+This alpha now emits live OSC control intents and supports session exports, but it does not yet include:
 
-- session export bundles (config + telemetry snapshot)
 - runtime process supervision/health checks for bridge/sim daemons
