@@ -27,6 +27,7 @@ Open:
 - `POST /api/recipe` body: `{ "recipe": "ambient" }` (`"base"` resets)
 - `POST /api/consent` body: `{ "consent": 1 }`
 - `GET /api/mapping/curves?points=121`
+- `GET /api/runtime/health`
 - `POST /api/session/export` body: `{ "label": "run_a", "notes": "optional" }`
 - `GET /api/session/latest`
 
@@ -75,8 +76,22 @@ python3 software/operator_ui/server.py \
   --telemetry-file runtime/swarm_latency.json
 ```
 
+## Runtime health visibility
+
+`GET /api/runtime/health` reports status for key daemons (control bridge, tracker,
+swarm demo) using:
+
+- PID files (preferred, if present)
+- process table scan fallback (`ps`)
+
+Starter bundle launches now write PID files to `runtime/starter_bundle/`:
+
+- `bridge.pid`
+- `tracker.pid`
+- `video.pid`
+
 ## Scope notes
 
-This alpha now emits live OSC control intents and supports session exports, but it does not yet include:
+This alpha now emits live OSC control intents, session exports, and runtime health visibility, but it does not yet include:
 
-- runtime process supervision/health checks for bridge/sim daemons
+- runtime process supervision (start/stop/restart controls)

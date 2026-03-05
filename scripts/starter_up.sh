@@ -111,6 +111,9 @@ mkdir -p "$RUN_DIR"
 BRIDGE_LOG="$RUN_DIR/bridge.log"
 TRACKER_LOG="$RUN_DIR/tracker.log"
 VIDEO_LOG="$RUN_DIR/video.log"
+BRIDGE_PID_FILE="$RUN_DIR/bridge.pid"
+TRACKER_PID_FILE="$RUN_DIR/tracker.pid"
+VIDEO_PID_FILE="$RUN_DIR/video.pid"
 
 PIDS=()
 
@@ -136,6 +139,7 @@ start_bridge() {
   "${cmd[@]}" >"$BRIDGE_LOG" 2>&1 &
   local pid=$!
   PIDS+=("$pid")
+  echo "$pid" >"$BRIDGE_PID_FILE"
   echo "[starter] bridge pid=$pid"
 }
 
@@ -151,6 +155,7 @@ start_tracker() {
   "${cmd[@]}" >"$TRACKER_LOG" 2>&1 &
   local pid=$!
   PIDS+=("$pid")
+  echo "$pid" >"$TRACKER_PID_FILE"
   echo "[starter] tracker pid=$pid"
 }
 
@@ -189,10 +194,12 @@ start_video() {
   "${cmd[@]}" >"$VIDEO_LOG" 2>&1 &
   local pid=$!
   PIDS+=("$pid")
+  echo "$pid" >"$VIDEO_PID_FILE"
   echo "[starter] video pid=$pid"
 }
 
 cleanup() {
+  rm -f "$BRIDGE_PID_FILE" "$TRACKER_PID_FILE" "$VIDEO_PID_FILE"
   local pid
   for pid in "${PIDS[@]:-}"; do
     if kill -0 "$pid" >/dev/null 2>&1; then

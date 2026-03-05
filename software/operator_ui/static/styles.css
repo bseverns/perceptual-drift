@@ -73,6 +73,17 @@ body {
   background: #fff;
 }
 
+.runtime-details {
+  margin: 12px 0 0 0;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #3d392f;
+  white-space: pre-wrap;
+  font-size: 0.9rem;
+}
+
 .k {
   color: #666055;
 }

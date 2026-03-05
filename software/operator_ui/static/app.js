@@ -54,6 +54,17 @@ async function refreshState() {
   document.getElementById("latestSession").textContent = state.last_export || "none";
 }
 
+async function refreshRuntimeHealth() {
+  const { runtime } = await fetchJson("/api/runtime/health");
+  document.getElementById("runtimeHealthSummary").textContent = `${runtime.healthy}/${runtime.total} healthy`;
+  const details = (runtime.services || []).map((svc) => {
+    const marker = svc.healthy ? "OK" : "DOWN";
+    const pid = svc.pid ? ` pid=${svc.pid}` : "";
+    return `${marker} ${svc.name}${pid} (${svc.source}) - ${svc.detail}`;
+  });
+  document.getElementById("runtimeHealthDetails").textContent = details.join("\n") || "No services configured";
+}
+
 async function refreshRecipes() {
   const { recipes } = await fetchJson("/api/recipes");
   const select = document.getElementById("recipeSelect");
@@ -116,9 +127,10 @@ function wireEvents() {
 async function boot() {
   wireEvents();
   await refreshRecipes();
-  await Promise.all([refreshState(), refreshCurves()]);
+  await Promise.all([refreshState(), refreshCurves(), refreshRuntimeHealth()]);
   setInterval(() => refreshState().catch(console.error), 1000);
   setInterval(() => refreshCurves().catch(console.error), 2500);
+  setInterval(() => refreshRuntimeHealth().catch(console.error), 3000);
 }
 
 boot().catch((err) => {

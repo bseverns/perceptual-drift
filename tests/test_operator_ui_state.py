@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -148,3 +149,53 @@ def test_operator_state_latest_export_and_missing_telemetry(tmp_path):
     exported = json.loads(Path(session["path"]).read_text())
     assert exported["telemetry_snapshot"]["ok"] is False
     assert exported["telemetry_snapshot"]["reason"] == "missing_file"
+
+
+def test_operator_state_runtime_health_uses_pid_file(tmp_path):
+    pid_file = tmp_path / "bridge.pid"
+    pid_file.write_text(str(os.getpid()))
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+        runtime_services=[
+            {
+                "id": "bridge",
+                "name": "Bridge",
+                "pid_file": str(pid_file),
+                "match": "does-not-matter",
+            }
+        ],
+    )
+    with patch.object(state, "_ps_processes", return_value=[]):
+        health = state.runtime_health()
+    assert health["healthy"] == 1
+    assert health["total"] == 1
+    service = health["services"][0]
+    assert service["healthy"] is True
+    assert service["source"] == "pid_file"
+    assert service["pid"] == os.getpid()
+
+
+def test_operator_state_runtime_health_falls_back_to_process_scan():
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+        runtime_services=[
+            {
+                "id": "swarm",
+                "name": "Swarm Demo",
+                "pid_file": "",
+                "match": "software/swarm/swarm_demo.py",
+            }
+        ],
+    )
+    with patch.object(
+        state,
+        "_ps_processes",
+        return_value=[(2222, "python software/swarm/swarm_demo.py --simulate")],
+    ):
+        health = state.runtime_health()
+    service = health["services"][0]
+    assert service["healthy"] is True
+    assert service["source"] == "process_scan"
+    assert service["pid"] == 2222

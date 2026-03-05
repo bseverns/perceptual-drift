@@ -92,6 +92,7 @@ criteria.
   - Consent state monitor
   - Mapping curve visualization
 - [x] Add session export: active config + telemetry snapshot.
+- [x] Add runtime health visibility for bridge/tracker/sim daemons.
 
 ### M5 exit criteria
 

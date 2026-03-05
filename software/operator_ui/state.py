@@ -5,6 +5,8 @@ from __future__ import annotations
 import copy
 import json
 import math
+import os
+import subprocess
 import sys
 import threading
 import time
@@ -64,6 +66,7 @@ class OperatorState:
         export_dir: Optional[Path] = None,
         telemetry_snapshot_file: Optional[Path] = None,
         dispatch_history_limit: int = 50,
+        runtime_services: Optional[Sequence[Dict[str, Any]]] = None,
     ) -> None:
         self.base_mapping_path = base_mapping_path
         self.recipes_dir = recipes_dir
@@ -77,6 +80,27 @@ class OperatorState:
         )
         self.telemetry_snapshot_file = telemetry_snapshot_file
         self.dispatch_history_limit = max(1, int(dispatch_history_limit))
+        default_services = [
+            {
+                "id": "control_bridge",
+                "name": "Control Bridge",
+                "pid_file": str(REPO_ROOT / "runtime" / "starter_bundle" / "bridge.pid"),
+                "match": "software/control-bridge/osc_msp_bridge.py",
+            },
+            {
+                "id": "tracker",
+                "name": "Tracker",
+                "pid_file": str(REPO_ROOT / "runtime" / "starter_bundle" / "tracker.pid"),
+                "match": "software/starter-bundle/minimal_tracker.py",
+            },
+            {
+                "id": "swarm_demo",
+                "name": "Swarm Demo",
+                "pid_file": str(REPO_ROOT / "runtime" / "swarm_demo.pid"),
+                "match": "software/swarm/swarm_demo.py",
+            },
+        ]
+        self.runtime_services = [dict(s) for s in (runtime_services or default_services)]
         self._lock = threading.Lock()
         self._active_recipe: Optional[str] = None
         self._consent: int = 0
@@ -247,6 +271,101 @@ class OperatorState:
             "path": str(path),
             "exists": exists,
             "bytes": path.stat().st_size if exists else 0,
+        }
+
+    @staticmethod
+    def _pid_running(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
+    def _ps_processes(self) -> List[Tuple[int, str]]:
+        try:
+            proc = subprocess.run(
+                ["ps", "-ax", "-o", "pid=", "-o", "command="],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+        except Exception:
+            return []
+        processes: List[Tuple[int, str]] = []
+        for line in proc.stdout.splitlines():
+            raw = line.strip()
+            if not raw:
+                continue
+            parts = raw.split(None, 1)
+            if not parts:
+                continue
+            try:
+                pid = int(parts[0])
+            except ValueError:
+                continue
+            command = parts[1] if len(parts) > 1 else ""
+            processes.append((pid, command))
+        return processes
+
+    def runtime_health(self) -> Dict[str, Any]:
+        processes = self._ps_processes()
+        services: List[Dict[str, Any]] = []
+        healthy = 0
+        for raw_service in self.runtime_services:
+            service = dict(raw_service)
+            sid = str(service.get("id", "service"))
+            name = str(service.get("name", sid))
+            pid_file_raw = str(service.get("pid_file", "")).strip()
+            match = str(service.get("match", "")).strip()
+
+            pid: Optional[int] = None
+            source = "none"
+            detail = "not running"
+            is_healthy = False
+
+            if pid_file_raw:
+                pid_path = Path(pid_file_raw)
+                if pid_path.is_file():
+                    try:
+                        pid = int(pid_path.read_text().strip())
+                        if self._pid_running(pid):
+                            is_healthy = True
+                            source = "pid_file"
+                            detail = f"pid {pid} from {pid_path.name}"
+                    except ValueError:
+                        detail = f"invalid pid file: {pid_path.name}"
+
+            if not is_healthy and match:
+                found = [(p, cmd) for p, cmd in processes if match in cmd]
+                if found:
+                    pid = found[0][0]
+                    is_healthy = True
+                    source = "process_scan"
+                    detail = f"matched '{match}' ({len(found)} process{'es' if len(found) != 1 else ''})"
+
+            if is_healthy:
+                healthy += 1
+
+            services.append(
+                {
+                    "id": sid,
+                    "name": name,
+                    "healthy": is_healthy,
+                    "pid": pid or 0,
+                    "source": source,
+                    "detail": detail,
+                    "pid_file": pid_file_raw,
+                    "match": match,
+                }
+            )
+
+        return {
+            "checked_at": time.time(),
+            "healthy": healthy,
+            "total": len(services),
+            "services": services,
         }
 
     def mapping_curves(self, points: int = 101) -> Dict[str, Any]:

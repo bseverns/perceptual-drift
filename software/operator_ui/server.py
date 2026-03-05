@@ -102,6 +102,9 @@ def make_handler(state: OperatorState, static_root: Path):
                     self, {"ok": True, "data": state.mapping_curves(points=points)}
                 )
                 return
+            if path == "/api/runtime/health":
+                _json_response(self, {"ok": True, "runtime": state.runtime_health()})
+                return
             if path == "/api/session/latest":
                 _json_response(self, {"ok": True, "session": state.latest_export()})
                 return
@@ -252,6 +255,7 @@ def main() -> int:
     print(
         "[operator-ui] endpoints: /api/state /api/recipes "
         "/api/recipe /api/consent /api/mapping/curves "
+        "/api/runtime/health "
         "/api/session/export /api/session/latest"
     )
     print(
