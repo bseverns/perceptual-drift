@@ -11,7 +11,7 @@ criteria.
 | M0: Baseline + scope lock | Week 1 | completed | Architecture baseline, dependency matrix, starter scope |
 | M1: Starter bundle | Weeks 2-3 | in progress | One-command local launch for tracker + bridge (+ optional video) |
 | M2: Environment reproducibility | Weeks 4-6 | in progress | Pinned dependency flow for desktop and Jetson |
-| M3: Docs consolidation | Weeks 7-8 | planned | Canonical mapping contract and reduced doc duplication |
+| M3: Docs consolidation | Weeks 7-8 | completed | Canonical mapping contract and reduced doc duplication |
 | M4: Swarm hardening | Weeks 9-10 | planned | Latency and collision safety checks with replayable tests |
 | M5: Operator UI alpha | Weeks 11-12 | planned | Non-CLI control surface for recipes, consent, and curves |
 
@@ -67,7 +67,7 @@ criteria.
 - [x] Replace repeated mapping descriptions with links from:
   - `docs/control-stack-playbook.md`
   - `docs/recipes.md`
-- [ ] Add concise doc IA index page ("start", "operate", "extend", "swarm").
+- [x] Add concise doc IA index page ("start", "operate", "extend", "swarm").
 
 ### M3 exit criteria
 

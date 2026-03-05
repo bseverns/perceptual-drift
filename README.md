@@ -12,6 +12,7 @@ Perceptual Drift is a participatory drone‑based installation where **audience 
 
 ## How to tour this notebook (a.k.a. your flight school syllabus)
 Want the full syllabus with reasons to care for every doc? The [touring guide lives in `docs/quickstart.md`](docs/quickstart.md#how-to-tour-this-notebook-aka-your-flight-school-syllabus) and calls out where each playbook and diagram fits in the rehearsal arc.
+Need a concise nav map first? Open [`docs/index.md`](docs/index.md) for the "start / operate / extend / swarm" path.
 
 Need a low-friction first run? Start with the [Starter Bundle guide](docs/starter-bundle.md) for a one-command tracker + bridge loop (optional video preview, no Processing required).
 
@@ -34,6 +35,7 @@ Short version: pick a platform profile, run the matching setup script, then smok
 - Version and environment matrix: [`docs/dependency-matrix.md`](docs/dependency-matrix.md)
 - Reproducible env workflow: [`docs/environment-reproducibility.md`](docs/environment-reproducibility.md)
 - Canonical mapping schema: [`docs/mapping-contract.md`](docs/mapping-contract.md)
+- Docs IA index: [`docs/index.md`](docs/index.md)
 
 ---
 

@@ -2,6 +2,9 @@
 
 This is the no-nonsense field manual for getting a fresh human up to speed and a single drone safely in the air. It keeps the punk-rock texture of the main README but spares you the scroll.
 
+Need the high-level doc map first? Start with [`docs/index.md`](index.md) and
+then drop back here for the onboarding sequence.
+
 ---
 
 ## Onboarding flight school (start here)
