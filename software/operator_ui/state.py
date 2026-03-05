@@ -118,6 +118,7 @@ class OperatorState:
             "last_preflight": {},
             "start_options": {},
         }
+        self._recipes_cache: Dict[Path, Tuple[float, Dict[str, str]]] = {}
         self._mapping = load_mapping(base_path=str(self.base_mapping_path))
 
     def list_recipes(self) -> List[Dict[str, str]]:
@@ -128,17 +129,40 @@ class OperatorState:
                 "description": "Use config/mapping.yaml without recipe overlay.",
             }
         ]
-        for path in sorted(self.recipes_dir.glob("*.yaml")):
-            entry = {"id": path.stem, "name": path.stem, "description": ""}
-            try:
-                parsed = yaml.safe_load(path.read_text()) or {}
-            except yaml.YAMLError:
-                recipes.append(entry)
-                continue
-            if isinstance(parsed, dict):
-                entry["name"] = str(parsed.get("name", path.stem))
-                entry["description"] = str(parsed.get("description", "")).strip()
-            recipes.append(entry)
+
+        with self._lock:
+            current_files = list(self.recipes_dir.glob("*.yaml"))
+            current_file_set = set(current_files)
+
+            for path in list(self._recipes_cache.keys()):
+                if path not in current_file_set:
+                    del self._recipes_cache[path]
+
+            for path in sorted(current_files):
+                try:
+                    mtime = path.stat().st_mtime
+                except OSError:
+                    continue
+
+                if path in self._recipes_cache and self._recipes_cache[path][0] == mtime:
+                    recipes.append(dict(self._recipes_cache[path][1]))
+                    continue
+
+                entry = {"id": path.stem, "name": path.stem, "description": ""}
+                try:
+                    parsed = yaml.safe_load(path.read_text()) or {}
+                except Exception:
+                    self._recipes_cache[path] = (mtime, entry)
+                    recipes.append(dict(entry))
+                    continue
+
+                if isinstance(parsed, dict):
+                    entry["name"] = str(parsed.get("name", path.stem))
+                    entry["description"] = str(parsed.get("description", "")).strip()
+
+                self._recipes_cache[path] = (mtime, entry)
+                recipes.append(dict(entry))
+
         return recipes
 
     def set_recipe(self, recipe_id: str) -> Dict[str, Any]:
