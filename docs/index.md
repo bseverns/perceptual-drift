@@ -15,6 +15,7 @@ Use this page as the stable navigation hub for the repo docs.
 - Bridge telemetry interpretation: [`operations/bridge_telemetry.md`](operations/bridge_telemetry.md)
 - Video path + presets: [`video-pipeline.md`](video-pipeline.md)
 - Platform-specific bring-up: [`platform-lab.md`](platform-lab.md)
+- Operator UI alpha (recipe/consent/curves): [`../software/operator_ui/README.md`](../software/operator_ui/README.md)
 
 ## Extend
 
@@ -33,4 +34,3 @@ Use this page as the stable navigation hub for the repo docs.
 - Delivery milestones and status: [`ROADMAP.md`](ROADMAP.md)
 - Dependency/version baseline: [`dependency-matrix.md`](dependency-matrix.md)
 - Reproducibility workflow: [`environment-reproducibility.md`](environment-reproducibility.md)
-

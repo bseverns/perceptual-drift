@@ -13,7 +13,7 @@ criteria.
 | M2: Environment reproducibility | Weeks 4-6 | in progress | Pinned dependency flow for desktop and Jetson |
 | M3: Docs consolidation | Weeks 7-8 | completed | Canonical mapping contract and reduced doc duplication |
 | M4: Swarm hardening | Weeks 9-10 | completed | Latency and collision safety checks with replayable tests |
-| M5: Operator UI alpha | Weeks 11-12 | planned | Non-CLI control surface for recipes, consent, and curves |
+| M5: Operator UI alpha | Weeks 11-12 | in progress | Non-CLI control surface for recipes, consent, and curves |
 
 ## M0 Deliverables (baseline + scope lock)
 
@@ -87,7 +87,7 @@ criteria.
 
 ## M5 Deliverables (operator UI alpha)
 
-- [ ] Build web UI alpha for:
+- [x] Build web UI alpha for:
   - Recipe load/switch
   - Consent state monitor
   - Mapping curve visualization

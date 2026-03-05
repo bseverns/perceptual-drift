@@ -1,0 +1,137 @@
+:root {
+  --bg: #f5f1e7;
+  --ink: #1f1f1b;
+  --panel: #fffdf7;
+  --line: #d8cfbe;
+  --accent: #1f6f78;
+  --accent2: #c44536;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at 85% 10%, #f0dfc6 0, transparent 35%),
+    radial-gradient(circle at 10% 80%, #d6e6ea 0, transparent 30%),
+    var(--bg);
+  color: var(--ink);
+}
+
+.layout {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+.hero {
+  background: linear-gradient(135deg, #fffef9, #efe6d6);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.hero h1 {
+  margin: 0 0 6px 0;
+  font-size: 1.8rem;
+}
+
+.hero p {
+  margin: 0;
+  color: #544f45;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.panel h2 {
+  margin-top: 0;
+}
+
+.state-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.state-grid div {
+  display: flex;
+  justify-content: space-between;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.k {
+  color: #666055;
+}
+
+.controls .row {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+select,
+button {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #b8ad9b;
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+button {
+  cursor: pointer;
+}
+
+#applyRecipe,
+#consentOn {
+  border-color: var(--accent);
+}
+
+#consentOff {
+  border-color: var(--accent2);
+}
+
+.curves {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.canvas-wrap {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+}
+
+canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+@media (min-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr 1fr;
+  }
+  .hero,
+  .curves {
+    grid-column: 1 / -1;
+  }
+}
+

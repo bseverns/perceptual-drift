@@ -36,6 +36,7 @@ Short version: pick a platform profile, run the matching setup script, then smok
 - Reproducible env workflow: [`docs/environment-reproducibility.md`](docs/environment-reproducibility.md)
 - Canonical mapping schema: [`docs/mapping-contract.md`](docs/mapping-contract.md)
 - Docs IA index: [`docs/index.md`](docs/index.md)
+- Operator UI alpha: [`software/operator_ui/README.md`](software/operator_ui/README.md)
 
 ---
 

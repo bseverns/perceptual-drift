@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Perceptual Drift Operator UI</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="layout">
+      <header class="hero">
+        <h1>Operator UI</h1>
+        <p>Recipe load, consent monitor, and live mapping curves.</p>
+      </header>
+
+      <section class="panel">
+        <h2>Runtime State</h2>
+        <div class="state-grid">
+          <div><span class="k">Active recipe</span><span id="activeRecipe">-</span></div>
+          <div><span class="k">Consent</span><span id="consentState">-</span></div>
+          <div><span class="k">OSC port</span><span id="oscPort">-</span></div>
+          <div><span class="k">Consent mode</span><span id="consentMode">-</span></div>
+        </div>
+      </section>
+
+      <section class="panel controls">
+        <h2>Controls</h2>
+        <label for="recipeSelect">Recipe</label>
+        <div class="row">
+          <select id="recipeSelect"></select>
+          <button id="applyRecipe">Apply</button>
+        </div>
+
+        <label for="consentToggle">Consent Gate</label>
+        <div class="row">
+          <button id="consentOn">Set ON</button>
+          <button id="consentOff">Set OFF</button>
+        </div>
+      </section>
+
+      <section class="panel curves">
+        <h2>Mapping Curves</h2>
+        <div class="canvas-wrap">
+          <h3>Altitude</h3>
+          <canvas id="altCurve" width="520" height="220"></canvas>
+        </div>
+        <div class="canvas-wrap">
+          <h3>Lateral</h3>
+          <canvas id="latCurve" width="520" height="220"></canvas>
+        </div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
+
