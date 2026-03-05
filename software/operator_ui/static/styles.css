@@ -110,11 +110,13 @@ button {
 }
 
 #applyRecipe,
-#consentOn {
+#consentOn,
+#startRuntime {
   border-color: var(--accent);
 }
 
-#consentOff {
+#consentOff,
+#stopRuntime {
   border-color: var(--accent2);
 }
 

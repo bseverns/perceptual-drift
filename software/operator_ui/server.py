@@ -18,6 +18,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
 
 from software.operator_ui.state import OperatorState
+from software.operator_ui.supervisor import StarterSupervisor
 
 
 def _read_json_body(handler: BaseHTTPRequestHandler) -> Dict[str, Any]:
@@ -57,7 +58,9 @@ def _resolve_static(root: Path, requested: str) -> Tuple[Path, str]:
     return target, rel
 
 
-def make_handler(state: OperatorState, static_root: Path):
+def make_handler(
+    state: OperatorState, static_root: Path, supervisor: StarterSupervisor
+):
     class OperatorHandler(BaseHTTPRequestHandler):
         server_version = "PerceptualDriftOperatorUI/0.1"
 
@@ -105,6 +108,9 @@ def make_handler(state: OperatorState, static_root: Path):
             if path == "/api/runtime/health":
                 _json_response(self, {"ok": True, "runtime": state.runtime_health()})
                 return
+            if path == "/api/runtime/supervisor":
+                _json_response(self, {"ok": True, "supervisor": supervisor.status()})
+                return
             if path == "/api/session/latest":
                 _json_response(self, {"ok": True, "session": state.latest_export()})
                 return
@@ -148,6 +154,22 @@ def make_handler(state: OperatorState, static_root: Path):
                     _error_response(self, f"session export failed: {exc}", 500)
                     return
                 _json_response(self, {"ok": True, "session": session})
+                return
+            if path == "/api/runtime/start":
+                try:
+                    sup = supervisor.start(payload)
+                except Exception as exc:
+                    _error_response(self, f"failed to start runtime: {exc}", 400)
+                    return
+                _json_response(self, {"ok": True, "supervisor": sup})
+                return
+            if path == "/api/runtime/stop":
+                try:
+                    sup = supervisor.stop()
+                except Exception as exc:
+                    _error_response(self, f"failed to stop runtime: {exc}", 500)
+                    return
+                _json_response(self, {"ok": True, "supervisor": sup})
                 return
             _error_response(self, f"unknown endpoint: {path}", HTTPStatus.NOT_FOUND)
 
@@ -212,6 +234,16 @@ def parse_args() -> argparse.Namespace:
         default="runtime/swarm_latency.json",
         help="Optional telemetry snapshot JSON to include in session exports.",
     )
+    parser.add_argument(
+        "--starter-script",
+        default="scripts/starter_up.sh",
+        help="Starter bundle launcher script used by runtime start/stop endpoints.",
+    )
+    parser.add_argument(
+        "--starter-log",
+        default="runtime/operator_ui/starter_supervisor.log",
+        help="Log file for starter process launched via runtime start endpoint.",
+    )
     return parser.parse_args()
 
 
@@ -248,14 +280,20 @@ def main() -> int:
         export_dir=Path(args.session_export_dir).resolve(),
         telemetry_snapshot_file=Path(args.telemetry_file).resolve(),
     )
+    supervisor = StarterSupervisor(
+        script_path=Path(args.starter_script).resolve(),
+        log_path=Path(args.starter_log).resolve(),
+        cwd=REPO_ROOT,
+    )
     static_root = Path(args.static_dir).resolve()
-    handler = make_handler(state, static_root)
+    handler = make_handler(state, static_root, supervisor)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"[operator-ui] serving http://{args.host}:{args.port}")
     print(
         "[operator-ui] endpoints: /api/state /api/recipes "
         "/api/recipe /api/consent /api/mapping/curves "
-        "/api/runtime/health "
+        "/api/runtime/health /api/runtime/supervisor "
+        "/api/runtime/start /api/runtime/stop "
         "/api/session/export /api/session/latest"
     )
     print(

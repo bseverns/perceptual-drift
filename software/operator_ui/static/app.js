@@ -65,6 +65,14 @@ async function refreshRuntimeHealth() {
   document.getElementById("runtimeHealthDetails").textContent = details.join("\n") || "No services configured";
 }
 
+async function refreshSupervisor() {
+  const { supervisor } = await fetchJson("/api/runtime/supervisor");
+  const state = supervisor.running
+    ? `running (pid ${supervisor.pid})`
+    : `stopped (exit ${supervisor.last_exit_code})`;
+  document.getElementById("supervisorState").textContent = state;
+}
+
 async function refreshRecipes() {
   const { recipes } = await fetchJson("/api/recipes");
   const select = document.getElementById("recipeSelect");
@@ -117,20 +125,41 @@ async function exportSession() {
   await refreshState();
 }
 
+async function startRuntime() {
+  await fetchJson("/api/runtime/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await Promise.all([refreshSupervisor(), refreshRuntimeHealth()]);
+}
+
+async function stopRuntime() {
+  await fetchJson("/api/runtime/stop", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await Promise.all([refreshSupervisor(), refreshRuntimeHealth()]);
+}
+
 function wireEvents() {
   document.getElementById("applyRecipe").addEventListener("click", applyRecipe);
   document.getElementById("consentOn").addEventListener("click", () => setConsent(1));
   document.getElementById("consentOff").addEventListener("click", () => setConsent(0));
+  document.getElementById("startRuntime").addEventListener("click", startRuntime);
+  document.getElementById("stopRuntime").addEventListener("click", stopRuntime);
   document.getElementById("exportSession").addEventListener("click", exportSession);
 }
 
 async function boot() {
   wireEvents();
   await refreshRecipes();
-  await Promise.all([refreshState(), refreshCurves(), refreshRuntimeHealth()]);
+  await Promise.all([refreshState(), refreshCurves(), refreshRuntimeHealth(), refreshSupervisor()]);
   setInterval(() => refreshState().catch(console.error), 1000);
   setInterval(() => refreshCurves().catch(console.error), 2500);
   setInterval(() => refreshRuntimeHealth().catch(console.error), 3000);
+  setInterval(() => refreshSupervisor().catch(console.error), 2000);
 }
 
 boot().catch((err) => {

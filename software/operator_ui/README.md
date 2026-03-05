@@ -28,6 +28,9 @@ Open:
 - `POST /api/consent` body: `{ "consent": 1 }`
 - `GET /api/mapping/curves?points=121`
 - `GET /api/runtime/health`
+- `GET /api/runtime/supervisor`
+- `POST /api/runtime/start`
+- `POST /api/runtime/stop`
 - `POST /api/session/export` body: `{ "label": "run_a", "notes": "optional" }`
 - `GET /api/session/latest`
 
@@ -90,8 +93,29 @@ Starter bundle launches now write PID files to `runtime/starter_bundle/`:
 - `tracker.pid`
 - `video.pid`
 
+## Runtime start/stop controls
+
+The UI can start and stop the starter bundle launcher via:
+
+- `POST /api/runtime/start`
+- `POST /api/runtime/stop`
+- `GET /api/runtime/supervisor`
+
+By default this runs:
+
+- script: `scripts/starter_up.sh`
+- log: `runtime/operator_ui/starter_supervisor.log`
+
+Override with:
+
+```bash
+python3 software/operator_ui/server.py \
+  --starter-script scripts/starter_up.sh \
+  --starter-log runtime/operator_ui/starter_supervisor.log
+```
+
 ## Scope notes
 
-This alpha now emits live OSC control intents, session exports, and runtime health visibility, but it does not yet include:
+This alpha now emits live OSC control intents, session exports, runtime health visibility, and starter runtime start/stop controls, but it does not yet include:
 
-- runtime process supervision (start/stop/restart controls)
+- supervised restart policies, retries, and multi-service orchestration
