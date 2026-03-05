@@ -333,6 +333,30 @@ class OperatorState:
         return True
 
     def _ps_processes(self) -> List[Tuple[int, str]]:
+        if sys.platform.startswith("linux"):
+            processes: List[Tuple[int, str]] = []
+            try:
+                for pid_dir in os.listdir("/proc"):
+                    if not pid_dir.isdigit():
+                        continue
+                    try:
+                        with open(f"/proc/{pid_dir}/cmdline", "r", encoding="utf-8", errors="replace") as f:
+                            cmdline = f.read().replace("\x00", " ").strip()
+                        if not cmdline:
+                            with open(f"/proc/{pid_dir}/stat", "r", encoding="utf-8", errors="replace") as f:
+                                stat = f.read()
+                                start = stat.find('(')
+                                end = stat.rfind(')')
+                                if start != -1 and end != -1:
+                                    cmdline = "[" + stat[start+1:end] + "]"
+                        if cmdline:
+                            processes.append((int(pid_dir), cmdline))
+                    except (OSError, IOError):
+                        continue
+                return processes
+            except Exception:
+                pass
+
         try:
             proc = subprocess.run(
                 ["ps", "-ax", "-o", "pid=", "-o", "command="],
@@ -342,7 +366,7 @@ class OperatorState:
             )
         except Exception:
             return []
-        processes: List[Tuple[int, str]] = []
+        processes = []
         for line in proc.stdout.splitlines():
             raw = line.strip()
             if not raw:
