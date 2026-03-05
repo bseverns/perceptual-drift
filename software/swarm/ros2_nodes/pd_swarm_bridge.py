@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import time
 from dataclasses import dataclass, field
+from itertools import combinations
 from typing import Dict, Iterable, List
 
 import rclpy
@@ -274,18 +275,12 @@ class PdSwarmBridge(Node):
         return current + math.copysign(max_step, delta)
 
     def _min_target_distance(self) -> float:
-        names = list(self.drones.keys())
-        min_dist = math.inf
-        for i in range(len(names)):
-            for j in range(i + 1, len(names)):
-                a = self.drones[names[i]]
-                b = self.drones[names[j]]
-                dx = b.target[0] - a.target[0]
-                dy = b.target[1] - a.target[1]
-                dz = b.target[2] - a.target[2]
-                dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-                min_dist = min(min_dist, dist)
-        return min_dist if math.isfinite(min_dist) else 0.0
+        if len(self.drones) < 2:
+            return 0.0
+        return min(
+            math.dist(a.target, b.target)
+            for a, b in combinations(self.drones.values(), 2)
+        )
 
     def _enforce_target_separation(self) -> int:
         if self._min_separation_m <= 0.0:
