@@ -1,5 +1,19 @@
 async function fetchJson(url, options = {}, allowErrorResponse = false) {
+  const token = localStorage.getItem("operatorToken");
+  if (token) {
+    options.headers = options.headers || {};
+    options.headers["Authorization"] = `Bearer ${token}`;
+  }
   const res = await fetch(url, options);
+  if (res.status === 401) {
+    const input = prompt("API token required for this action. Enter token:");
+    if (input) {
+      localStorage.setItem("operatorToken", input);
+      return fetchJson(url, options, allowErrorResponse);
+    } else {
+      throw new Error("unauthorized (token required)");
+    }
+  }
   const body = await res.json();
   if (!allowErrorResponse && (!res.ok || body.ok === false)) {
     throw new Error(body.error || `Request failed: ${res.status}`);
