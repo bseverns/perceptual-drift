@@ -168,14 +168,57 @@ def parse_args() -> argparse.Namespace:
         default="software/operator_ui/static",
         help="Static web assets path",
     )
+    parser.add_argument(
+        "--runtime-targets",
+        default="127.0.0.1:9000,127.0.0.1:9010",
+        help=(
+            "Comma-separated host:port OSC targets for runtime dispatch "
+            "(consent and recipe patches)."
+        ),
+    )
+    parser.add_argument(
+        "--recipe-route",
+        default="/pd/patch",
+        help="OSC route for runtime recipe patch messages.",
+    )
+    parser.add_argument(
+        "--consent-route",
+        default="/pd/consent",
+        help="OSC route for runtime consent messages.",
+    )
     return parser.parse_args()
+
+
+def _parse_runtime_targets(raw: str) -> list[tuple[str, int]]:
+    targets: list[tuple[str, int]] = []
+    for part in raw.split(","):
+        text = part.strip()
+        if not text:
+            continue
+        if ":" not in text:
+            raise ValueError(f"invalid runtime target '{text}' (expected host:port)")
+        host, port_raw = text.rsplit(":", 1)
+        if not host:
+            raise ValueError(f"invalid runtime target '{text}' (missing host)")
+        try:
+            port = int(port_raw)
+        except ValueError as exc:
+            raise ValueError(
+                f"invalid runtime target '{text}' (bad port)"
+            ) from exc
+        targets.append((host, port))
+    return targets
 
 
 def main() -> int:
     args = parse_args()
+    runtime_targets = _parse_runtime_targets(args.runtime_targets)
     state = OperatorState(
         base_mapping_path=Path(args.base_mapping).resolve(),
         recipes_dir=Path(args.recipes_dir).resolve(),
+        runtime_targets=runtime_targets,
+        recipe_route=args.recipe_route,
+        consent_route=args.consent_route,
     )
     static_root = Path(args.static_dir).resolve()
     handler = make_handler(state, static_root)
@@ -184,6 +227,10 @@ def main() -> int:
     print(
         "[operator-ui] endpoints: /api/state /api/recipes "
         "/api/recipe /api/consent /api/mapping/curves"
+    )
+    print(
+        "[operator-ui] runtime targets: "
+        + ", ".join(f"{h}:{p}" for h, p in runtime_targets)
     )
     try:
         server.serve_forever()

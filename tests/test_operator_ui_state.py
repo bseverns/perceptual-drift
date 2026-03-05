@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import patch
 
 from software.operator_ui.state import OperatorState, shape_axis
 
@@ -56,3 +57,40 @@ def test_operator_state_curve_payload_shape():
     assert "altitude" in curves["curves"]
     assert len(curves["curves"]["altitude"]["series"]) == 31
 
+
+def test_operator_state_dispatches_consent_to_runtime_targets():
+    sent = []
+
+    class DummyClient:
+        def __init__(self, host, port):
+            self.host = host
+            self.port = port
+
+        def send_message(self, route, payload):
+            sent.append((self.host, self.port, route, payload))
+
+    with patch("software.operator_ui.state.udp_client.SimpleUDPClient", DummyClient):
+        state = OperatorState(
+            base_mapping_path=ROOT / "config" / "mapping.yaml",
+            recipes_dir=ROOT / "config" / "recipes",
+            runtime_targets=[("127.0.0.1", 9000), ("127.0.0.1", 9010)],
+        )
+        snapshot = state.set_consent(1)
+        assert snapshot["last_dispatch"]["action"] == "consent"
+        assert len(snapshot["last_dispatch"]["results"]) == 2
+        assert sent == [
+            ("127.0.0.1", 9000, "/pd/consent", 1),
+            ("127.0.0.1", 9010, "/pd/consent", 1),
+        ]
+
+
+def test_operator_state_base_recipe_skips_runtime_patch():
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+        runtime_targets=[("127.0.0.1", 9010)],
+    )
+    snapshot = state.set_recipe("base")
+    assert snapshot["active_recipe"] == "base"
+    assert snapshot["last_dispatch"]["action"] == "recipe"
+    assert snapshot["last_dispatch"]["results"] == []

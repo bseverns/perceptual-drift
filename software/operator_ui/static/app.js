@@ -43,6 +43,14 @@ async function refreshState() {
   document.getElementById("consentState").textContent = state.consent_state ? "ON" : "OFF";
   document.getElementById("oscPort").textContent = state.osc_port;
   document.getElementById("consentMode").textContent = state.consent_mode;
+  document.getElementById("runtimeTargets").textContent = state.runtime_targets.join(", ") || "none";
+  const dispatch = state.last_dispatch || {};
+  const results = dispatch.results || [];
+  const okCount = results.filter((r) => r.ok).length;
+  const status = dispatch.action && dispatch.action !== "none"
+    ? `${dispatch.action} (${okCount}/${results.length} ok)`
+    : "none";
+  document.getElementById("lastDispatch").textContent = status;
 }
 
 async function refreshRecipes() {
@@ -104,4 +112,3 @@ boot().catch((err) => {
   console.error(err);
   alert(`Operator UI failed to initialize: ${err.message}`);
 });
-

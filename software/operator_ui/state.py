@@ -7,9 +7,10 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import yaml
+from pythonosc import udp_client
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -51,13 +52,24 @@ def shape_axis(axis_cfg: Dict[str, Any], value: float) -> float:
 class OperatorState:
     """Holds current operator-facing state for the web UI."""
 
-    def __init__(self, base_mapping_path: Path, recipes_dir: Path) -> None:
+    def __init__(
+        self,
+        base_mapping_path: Path,
+        recipes_dir: Path,
+        runtime_targets: Optional[Sequence[Tuple[str, int]]] = None,
+        recipe_route: str = "/pd/patch",
+        consent_route: str = "/pd/consent",
+    ) -> None:
         self.base_mapping_path = base_mapping_path
         self.recipes_dir = recipes_dir
+        self.runtime_targets = list(runtime_targets or [])
+        self.recipe_route = recipe_route
+        self.consent_route = consent_route
         self._lock = threading.Lock()
         self._active_recipe: Optional[str] = None
         self._consent: int = 0
         self._updated_at: float = time.time()
+        self._last_dispatch: Dict[str, Any] = {"action": "none", "results": []}
         self._mapping = load_mapping(base_path=str(self.base_mapping_path))
 
     def list_recipes(self) -> List[Dict[str, str]]:
@@ -98,6 +110,19 @@ class OperatorState:
             self._mapping = mapping
             self._active_recipe = active
             self._updated_at = time.time()
+            if normalized and normalized != "base":
+                self._last_dispatch = self._emit_runtime(
+                    action="recipe",
+                    route=self.recipe_route,
+                    payload=normalized,
+                )
+            else:
+                self._last_dispatch = {
+                    "action": "recipe",
+                    "route": self.recipe_route,
+                    "results": [],
+                    "note": "base mapping selected; no runtime patch emitted",
+                }
             return self.snapshot_unlocked()
 
     def set_consent(self, consent_value: Any) -> Dict[str, Any]:
@@ -105,7 +130,32 @@ class OperatorState:
         with self._lock:
             self._consent = consent
             self._updated_at = time.time()
+            self._last_dispatch = self._emit_runtime(
+                action="consent",
+                route=self.consent_route,
+                payload=consent,
+            )
             return self.snapshot_unlocked()
+
+    def _emit_runtime(self, action: str, route: str, payload: Any) -> Dict[str, Any]:
+        results: List[Dict[str, Any]] = []
+        for host, port in self.runtime_targets:
+            entry = {"host": host, "port": port, "ok": True}
+            try:
+                client = udp_client.SimpleUDPClient(host, int(port))
+                client.send_message(route, payload)
+            except Exception as exc:
+                entry["ok"] = False
+                entry["error"] = str(exc)
+            results.append(entry)
+        return {
+            "action": action,
+            "route": route,
+            "payload": payload,
+            "results": results,
+            "targets": len(self.runtime_targets),
+            "sent_at": time.time(),
+        }
 
     def mapping_curves(self, points: int = 101) -> Dict[str, Any]:
         points = int(_clamp(points, 5, 401))
@@ -155,4 +205,8 @@ class OperatorState:
             "osc_port": int(osc_cfg.get("port", 9000)),
             "consent_mode": str(consent_cfg.get("mode", "binary")),
             "consent_gate_motion": bool(consent_cfg.get("gate_motion", True)),
+            "runtime_targets": [
+                f"{host}:{port}" for host, port in self.runtime_targets
+            ],
+            "last_dispatch": self._last_dispatch,
         }
