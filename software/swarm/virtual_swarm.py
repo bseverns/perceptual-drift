@@ -7,10 +7,11 @@ roughly in the spirit of a studio notebook rather than a physics engine.
 
 from __future__ import annotations
 
+import itertools
 import math
 import random
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, Iterator, List, Tuple
 
 ROOM_BOUND = 5.0
 
@@ -85,28 +86,22 @@ class VirtualDrone:
         self.yaw = math.fmod(self.yaw, math.tau)
 
 
-def pairwise_distances(drones: Iterable[VirtualDrone]) -> List[Tuple[int, int, float]]:
-    """Return all pairwise Euclidean distances between drones."""
+def pairwise_distances(drones: Iterable[VirtualDrone]) -> Iterator[Tuple[int, int, float]]:
+    """Yield all pairwise Euclidean distances between drones as (i, j, dist) tuples."""
 
     fleet = list(drones)
-    pairs: List[Tuple[int, int, float]] = []
-    for i in range(len(fleet)):
-        for j in range(i + 1, len(fleet)):
-            dx = fleet[j].x - fleet[i].x
-            dy = fleet[j].y - fleet[i].y
-            dz = fleet[j].z - fleet[i].z
-            dist = math.sqrt(dx * dx + dy * dy + dz * dz)
-            pairs.append((i, j, dist))
-    return pairs
+    for (i, a), (j, b) in itertools.combinations(enumerate(fleet), 2):
+        dx = b.x - a.x
+        dy = b.y - a.y
+        dz = b.z - a.z
+        dist = math.sqrt(dx * dx + dy * dy + dz * dz)
+        yield (i, j, dist)
 
 
 def minimum_pairwise_distance(drones: Iterable[VirtualDrone]) -> float:
     """Return minimum pairwise distance, inf when <2 drones."""
 
-    pairs = pairwise_distances(drones)
-    if not pairs:
-        return math.inf
-    return min(dist for _, _, dist in pairs)
+    return min((dist for _, _, dist in pairwise_distances(drones)), default=math.inf)
 
 
 def enforce_min_separation(
