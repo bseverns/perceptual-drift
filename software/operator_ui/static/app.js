@@ -7,6 +7,102 @@ async function fetchJson(url, options = {}, allowErrorResponse = false) {
   return body;
 }
 
+const showModeState = {
+  consentOn: null,
+  latestExport: "",
+  rehearsalActive: false,
+  rehearsalProfile: "",
+  rehearsalLabel: "",
+  preflightCheckedAt: 0,
+  preflightOk: null,
+  runtimeHealthy: 0,
+  runtimeTotal: 0,
+};
+
+function clearChipState(el) {
+  el.classList.remove("ok", "warn", "bad");
+}
+
+function updateChip(el, text, level = "") {
+  if (!el) return;
+  el.textContent = text;
+  clearChipState(el);
+  if (level) {
+    el.classList.add(level);
+  }
+}
+
+function relativeAge(seconds) {
+  if (!seconds || seconds <= 0) return "n/a";
+  if (seconds < 60) return `${Math.floor(seconds)}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+}
+
+function renderShowStrip() {
+  const now = Date.now() / 1000;
+
+  const preflightChip = document.getElementById("showPreflight");
+  if (!showModeState.preflightCheckedAt) {
+    updateChip(preflightChip, "Preflight: not run");
+  } else {
+    const age = Math.max(0, now - showModeState.preflightCheckedAt);
+    const freshness = age <= 600 ? "fresh" : (age <= 1800 ? "aging" : "stale");
+    const level = showModeState.preflightOk
+      ? (freshness === "fresh" ? "ok" : "warn")
+      : "bad";
+    updateChip(
+      preflightChip,
+      `Preflight: ${showModeState.preflightOk ? "pass" : "fail"} (${freshness}, ${relativeAge(age)})`,
+      level,
+    );
+  }
+
+  const profileText = showModeState.rehearsalProfile
+    ? showModeState.rehearsalProfile
+    : "none";
+  const profileLevel = showModeState.rehearsalActive ? "ok" : "";
+  const profileChip = document.getElementById("showProfile");
+  const profileSession = showModeState.rehearsalActive && showModeState.rehearsalLabel
+    ? ` / ${showModeState.rehearsalLabel}`
+    : "";
+  updateChip(profileChip, `Profile: ${profileText}${profileSession}`, profileLevel);
+
+  const consentChip = document.getElementById("showConsent");
+  if (showModeState.consentOn == null) {
+    updateChip(consentChip, "Consent: n/a");
+  } else {
+    updateChip(
+      consentChip,
+      `Consent: ${showModeState.consentOn ? "ON" : "OFF"}`,
+      showModeState.consentOn ? "ok" : "bad",
+    );
+  }
+
+  const runtimeChip = document.getElementById("showRuntimeHealth");
+  if (!showModeState.runtimeTotal) {
+    updateChip(runtimeChip, "Runtime: n/a");
+  } else {
+    const level = showModeState.runtimeHealthy === showModeState.runtimeTotal
+      ? "ok"
+      : (showModeState.runtimeHealthy > 0 ? "warn" : "bad");
+    updateChip(
+      runtimeChip,
+      `Runtime: ${showModeState.runtimeHealthy}/${showModeState.runtimeTotal} healthy`,
+      level,
+    );
+  }
+
+  const exportChip = document.getElementById("showLatestExport");
+  if (!showModeState.latestExport) {
+    updateChip(exportChip, "Export: none", "warn");
+    return;
+  }
+  const parts = showModeState.latestExport.split("/");
+  const basename = parts[parts.length - 1] || showModeState.latestExport;
+  updateChip(exportChip, `Export: ${basename}`, "ok");
+}
+
 function drawCurve(canvas, series, color) {
   const ctx = canvas.getContext("2d");
   const w = canvas.width;
@@ -52,11 +148,17 @@ async function refreshState() {
     : "none";
   document.getElementById("lastDispatch").textContent = status;
   document.getElementById("latestSession").textContent = state.last_export || "none";
+  showModeState.consentOn = !!state.consent_state;
+  showModeState.latestExport = state.last_export || "";
   const rehearsal = state.rehearsal || {};
+  showModeState.rehearsalActive = !!rehearsal.active;
+  showModeState.rehearsalProfile = rehearsal.profile_id || "";
+  showModeState.rehearsalLabel = rehearsal.label || "";
   const rehText = rehearsal.active
     ? `${rehearsal.label || "unnamed"} (${rehearsal.profile_id || "profile?"})`
     : "inactive";
   document.getElementById("rehearsalSessionState").textContent = rehText;
+  renderShowStrip();
 }
 
 async function refreshRuntimeHealth() {
@@ -68,6 +170,9 @@ async function refreshRuntimeHealth() {
     return `${marker} ${svc.name}${pid} (${svc.source}) - ${svc.detail}`;
   });
   document.getElementById("runtimeHealthDetails").textContent = details.join("\n") || "No services configured";
+  showModeState.runtimeHealthy = Number(runtime.healthy || 0);
+  showModeState.runtimeTotal = Number(runtime.total || 0);
+  renderShowStrip();
 }
 
 async function refreshSupervisor() {
@@ -114,6 +219,13 @@ async function refreshRehearsalSession() {
     : "inactive";
   document.getElementById("rehearsalSessionState").textContent = text;
   renderPreflight(rehearsal.last_preflight || {});
+  const preflight = rehearsal.last_preflight || {};
+  showModeState.preflightCheckedAt = Number(preflight.checked_at || 0);
+  showModeState.preflightOk = preflight.ok == null ? null : !!preflight.ok;
+  showModeState.rehearsalProfile = rehearsal.profile_id || showModeState.rehearsalProfile;
+  showModeState.rehearsalLabel = rehearsal.label || showModeState.rehearsalLabel;
+  showModeState.rehearsalActive = !!rehearsal.active;
+  renderShowStrip();
 }
 
 async function refreshRecipes() {
@@ -264,6 +376,7 @@ function wireEvents() {
 
 async function boot() {
   wireEvents();
+  renderShowStrip();
   await Promise.all([refreshRecipes(), refreshRehearsalProfiles()]);
   await Promise.all([
     refreshState(),

@@ -47,6 +47,43 @@ body {
   color: #544f45;
 }
 
+.show-strip {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.show-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid #cfc3ae;
+  background: #fff;
+  color: #3e392f;
+  font-size: 0.82rem;
+  line-height: 1.1;
+}
+
+.show-chip.ok {
+  border-color: #4f8a5a;
+  background: #edf8ef;
+  color: #234b2a;
+}
+
+.show-chip.warn {
+  border-color: #a37c2f;
+  background: #fff6e3;
+  color: #654d1e;
+}
+
+.show-chip.bad {
+  border-color: #b4493e;
+  background: #fdecec;
+  color: #662821;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
