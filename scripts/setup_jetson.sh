@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# Bootstrap a Jetson Orin Nano for perceptual-drift: install deps, create venv, clone/update repo.
-# Assumptions: running as the target user with sudo access; GitHub SSH configured (falls back to HTTPS).
-# Repo source is configurable: set REPO_URL env var or pass --repo-url <url>; defaults to
-# the canonical upstream https://github.com/bseverns/perceptual-drift.git. SSH/HTTPS remotes
-# are derived automatically from that single URL.
+# Bootstrap a Jetson Orin Nano for perceptual-drift with pinned Python deps and
+# a central apt package profile.
 set -euo pipefail
 
 # --- Configurable bits -------------------------------------------------------
@@ -11,6 +8,9 @@ REPO_DIR="$HOME/code/perceptual-drift"
 VENV_DIR="$HOME/venvs/perceptual-drift"
 DEFAULT_REPO_URL="https://github.com/bseverns/perceptual-drift.git"
 REPO_URL="${REPO_URL:-$DEFAULT_REPO_URL}"
+JETSON_APT_REL="config/env/jetson-apt-packages.txt"
+REQ_REL="requirements-starter.txt"
+CONSTRAINTS_REL="constraints/py310-linux.txt"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -47,17 +47,12 @@ else
   exit 1
 fi
 
-# --- System packages ---------------------------------------------------------
-echo "[setup] Updating apt-get and installing core packages..."
+# --- Bootstrap packages ------------------------------------------------------
+echo "[setup] Installing bootstrap packages (python/git)..."
 sudo apt-get update
-sudo apt-get install -y \
-  python3 python3-venv python3-pip git \
-  gstreamer1.0-tools gstreamer1.0-plugins-base \
-  gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
-  gstreamer1.0-plugins-ugly gstreamer1.0-libav \
-  libopencv-dev python3-opencv
+sudo apt-get install -y python3 python3-venv python3-pip git
 
-# --- Virtual environment ----------------------------------------------------
+# --- Virtual environment -----------------------------------------------------
 if [[ ! -d "$VENV_DIR" ]]; then
   echo "[setup] Creating virtualenv at $VENV_DIR"
   python3 -m venv "$VENV_DIR"
@@ -86,20 +81,39 @@ fi
 
 cd "$REPO_DIR"
 
-# --- Python dependencies -----------------------------------------------------
-if [[ -f requirements.txt ]]; then
-  echo "[setup] Installing Python dependencies from requirements.txt"
-  pip install --upgrade pip
-  pip install -r requirements.txt
+# --- Apt package profile -----------------------------------------------------
+if [[ -f "$JETSON_APT_REL" ]]; then
+  mapfile -t apt_packages < <(
+    sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$JETSON_APT_REL"
+  )
+  if [[ "${#apt_packages[@]}" -gt 0 ]]; then
+    echo "[setup] Installing Jetson apt profile from $JETSON_APT_REL"
+    sudo apt-get install -y "${apt_packages[@]}"
+  fi
 else
-  echo "[setup] No requirements.txt found; install manually as needed"
+  echo "[setup] Missing $JETSON_APT_REL; skipping Jetson apt profile install" >&2
+fi
+
+# --- Python dependencies -----------------------------------------------------
+echo "[setup] Installing pinned Python requirements"
+pip install --upgrade pip
+if [[ -f "$CONSTRAINTS_REL" ]]; then
+  pip install -r "$REQ_REL" -c "$CONSTRAINTS_REL"
+else
+  pip install -r "$REQ_REL"
+fi
+
+if [[ -x scripts/export_env_manifest.sh ]]; then
+  scripts/export_env_manifest.sh --out runtime/jetson_setup_manifest.txt
 fi
 
 # --- Final instructions ------------------------------------------------------
 cat <<'MSG'
 [setup] Jetson bootstrap complete.
+- Profile: config/env/jetson-orin-nano.profile.yaml
 - Activate env: source ~/venvs/perceptual-drift/bin/activate
+- Run doctor: ./scripts/starter_doctor.sh
 - Run sensor check: python scripts/check_sensors.py
 - Run hello scene: python examples/jetson_hello_camera.py --config config/platform_jetson_orin_nano.yaml
-- Repo remote: defaults to https://github.com/bseverns/perceptual-drift.git; override with REPO_URL env var or --repo-url flag when rerunning.
+- Environment manifest: runtime/jetson_setup_manifest.txt
 MSG

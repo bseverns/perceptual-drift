@@ -13,6 +13,8 @@ Perceptual Drift is a participatory drone‑based installation where **audience 
 ## How to tour this notebook (a.k.a. your flight school syllabus)
 Want the full syllabus with reasons to care for every doc? The [touring guide lives in `docs/quickstart.md`](docs/quickstart.md#how-to-tour-this-notebook-aka-your-flight-school-syllabus) and calls out where each playbook and diagram fits in the rehearsal arc.
 
+Need a low-friction first run? Start with the [Starter Bundle guide](docs/starter-bundle.md) for a one-command tracker + bridge loop (optional video preview, no Processing required).
+
 ---
 
 ## Platform-aware drift lab (Jetson + laptop + Pi)
@@ -23,6 +25,14 @@ Short version: pick a platform profile, run the matching setup script, then smok
 - **Scripts**: Jetson and Pi bring-up recipes stay copy/pasteable with why-we-do-this commentary baked into the doc.
 - **Headless hello**: Start with `python3 examples/jetson_hello_camera.py --config config/platform_jetson_orin_nano.yaml` to confirm the pipeline before you open windows or arm props.
 - **Field notes**: Keep logging what breaks (and what fixes it) in the platform-specific notebooks; they’re links away in the doc.
+
+---
+
+## Roadmap + dependency baseline
+
+- Current execution roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
+- Version and environment matrix: [`docs/dependency-matrix.md`](docs/dependency-matrix.md)
+- Reproducible env workflow: [`docs/environment-reproducibility.md`](docs/environment-reproducibility.md)
 
 ---
 

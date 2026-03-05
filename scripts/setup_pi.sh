@@ -9,6 +9,9 @@ VENV_DIR="${VENV_DIR:-$HOME/venvs/perceptual-drift}"
 DEFAULT_REPO_URL="https://github.com/bseverns/perceptual-drift.git"
 REPO_URL="${REPO_URL:-$DEFAULT_REPO_URL}"
 SERIAL_PORT="${SERIAL_PORT:-/dev/ttyACM0}"  # change to /dev/ttyUSB0 if your FC enumerates there
+PI_APT_REL="config/env/pi-apt-packages.txt"
+REQ_REL="requirements-starter.txt"
+CONSTRAINTS_REL="constraints/py310-linux.txt"
 
 if [[ "$REPO_URL" =~ ^git@github\.com:(.*)$ ]]; then
   REPO_PATH="${BASH_REMATCH[1]}"
@@ -28,16 +31,9 @@ echo "[setup] Repo source defaults to ${DEFAULT_REPO_URL}".
 echo "[setup] To point at your fork, rerun with REPO_URL=https://github.com/YOU/perceptual-drift.git (SSH/HTTPS auto-derived)."
 
 # --- System packages ---------------------------------------------------------
-echo "[setup] Updating apt and installing Pi-friendly packages..."
+echo "[setup] Updating apt and installing bootstrap packages..."
 sudo apt-get update
-sudo apt-get install -y \
-  python3 python3-venv python3-pip git \
-  python3-serial \
-  gstreamer1.0-tools gstreamer1.0-plugins-base \
-  gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
-  gstreamer1.0-plugins-ugly gstreamer1.0-libav \
-  libatlas-base-dev libopenjp2-7 libtiff5 libilmbase-dev \
-  libopenexr-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+sudo apt-get install -y python3 python3-venv python3-pip git
 
 # --- Virtual environment ----------------------------------------------------
 if [[ ! -d "$VENV_DIR" ]]; then
@@ -68,10 +64,31 @@ fi
 
 cd "$REPO_DIR"
 
+# --- Apt package profile -----------------------------------------------------
+if [[ -f "$PI_APT_REL" ]]; then
+  mapfile -t apt_packages < <(
+    sed -e 's/#.*//' -e '/^[[:space:]]*$/d' "$PI_APT_REL"
+  )
+  if [[ "${#apt_packages[@]}" -gt 0 ]]; then
+    echo "[setup] Installing Pi apt profile from $PI_APT_REL"
+    sudo apt-get install -y "${apt_packages[@]}"
+  fi
+else
+  echo "[setup] Missing $PI_APT_REL; skipping Pi apt profile install" >&2
+fi
+
 # --- Python dependencies -----------------------------------------------------
-# requirements.txt is intentionally absent; pin the bridge deps explicitly.
+# Install pinned deps using the same files as CI/local starter flows.
 pip install --upgrade pip
-pip install python-osc pyserial pyyaml
+if [[ -f "$CONSTRAINTS_REL" ]]; then
+  pip install -r "$REQ_REL" -c "$CONSTRAINTS_REL"
+else
+  pip install -r "$REQ_REL"
+fi
+
+if [[ -x scripts/export_env_manifest.sh ]]; then
+  scripts/export_env_manifest.sh --out runtime/pi_setup_manifest.txt
+fi
 
 # --- systemd unit for osc_msp_bridge ---------------------------------------
 SERVICE_PATH="/etc/systemd/system/osc-msp-bridge.service"
@@ -103,8 +120,10 @@ fi
 # --- Final instructions ------------------------------------------------------
 cat <<'MSG'
 [setup] Raspberry Pi bootstrap complete.
+- Apt profile: config/env/pi-apt-packages.txt
 - Activate env when hacking: source ~/venvs/perceptual-drift/bin/activate
 - Edit /etc/systemd/system/osc-msp-bridge.service if your serial port/hz change, then sudo systemctl daemon-reload && sudo systemctl restart osc-msp-bridge
 - For lab loops without a flight controller, run: python software/control-bridge/osc_msp_bridge.py --dry-run --config config/mapping.yaml --hz 30
+- Environment manifest: runtime/pi_setup_manifest.txt
 - Repo remote defaults to https://github.com/bseverns/perceptual-drift.git; override by rerunning with REPO_URL set to your fork (SSH/HTTPS auto-derived).
 MSG

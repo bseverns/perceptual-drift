@@ -1,0 +1,25 @@
+FROM python:3.10-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /workspace
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  bash \
+  ca-certificates \
+  gstreamer1.0-tools \
+  gstreamer1.0-plugins-base \
+  gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-bad \
+  gstreamer1.0-plugins-ugly \
+  gstreamer1.0-libav \
+  && rm -rf /var/lib/apt/lists/*
+
+COPY requirements-starter.txt requirements-dev.txt /tmp/
+COPY constraints/py310-linux.txt /tmp/constraints.txt
+
+RUN python -m pip install --upgrade pip && \
+  python -m pip install -r /tmp/requirements-dev.txt -c /tmp/constraints.txt
+
+COPY . /workspace
+
+CMD ["bash", "-lc", "./scripts/starter_doctor.sh && ./scripts/starter_up.sh --video off"]
