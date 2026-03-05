@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
+import os
+import secrets
 import sys
 import time
 from http import HTTPStatus
@@ -69,6 +71,7 @@ def make_handler(
     static_root: Path,
     supervisor: StarterSupervisor,
     preflight_runner: PreflightRunner,
+    api_token: str = "",
 ):
     class OperatorHandler(BaseHTTPRequestHandler):
         server_version = "PerceptualDriftOperatorUI/0.1"
@@ -87,6 +90,13 @@ def make_handler(
                     self, "POST only allowed for /api endpoints", HTTPStatus.NOT_FOUND
                 )
                 return
+
+            if api_token:
+                auth_header = self.headers.get("Authorization", "")
+                if not auth_header.startswith("Bearer ") or not secrets.compare_digest(auth_header[7:], api_token):
+                    _error_response(self, "unauthorized", HTTPStatus.UNAUTHORIZED)
+                    return
+
             self._handle_api_post(parsed)
 
         def log_message(self, fmt: str, *args) -> None:  # quiet default handler
@@ -340,6 +350,11 @@ def parse_args() -> argparse.Namespace:
         default="scripts/starter_doctor.sh",
         help="Preflight doctor script used by rehearsal preflight endpoint.",
     )
+    parser.add_argument(
+        "--api-token",
+        default=os.environ.get("OPERATOR_API_TOKEN", ""),
+        help="Require token for API POST endpoints (via Authorization: Bearer <token>)",
+    )
     return parser.parse_args()
 
 
@@ -367,6 +382,12 @@ def _parse_runtime_targets(raw: str) -> list[tuple[str, int]]:
 def main() -> int:
     args = parse_args()
     runtime_targets = _parse_runtime_targets(args.runtime_targets)
+
+    api_token = args.api_token
+    if not api_token:
+        api_token = secrets.token_urlsafe(16)
+        print(f"[operator-ui] WARNING: No API token provided. Generated temporary token: {api_token}")
+
     state = OperatorState(
         base_mapping_path=Path(args.base_mapping).resolve(),
         recipes_dir=Path(args.recipes_dir).resolve(),
@@ -386,7 +407,7 @@ def main() -> int:
         cwd=REPO_ROOT,
     )
     static_root = Path(args.static_dir).resolve()
-    handler = make_handler(state, static_root, supervisor, preflight_runner)
+    handler = make_handler(state, static_root, supervisor, preflight_runner, api_token)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"[operator-ui] serving http://{args.host}:{args.port}")
     print(
