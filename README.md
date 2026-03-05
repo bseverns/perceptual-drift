@@ -33,6 +33,7 @@ Short version: pick a platform profile, run the matching setup script, then smok
 - Current execution roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 - Version and environment matrix: [`docs/dependency-matrix.md`](docs/dependency-matrix.md)
 - Reproducible env workflow: [`docs/environment-reproducibility.md`](docs/environment-reproducibility.md)
+- Canonical mapping schema: [`docs/mapping-contract.md`](docs/mapping-contract.md)
 
 ---
 

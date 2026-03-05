@@ -63,8 +63,8 @@ criteria.
 
 ## M3 Deliverables (docs consolidation)
 
-- [ ] Create canonical mapping reference doc.
-- [ ] Replace repeated mapping descriptions with links from:
+- [x] Create canonical mapping reference doc.
+- [x] Replace repeated mapping descriptions with links from:
   - `docs/control-stack-playbook.md`
   - `docs/recipes.md`
 - [ ] Add concise doc IA index page ("start", "operate", "extend", "swarm").

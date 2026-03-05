@@ -67,13 +67,15 @@ That sequence sketch is the street map—trace any arrow to know which script to
 
 ## Mapping YAML
 
-The YAML file is the single source of truth for control curves. It's small, so read it in full. Keys of note:
+For the canonical schema and field definitions, use
+[`docs/mapping-contract.md`](mapping-contract.md).
 
-- `osc.port` and `osc.address_space.*`: which OSC port we bind and which paths the tracker emits.
-- `mapping.altitude`, `mapping.lateral`: gain, expo/linear curve, and deadzone tuning knobs. Matching Betaflight's receiver expectations (1100–1900 µs) makes life easy. `expo_strength` (default 0.5) lets you dial how flat the center feels.
-- `mapping.yaw_bias`: offsets mechanical drift without touching the flight controller config. `jitter` sprinkles ±noise on the trim so the yaw axis never sticks in a deadband.
-- `mapping.leds.palette`: color suggestions for any downstream LED client. The bridge quantizes the OSC `crowd` signal into AUX3 so lighting rigs can chase palette slots.
-- `mapping.glitch_intensity`: baseline and ceiling for video FX modules. AUX2 sweeps between those limits as the crowd energy rises.
+Treat that file as the source of truth for:
+
+- OSC address expectations
+- consent gating semantics
+- control curve keys and runtime bridge modes
+- recipe override behavior
 
 If you're new to RC curves, skim Oscar Liang's [expo guide](https://oscarliang.com/expo-droneracing/) or play with [EdgeTX curve editors](https://www.edgetx.org/) to understand how gains translate to pilot feel.
 

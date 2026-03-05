@@ -11,6 +11,10 @@ Think of a recipe as a field briefing: *what mood are we summoning, what knobs
 move, and how should the visuals behave?* This document shows how to author new
 recipes without spelunking through code.
 
+For canonical field definitions of `control_bridge` keys, use
+[`docs/mapping-contract.md`](mapping-contract.md). This page focuses on recipe
+authoring workflow and examples.
+
 ---
 
 ## Anatomy of a recipe file
@@ -24,7 +28,7 @@ intent: "onboarding, whisper mode"   # Optional but encouraged; prints when you 
 
 control_bridge:                       # Required: configuration for osc_msp_bridge.py
   extends: ../mapping.yaml            # Optional: merge this recipe with a base map.
-  osc:                                # Same schema as config/mapping.yaml
+  osc:                                # See docs/mapping-contract.md for canonical schema.
     address_space:
       altitude: "/pd/alt"
       lateral: "/pd/lat"
@@ -74,8 +78,10 @@ video_pipeline:                       # Optional but recommended: GStreamer cues
 
 ### Field notes
 - `{device}` inside a chain becomes the capture device path selected at launch.
-- `extends` lets you inherit the default curves from [`config/mapping.yaml`](../config/mapping.yaml)
-  and only override the spicy bits.
+- `extends` lets you inherit the default curves from
+  [`config/mapping.yaml`](../config/mapping.yaml) and only override the
+  scenario-specific bits. For exact key meanings, follow
+  [`docs/mapping-contract.md`](mapping-contract.md).
 - Every chain string is flattened into a single `gst-launch-1.0` command. Keep
   property spacing tidy; comments are fine, but blank lines get stripped.
 - JSON works too if your tooling prefers it, just keep the same keys.
