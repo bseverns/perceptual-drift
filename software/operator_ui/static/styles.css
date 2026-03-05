@@ -90,8 +90,13 @@ body {
 
 .controls .row {
   display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.controls h3 {
+  margin: 4px 0 8px 0;
 }
 
 select,

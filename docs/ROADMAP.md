@@ -94,6 +94,7 @@ criteria.
 - [x] Add session export: active config + telemetry snapshot.
 - [x] Add runtime health visibility for bridge/tracker/sim daemons.
 - [x] Add starter runtime start/stop controls in operator UI.
+- [x] Add guided rehearsal flow (preflight + profile + named session).
 
 ### M5 exit criteria
 

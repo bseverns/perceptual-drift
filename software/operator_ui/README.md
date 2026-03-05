@@ -6,6 +6,7 @@ This is the first M5 web UI slice:
 - consent monitoring/toggling
 - mapping curve visualization (altitude/lateral)
 - session export bundles (active config + curves + dispatch history + telemetry snapshot)
+- guided rehearsal workflow (preflight + profile + named session start/stop)
 
 ## Run
 
@@ -31,6 +32,11 @@ Open:
 - `GET /api/runtime/supervisor`
 - `POST /api/runtime/start`
 - `POST /api/runtime/stop`
+- `GET /api/rehearsal/profiles`
+- `GET /api/rehearsal/session`
+- `POST /api/rehearsal/preflight`
+- `POST /api/rehearsal/start`
+- `POST /api/rehearsal/stop`
 - `POST /api/session/export` body: `{ "label": "run_a", "notes": "optional" }`
 - `GET /api/session/latest`
 
@@ -114,8 +120,24 @@ python3 software/operator_ui/server.py \
   --starter-log runtime/operator_ui/starter_supervisor.log
 ```
 
+## Guided rehearsal flow
+
+The UI now supports a stepwise operator path:
+
+1. Select a start profile (`safe_synthetic`, `camera_preview`, `hardware_dry_run`)
+2. Run preflight (`scripts/starter_doctor.sh`)
+3. Enter a session label/notes and press Start Rehearsal
+4. Monitor health + consent, then Stop Rehearsal
+
+CLI override for preflight script:
+
+```bash
+python3 software/operator_ui/server.py \
+  --starter-doctor-script scripts/starter_doctor.sh
+```
+
 ## Scope notes
 
-This alpha now emits live OSC control intents, session exports, runtime health visibility, and starter runtime start/stop controls, but it does not yet include:
+This alpha now emits live OSC control intents, session exports, runtime health visibility, starter runtime start/stop controls, and a guided rehearsal flow, but it does not yet include:
 
 - supervised restart policies, retries, and multi-service orchestration

@@ -7,6 +7,7 @@ import argparse
 import json
 import mimetypes
 import sys
+import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -18,7 +19,12 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.append(str(REPO_ROOT))
 
 from software.operator_ui.state import OperatorState
-from software.operator_ui.supervisor import StarterSupervisor
+from software.operator_ui.supervisor import (
+    PreflightRunner,
+    StarterSupervisor,
+    get_rehearsal_profile,
+    list_rehearsal_profiles,
+)
 
 
 def _read_json_body(handler: BaseHTTPRequestHandler) -> Dict[str, Any]:
@@ -59,7 +65,10 @@ def _resolve_static(root: Path, requested: str) -> Tuple[Path, str]:
 
 
 def make_handler(
-    state: OperatorState, static_root: Path, supervisor: StarterSupervisor
+    state: OperatorState,
+    static_root: Path,
+    supervisor: StarterSupervisor,
+    preflight_runner: PreflightRunner,
 ):
     class OperatorHandler(BaseHTTPRequestHandler):
         server_version = "PerceptualDriftOperatorUI/0.1"
@@ -110,6 +119,12 @@ def make_handler(
                 return
             if path == "/api/runtime/supervisor":
                 _json_response(self, {"ok": True, "supervisor": supervisor.status()})
+                return
+            if path == "/api/rehearsal/profiles":
+                _json_response(self, {"ok": True, "profiles": list_rehearsal_profiles()})
+                return
+            if path == "/api/rehearsal/session":
+                _json_response(self, {"ok": True, "rehearsal": state.rehearsal_session()})
                 return
             if path == "/api/session/latest":
                 _json_response(self, {"ok": True, "session": state.latest_export()})
@@ -170,6 +185,82 @@ def make_handler(
                     _error_response(self, f"failed to stop runtime: {exc}", 500)
                     return
                 _json_response(self, {"ok": True, "supervisor": sup})
+                return
+            if path == "/api/rehearsal/preflight":
+                strict = bool(payload.get("strict", False))
+                preflight = preflight_runner.run(strict=strict)
+                rehearsal = state.set_rehearsal_preflight(preflight)
+                _json_response(
+                    self,
+                    {
+                        "ok": preflight["ok"],
+                        "preflight": preflight,
+                        "rehearsal": rehearsal,
+                    },
+                    status=200 if preflight["ok"] else 412,
+                )
+                return
+            if path == "/api/rehearsal/start":
+                profile_id = str(payload.get("profile_id", "safe_synthetic")).strip()
+                notes = str(payload.get("notes", "")).strip()
+                label = str(payload.get("label", "")).strip()
+                if not label:
+                    label = time.strftime(
+                        "rehearsal_%Y%m%d_%H%M%S", time.localtime()
+                    )
+                strict = bool(payload.get("strict_preflight", False))
+                skip_preflight = bool(payload.get("skip_preflight", False))
+                try:
+                    profile = get_rehearsal_profile(profile_id)
+                except ValueError as exc:
+                    _error_response(self, str(exc), 400)
+                    return
+                preflight = state.rehearsal_session().get("last_preflight", {})
+                if not skip_preflight:
+                    preflight = preflight_runner.run(strict=strict)
+                    state.set_rehearsal_preflight(preflight)
+                    if not preflight.get("ok", False):
+                        _json_response(
+                            self,
+                            {
+                                "ok": False,
+                                "error": "preflight failed; rehearsal start blocked",
+                                "preflight": preflight,
+                            },
+                            status=412,
+                        )
+                        return
+                try:
+                    sup = supervisor.start(profile.get("start_options", {}))
+                except Exception as exc:
+                    _error_response(self, f"failed to start runtime: {exc}", 400)
+                    return
+                rehearsal = state.start_rehearsal(
+                    label=label,
+                    profile_id=profile_id,
+                    notes=notes,
+                    start_options=profile.get("start_options", {}),
+                    preflight=preflight,
+                )
+                _json_response(
+                    self,
+                    {
+                        "ok": True,
+                        "profile": profile,
+                        "preflight": preflight,
+                        "supervisor": sup,
+                        "rehearsal": rehearsal,
+                    },
+                )
+                return
+            if path == "/api/rehearsal/stop":
+                try:
+                    sup = supervisor.stop()
+                except Exception as exc:
+                    _error_response(self, f"failed to stop runtime: {exc}", 500)
+                    return
+                rehearsal = state.stop_rehearsal()
+                _json_response(self, {"ok": True, "supervisor": sup, "rehearsal": rehearsal})
                 return
             _error_response(self, f"unknown endpoint: {path}", HTTPStatus.NOT_FOUND)
 
@@ -244,6 +335,11 @@ def parse_args() -> argparse.Namespace:
         default="runtime/operator_ui/starter_supervisor.log",
         help="Log file for starter process launched via runtime start endpoint.",
     )
+    parser.add_argument(
+        "--starter-doctor-script",
+        default="scripts/starter_doctor.sh",
+        help="Preflight doctor script used by rehearsal preflight endpoint.",
+    )
     return parser.parse_args()
 
 
@@ -285,8 +381,12 @@ def main() -> int:
         log_path=Path(args.starter_log).resolve(),
         cwd=REPO_ROOT,
     )
+    preflight_runner = PreflightRunner(
+        script_path=Path(args.starter_doctor_script).resolve(),
+        cwd=REPO_ROOT,
+    )
     static_root = Path(args.static_dir).resolve()
-    handler = make_handler(state, static_root, supervisor)
+    handler = make_handler(state, static_root, supervisor, preflight_runner)
     server = ThreadingHTTPServer((args.host, args.port), handler)
     print(f"[operator-ui] serving http://{args.host}:{args.port}")
     print(
@@ -294,6 +394,8 @@ def main() -> int:
         "/api/recipe /api/consent /api/mapping/curves "
         "/api/runtime/health /api/runtime/supervisor "
         "/api/runtime/start /api/runtime/stop "
+        "/api/rehearsal/profiles /api/rehearsal/session "
+        "/api/rehearsal/preflight /api/rehearsal/start /api/rehearsal/stop "
         "/api/session/export /api/session/latest"
     )
     print(

@@ -108,6 +108,16 @@ class OperatorState:
         self._last_dispatch: Dict[str, Any] = {"action": "none", "results": []}
         self._dispatch_history: List[Dict[str, Any]] = []
         self._last_export_path: Optional[Path] = None
+        self._rehearsal: Dict[str, Any] = {
+            "active": False,
+            "label": "",
+            "notes": "",
+            "profile_id": "",
+            "started_at": 0.0,
+            "updated_at": 0.0,
+            "last_preflight": {},
+            "start_options": {},
+        }
         self._mapping = load_mapping(base_path=str(self.base_mapping_path))
 
     def list_recipes(self) -> List[Dict[str, str]]:
@@ -245,6 +255,7 @@ class OperatorState:
                 "state": self.snapshot_unlocked(),
                 "mapping": mapping_copy,
                 "dispatch_history": copy.deepcopy(self._dispatch_history),
+                "rehearsal": copy.deepcopy(self._rehearsal),
                 "curves": self._mapping_curves_from_mapping(mapping_section, 81),
                 "telemetry_snapshot": self._load_telemetry_snapshot(),
             }
@@ -272,6 +283,44 @@ class OperatorState:
             "exists": exists,
             "bytes": path.stat().st_size if exists else 0,
         }
+
+    def rehearsal_session(self) -> Dict[str, Any]:
+        with self._lock:
+            return copy.deepcopy(self._rehearsal)
+
+    def set_rehearsal_preflight(self, report: Dict[str, Any]) -> Dict[str, Any]:
+        with self._lock:
+            self._rehearsal["last_preflight"] = copy.deepcopy(report)
+            self._rehearsal["updated_at"] = time.time()
+            return copy.deepcopy(self._rehearsal)
+
+    def start_rehearsal(
+        self,
+        *,
+        label: str,
+        profile_id: str,
+        notes: str = "",
+        start_options: Optional[Dict[str, Any]] = None,
+        preflight: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        with self._lock:
+            now = time.time()
+            self._rehearsal["active"] = True
+            self._rehearsal["label"] = str(label)
+            self._rehearsal["notes"] = str(notes)
+            self._rehearsal["profile_id"] = str(profile_id)
+            self._rehearsal["started_at"] = now
+            self._rehearsal["updated_at"] = now
+            self._rehearsal["start_options"] = dict(start_options or {})
+            if preflight is not None:
+                self._rehearsal["last_preflight"] = copy.deepcopy(preflight)
+            return copy.deepcopy(self._rehearsal)
+
+    def stop_rehearsal(self) -> Dict[str, Any]:
+        with self._lock:
+            self._rehearsal["active"] = False
+            self._rehearsal["updated_at"] = time.time()
+            return copy.deepcopy(self._rehearsal)
 
     @staticmethod
     def _pid_running(pid: int) -> bool:
@@ -427,4 +476,14 @@ class OperatorState:
             "last_dispatch": self._last_dispatch,
             "dispatch_events": len(self._dispatch_history),
             "last_export": str(self._last_export_path) if self._last_export_path else "",
+            "rehearsal": {
+                "active": bool(self._rehearsal.get("active", False)),
+                "label": str(self._rehearsal.get("label", "")),
+                "profile_id": str(self._rehearsal.get("profile_id", "")),
+                "started_at": float(self._rehearsal.get("started_at", 0.0)),
+                "updated_at": float(self._rehearsal.get("updated_at", 0.0)),
+                "preflight_ok": bool(
+                    self._rehearsal.get("last_preflight", {}).get("ok", False)
+                ),
+            },
         }

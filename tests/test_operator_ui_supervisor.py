@@ -1,9 +1,15 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
-from software.operator_ui.supervisor import StarterSupervisor
+from software.operator_ui.supervisor import (
+    PreflightRunner,
+    StarterSupervisor,
+    get_rehearsal_profile,
+    list_rehearsal_profiles,
+)
 
 
 class FakeProc:
@@ -62,3 +68,34 @@ def test_supervisor_rejects_invalid_mode(tmp_path):
     sup = make_supervisor(tmp_path)
     with pytest.raises(ValueError):
         sup.start({"tracker_mode": "invalid"})
+
+
+def test_rehearsal_profile_catalog_and_lookup():
+    profiles = list_rehearsal_profiles()
+    ids = {p["id"] for p in profiles}
+    assert "safe_synthetic" in ids
+    assert get_rehearsal_profile("camera_preview")["id"] == "camera_preview"
+    with pytest.raises(ValueError):
+        get_rehearsal_profile("unknown_profile")
+
+
+def test_preflight_runner_parses_doctor_output(tmp_path):
+    script = tmp_path / "starter_doctor.sh"
+    script.write_text("#!/usr/bin/env bash\nexit 0\n")
+    runner = PreflightRunner(script_path=script, cwd=tmp_path)
+    fake = SimpleNamespace(
+        returncode=1,
+        stdout=(
+            "[doctor] ok: Python runtime (python3)\n"
+            "[doctor] warn: No /dev/video0 found; video preview may not launch.\n"
+            "[doctor] fail: Config validation failed.\n"
+            "[doctor] summary: required_failures=1 warnings=1\n"
+        ),
+        stderr="",
+    )
+    with patch("software.operator_ui.supervisor.subprocess.run", return_value=fake):
+        report = runner.run()
+    assert report["ok"] is False
+    assert report["required_failures"] == 1
+    assert report["warnings"] == 1
+    assert len(report["checks"]) == 3

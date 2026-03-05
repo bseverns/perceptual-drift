@@ -29,6 +29,32 @@
 
       <section class="panel controls">
         <h2>Controls</h2>
+        <h3>Rehearsal Guide</h3>
+        <label for="rehearsalProfile">Start profile</label>
+        <div class="row">
+          <select id="rehearsalProfile"></select>
+          <button id="runPreflight">Run Preflight</button>
+        </div>
+        <label for="rehearsalLabel">Session label</label>
+        <div class="row">
+          <input id="rehearsalLabel" placeholder="e.g. friday_soundcheck" />
+          <button id="startRehearsal">Start Rehearsal</button>
+          <button id="stopRehearsal">Stop Rehearsal</button>
+        </div>
+        <label for="rehearsalNotes">Session notes</label>
+        <div class="row">
+          <input id="rehearsalNotes" placeholder="optional notes" />
+        </div>
+        <div class="row">
+          <span class="k">Preflight</span>
+          <span id="preflightStatus">not run</span>
+        </div>
+        <div class="row">
+          <span class="k">Rehearsal session</span>
+          <span id="rehearsalSessionState">inactive</span>
+        </div>
+        <pre id="preflightDetails" class="runtime-details">Run preflight to populate checklist.</pre>
+
         <label for="recipeSelect">Recipe</label>
         <div class="row">
           <select id="recipeSelect"></select>

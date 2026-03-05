@@ -124,6 +124,7 @@ def test_operator_state_session_export_includes_state_and_telemetry(tmp_path):
     assert exported["notes"] == "dry run"
     assert exported["state"]["active_recipe"] == "ambient"
     assert exported["state"]["consent_state"] == 1
+    assert "rehearsal" in exported
     assert exported["dispatch_history"][-1]["action"] == "consent"
     assert exported["telemetry_snapshot"]["ok"] is True
     assert exported["telemetry_snapshot"]["data"]["p95_ms"] == 37.2
@@ -199,3 +200,32 @@ def test_operator_state_runtime_health_falls_back_to_process_scan():
     assert service["healthy"] is True
     assert service["source"] == "process_scan"
     assert service["pid"] == 2222
+
+
+def test_operator_state_rehearsal_lifecycle_updates_snapshot():
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+    )
+    preflight = {"ok": True, "required_failures": 0, "warnings": 1}
+    session = state.set_rehearsal_preflight(preflight)
+    assert session["last_preflight"]["ok"] is True
+
+    started = state.start_rehearsal(
+        label="friday_soundcheck",
+        profile_id="safe_synthetic",
+        notes="lights pass",
+        start_options={"tracker_mode": "synthetic"},
+        preflight=preflight,
+    )
+    assert started["active"] is True
+    assert started["label"] == "friday_soundcheck"
+    assert started["profile_id"] == "safe_synthetic"
+
+    snap = state.snapshot()
+    assert snap["rehearsal"]["active"] is True
+    assert snap["rehearsal"]["label"] == "friday_soundcheck"
+    assert snap["rehearsal"]["preflight_ok"] is True
+
+    stopped = state.stop_rehearsal()
+    assert stopped["active"] is False

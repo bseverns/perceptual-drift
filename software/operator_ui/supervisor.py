@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import signal
 import subprocess
 import threading
@@ -154,4 +155,136 @@ class StarterSupervisor:
             if self._last_exit_code is not None
             else 0,
             "last_error": self._last_error,
+        }
+
+
+DEFAULT_REHEARSAL_PROFILES: List[Dict[str, Any]] = [
+    {
+        "id": "safe_synthetic",
+        "name": "Safe Synthetic (Recommended)",
+        "description": "No camera, no FC serial. Best first rehearsal profile.",
+        "start_options": {
+            "tracker_mode": "synthetic",
+            "video": "off",
+            "serial": "FAKE",
+            "tracker_host": "127.0.0.1",
+        },
+        "checklist": [
+            "Run preflight and clear required failures.",
+            "Confirm recipe + consent behavior in UI before performance handoff.",
+        ],
+    },
+    {
+        "id": "camera_preview",
+        "name": "Camera Preview",
+        "description": "Camera tracker + auto video; FC still in dry-run mode.",
+        "start_options": {
+            "tracker_mode": "camera",
+            "video": "auto",
+            "serial": "FAKE",
+            "tracker_host": "127.0.0.1",
+        },
+        "checklist": [
+            "Verify /dev/video0 and OpenCV availability in preflight.",
+            "Confirm framing and tracker stability before opening consent.",
+        ],
+    },
+    {
+        "id": "hardware_dry_run",
+        "name": "Hardware Dry Run",
+        "description": "Camera + video + default serial path for FC integration drills.",
+        "start_options": {
+            "tracker_mode": "camera",
+            "video": "on",
+            "serial": "/dev/ttyUSB0",
+            "tracker_host": "127.0.0.1",
+        },
+        "checklist": [
+            "Validate FC serial path before pressing Start.",
+            "Keep props-off until consent and stop controls are verified.",
+        ],
+    },
+]
+
+
+def list_rehearsal_profiles() -> List[Dict[str, Any]]:
+    return [{**profile, "start_options": dict(profile["start_options"])} for profile in DEFAULT_REHEARSAL_PROFILES]
+
+
+def get_rehearsal_profile(profile_id: str) -> Dict[str, Any]:
+    normalized = (profile_id or "").strip()
+    for profile in DEFAULT_REHEARSAL_PROFILES:
+        if profile["id"] == normalized:
+            return {**profile, "start_options": dict(profile["start_options"])}
+    raise ValueError(f"unknown rehearsal profile: {profile_id}")
+
+
+class PreflightRunner:
+    """Runs starter doctor checks and parses structured status."""
+
+    _LINE_RE = re.compile(r"^\[doctor\]\s+(ok|warn|fail):\s+(.*)$")
+
+    def __init__(self, *, script_path: Path, cwd: Path) -> None:
+        self.script_path = script_path
+        self.cwd = cwd
+
+    def run(self, *, strict: bool = False) -> Dict[str, Any]:
+        if not self.script_path.is_file():
+            return {
+                "ok": False,
+                "code": 127,
+                "checked_at": time.time(),
+                "checks": [
+                    {
+                        "level": "fail",
+                        "message": f"Preflight script missing: {self.script_path}",
+                    }
+                ],
+                "required_failures": 1,
+                "warnings": 0,
+                "summary": "missing preflight script",
+                "output_tail": [],
+            }
+
+        cmd = ["bash", str(self.script_path)]
+        if strict:
+            cmd.append("--strict")
+        proc = subprocess.run(
+            cmd,
+            cwd=str(self.cwd),
+            capture_output=True,
+            text=True,
+        )
+        output = f"{proc.stdout}{proc.stderr}"
+        checks: List[Dict[str, str]] = []
+        required_failures = 0
+        warnings = 0
+        summary = ""
+        for line in output.splitlines():
+            raw = line.strip()
+            if not raw:
+                continue
+            if raw.startswith("[doctor] summary:"):
+                summary = raw
+                continue
+            match = self._LINE_RE.match(raw)
+            if not match:
+                continue
+            level = match.group(1)
+            message = match.group(2)
+            checks.append({"level": level, "message": message})
+            if level == "fail":
+                required_failures += 1
+            elif level == "warn":
+                warnings += 1
+
+        return {
+            "ok": proc.returncode == 0,
+            "code": int(proc.returncode),
+            "checked_at": time.time(),
+            "checks": checks,
+            "required_failures": required_failures,
+            "warnings": warnings,
+            "summary": summary,
+            "output_tail": output.splitlines()[-20:],
         }

@@ -1,7 +1,7 @@
-async function fetchJson(url, options = {}) {
+async function fetchJson(url, options = {}, allowErrorResponse = false) {
   const res = await fetch(url, options);
   const body = await res.json();
-  if (!res.ok || body.ok === false) {
+  if (!allowErrorResponse && (!res.ok || body.ok === false)) {
     throw new Error(body.error || `Request failed: ${res.status}`);
   }
   return body;
@@ -52,6 +52,11 @@ async function refreshState() {
     : "none";
   document.getElementById("lastDispatch").textContent = status;
   document.getElementById("latestSession").textContent = state.last_export || "none";
+  const rehearsal = state.rehearsal || {};
+  const rehText = rehearsal.active
+    ? `${rehearsal.label || "unnamed"} (${rehearsal.profile_id || "profile?"})`
+    : "inactive";
+  document.getElementById("rehearsalSessionState").textContent = rehText;
 }
 
 async function refreshRuntimeHealth() {
@@ -71,6 +76,44 @@ async function refreshSupervisor() {
     ? `running (pid ${supervisor.pid})`
     : `stopped (exit ${supervisor.last_exit_code})`;
   document.getElementById("supervisorState").textContent = state;
+}
+
+function renderPreflight(preflight) {
+  if (!preflight || !Object.keys(preflight).length) {
+    document.getElementById("preflightStatus").textContent = "not run";
+    document.getElementById("preflightDetails").textContent = "Run preflight to populate checklist.";
+    return;
+  }
+  const status = preflight.ok
+    ? `pass (${preflight.required_failures || 0} fail / ${preflight.warnings || 0} warn)`
+    : `fail (${preflight.required_failures || 0} fail / ${preflight.warnings || 0} warn)`;
+  document.getElementById("preflightStatus").textContent = status;
+  const lines = (preflight.checks || []).map((c) => `[${c.level}] ${c.message}`);
+  document.getElementById("preflightDetails").textContent = lines.join("\n") || "No checks parsed";
+}
+
+async function refreshRehearsalProfiles() {
+  const { profiles } = await fetchJson("/api/rehearsal/profiles");
+  const select = document.getElementById("rehearsalProfile");
+  const previous = select.value;
+  select.innerHTML = "";
+  profiles.forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if (p.description) opt.title = p.description;
+    select.appendChild(opt);
+  });
+  if (previous) select.value = previous;
+}
+
+async function refreshRehearsalSession() {
+  const { rehearsal } = await fetchJson("/api/rehearsal/session");
+  const text = rehearsal.active
+    ? `${rehearsal.label || "unnamed"} (${rehearsal.profile_id || "profile?"})`
+    : "inactive";
+  document.getElementById("rehearsalSessionState").textContent = text;
+  renderPreflight(rehearsal.last_preflight || {});
 }
 
 async function refreshRecipes() {
@@ -143,23 +186,97 @@ async function stopRuntime() {
   await Promise.all([refreshSupervisor(), refreshRuntimeHealth()]);
 }
 
+async function runPreflight() {
+  const body = await fetchJson(
+    "/api/rehearsal/preflight",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    },
+    true,
+  );
+  renderPreflight(body.preflight || {});
+  await refreshRehearsalSession();
+}
+
+async function startRehearsal() {
+  const profile_id = document.getElementById("rehearsalProfile").value;
+  const labelInput = document.getElementById("rehearsalLabel");
+  const notes = document.getElementById("rehearsalNotes").value || "";
+  const body = await fetchJson(
+    "/api/rehearsal/start",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profile_id, label: labelInput.value || "", notes }),
+    },
+    true,
+  );
+  if (!body.ok) {
+    renderPreflight(body.preflight || {});
+    throw new Error(body.error || "Rehearsal start failed");
+  }
+  if (body.rehearsal && body.rehearsal.label) {
+    labelInput.value = body.rehearsal.label;
+  }
+  renderPreflight(body.preflight || {});
+  await Promise.all([
+    refreshState(),
+    refreshSupervisor(),
+    refreshRuntimeHealth(),
+    refreshRehearsalSession(),
+  ]);
+}
+
+async function stopRehearsal() {
+  await fetchJson("/api/rehearsal/stop", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  await Promise.all([
+    refreshState(),
+    refreshSupervisor(),
+    refreshRuntimeHealth(),
+    refreshRehearsalSession(),
+  ]);
+}
+
+function runAction(action) {
+  action().catch((err) => {
+    console.error(err);
+    alert(err.message || String(err));
+  });
+}
+
 function wireEvents() {
-  document.getElementById("applyRecipe").addEventListener("click", applyRecipe);
-  document.getElementById("consentOn").addEventListener("click", () => setConsent(1));
-  document.getElementById("consentOff").addEventListener("click", () => setConsent(0));
-  document.getElementById("startRuntime").addEventListener("click", startRuntime);
-  document.getElementById("stopRuntime").addEventListener("click", stopRuntime);
-  document.getElementById("exportSession").addEventListener("click", exportSession);
+  document.getElementById("applyRecipe").addEventListener("click", () => runAction(applyRecipe));
+  document.getElementById("consentOn").addEventListener("click", () => runAction(() => setConsent(1)));
+  document.getElementById("consentOff").addEventListener("click", () => runAction(() => setConsent(0)));
+  document.getElementById("startRuntime").addEventListener("click", () => runAction(startRuntime));
+  document.getElementById("stopRuntime").addEventListener("click", () => runAction(stopRuntime));
+  document.getElementById("exportSession").addEventListener("click", () => runAction(exportSession));
+  document.getElementById("runPreflight").addEventListener("click", () => runAction(runPreflight));
+  document.getElementById("startRehearsal").addEventListener("click", () => runAction(startRehearsal));
+  document.getElementById("stopRehearsal").addEventListener("click", () => runAction(stopRehearsal));
 }
 
 async function boot() {
   wireEvents();
-  await refreshRecipes();
-  await Promise.all([refreshState(), refreshCurves(), refreshRuntimeHealth(), refreshSupervisor()]);
+  await Promise.all([refreshRecipes(), refreshRehearsalProfiles()]);
+  await Promise.all([
+    refreshState(),
+    refreshCurves(),
+    refreshRuntimeHealth(),
+    refreshSupervisor(),
+    refreshRehearsalSession(),
+  ]);
   setInterval(() => refreshState().catch(console.error), 1000);
   setInterval(() => refreshCurves().catch(console.error), 2500);
   setInterval(() => refreshRuntimeHealth().catch(console.error), 3000);
   setInterval(() => refreshSupervisor().catch(console.error), 2000);
+  setInterval(() => refreshRehearsalSession().catch(console.error), 3000);
 }
 
 boot().catch((err) => {
