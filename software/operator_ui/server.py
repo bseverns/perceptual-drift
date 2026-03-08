@@ -76,6 +76,29 @@ def make_handler(
     class OperatorHandler(BaseHTTPRequestHandler):
         server_version = "PerceptualDriftOperatorUI/0.1"
 
+        _GET_HANDLERS = {
+            "/api/health": "_api_get_health",
+            "/api/state": "_api_get_state",
+            "/api/recipes": "_api_get_recipes",
+            "/api/mapping/curves": "_api_get_mapping_curves",
+            "/api/runtime/health": "_api_get_runtime_health",
+            "/api/runtime/supervisor": "_api_get_runtime_supervisor",
+            "/api/rehearsal/profiles": "_api_get_rehearsal_profiles",
+            "/api/rehearsal/session": "_api_get_rehearsal_session",
+            "/api/session/latest": "_api_get_session_latest",
+        }
+
+        _POST_HANDLERS = {
+            "/api/recipe": "_api_post_recipe",
+            "/api/consent": "_api_post_consent",
+            "/api/session/export": "_api_post_session_export",
+            "/api/runtime/start": "_api_post_runtime_start",
+            "/api/runtime/stop": "_api_post_runtime_stop",
+            "/api/rehearsal/preflight": "_api_post_rehearsal_preflight",
+            "/api/rehearsal/start": "_api_post_rehearsal_start",
+            "/api/rehearsal/stop": "_api_post_rehearsal_stop",
+        }
+
         def do_GET(self) -> None:
             parsed = urlparse(self.path)
             if parsed.path.startswith("/api/"):
@@ -102,177 +125,186 @@ def make_handler(
         def log_message(self, fmt: str, *args) -> None:  # quiet default handler
             return
 
+        def _api_get_health(self, _parsed, _query) -> None:
+            _json_response(self, {"ok": True, "service": "operator-ui"})
+
+        def _api_get_state(self, _parsed, _query) -> None:
+            _json_response(self, {"ok": True, "state": state.snapshot()})
+
+        def _api_get_recipes(self, _parsed, _query) -> None:
+            _json_response(self, {"ok": True, "recipes": state.list_recipes()})
+
+        def _api_get_mapping_curves(self, _parsed, query) -> None:
+            points_raw = query.get("points", ["101"])[0]
+            try:
+                points = int(points_raw)
+            except ValueError:
+                points = 101
+            _json_response(
+                self, {"ok": True, "data": state.mapping_curves(points=points)}
+            )
+
+        def _api_get_runtime_health(self, _parsed, _query) -> None:
+            _json_response(self, {"ok": True, "runtime": state.runtime_health()})
+
+        def _api_get_runtime_supervisor(self, _parsed, _query) -> None:
+            _json_response(self, {"ok": True, "supervisor": supervisor.status()})
+
+        def _api_get_rehearsal_profiles(self, _parsed, _query) -> None:
+            _json_response(self, {"ok": True, "profiles": list_rehearsal_profiles()})
+
+        def _api_get_rehearsal_session(self, _parsed, _query) -> None:
+            _json_response(self, {"ok": True, "rehearsal": state.rehearsal_session()})
+
+        def _api_get_session_latest(self, _parsed, _query) -> None:
+            _json_response(self, {"ok": True, "session": state.latest_export()})
+
         def _handle_api_get(self, parsed) -> None:
             path = parsed.path
-            query = parse_qs(parsed.query)
-            if path == "/api/health":
-                _json_response(self, {"ok": True, "service": "operator-ui"})
+            method_name = self._GET_HANDLERS.get(path)
+            if method_name:
+                handler = getattr(self, method_name)
+                handler(parsed, parse_qs(parsed.query))
+            else:
+                _error_response(self, f"unknown endpoint: {path}", HTTPStatus.NOT_FOUND)
+
+        def _api_post_recipe(self, _parsed, payload) -> None:
+            recipe = str(payload.get("recipe", "")).strip()
+            try:
+                snapshot = state.set_recipe(recipe)
+            except Exception as exc:  # pragma: no cover - parse/load errors
+                _error_response(self, f"failed to load recipe '{recipe}': {exc}", 400)
                 return
-            if path == "/api/state":
-                _json_response(self, {"ok": True, "state": state.snapshot()})
+            _json_response(self, {"ok": True, "state": snapshot})
+
+        def _api_post_consent(self, _parsed, payload) -> None:
+            if "consent" not in payload:
+                _error_response(self, "missing 'consent' field", 400)
                 return
-            if path == "/api/recipes":
-                _json_response(self, {"ok": True, "recipes": state.list_recipes()})
+            try:
+                snapshot = state.set_consent(payload["consent"])
+            except Exception:
+                _error_response(self, "invalid consent value", 400)
                 return
-            if path == "/api/mapping/curves":
-                points_raw = query.get("points", ["101"])[0]
-                try:
-                    points = int(points_raw)
-                except ValueError:
-                    points = 101
-                _json_response(
-                    self, {"ok": True, "data": state.mapping_curves(points=points)}
-                )
+            _json_response(self, {"ok": True, "state": snapshot})
+
+        def _api_post_session_export(self, _parsed, payload) -> None:
+            label = str(payload.get("label", "")).strip()
+            notes = str(payload.get("notes", "")).strip()
+            try:
+                session = state.export_session(label=label, notes=notes)
+            except Exception as exc:
+                _error_response(self, f"session export failed: {exc}", 500)
                 return
-            if path == "/api/runtime/health":
-                _json_response(self, {"ok": True, "runtime": state.runtime_health()})
+            _json_response(self, {"ok": True, "session": session})
+
+        def _api_post_runtime_start(self, _parsed, payload) -> None:
+            try:
+                sup = supervisor.start(payload)
+            except Exception as exc:
+                _error_response(self, f"failed to start runtime: {exc}", 400)
                 return
-            if path == "/api/runtime/supervisor":
-                _json_response(self, {"ok": True, "supervisor": supervisor.status()})
+            _json_response(self, {"ok": True, "supervisor": sup})
+
+        def _api_post_runtime_stop(self, _parsed, _payload) -> None:
+            try:
+                sup = supervisor.stop()
+            except Exception as exc:
+                _error_response(self, f"failed to stop runtime: {exc}", 500)
                 return
-            if path == "/api/rehearsal/profiles":
-                _json_response(self, {"ok": True, "profiles": list_rehearsal_profiles()})
+            _json_response(self, {"ok": True, "supervisor": sup})
+
+        def _api_post_rehearsal_preflight(self, _parsed, payload) -> None:
+            strict = bool(payload.get("strict", False))
+            preflight = preflight_runner.run(strict=strict)
+            rehearsal = state.set_rehearsal_preflight(preflight)
+            _json_response(
+                self,
+                {
+                    "ok": preflight["ok"],
+                    "preflight": preflight,
+                    "rehearsal": rehearsal,
+                },
+                status=200 if preflight["ok"] else 412,
+            )
+
+        def _api_post_rehearsal_start(self, _parsed, payload) -> None:
+            profile_id = str(payload.get("profile_id", "safe_synthetic")).strip()
+            notes = str(payload.get("notes", "")).strip()
+            label = str(payload.get("label", "")).strip()
+            if not label:
+                label = time.strftime("rehearsal_%Y%m%d_%H%M%S", time.localtime())
+            strict = bool(payload.get("strict_preflight", False))
+            skip_preflight = bool(payload.get("skip_preflight", False))
+            try:
+                profile = get_rehearsal_profile(profile_id)
+            except ValueError as exc:
+                _error_response(self, str(exc), 400)
                 return
-            if path == "/api/rehearsal/session":
-                _json_response(self, {"ok": True, "rehearsal": state.rehearsal_session()})
+            preflight = state.rehearsal_session().get("last_preflight", {})
+            if not skip_preflight:
+                preflight = preflight_runner.run(strict=strict)
+                state.set_rehearsal_preflight(preflight)
+                if not preflight.get("ok", False):
+                    _json_response(
+                        self,
+                        {
+                            "ok": False,
+                            "error": "preflight failed; rehearsal start blocked",
+                            "preflight": preflight,
+                        },
+                        status=412,
+                    )
+                    return
+            try:
+                sup = supervisor.start(profile.get("start_options", {}))
+            except Exception as exc:
+                _error_response(self, f"failed to start runtime: {exc}", 400)
                 return
-            if path == "/api/session/latest":
-                _json_response(self, {"ok": True, "session": state.latest_export()})
+            rehearsal = state.start_rehearsal(
+                label=label,
+                profile_id=profile_id,
+                notes=notes,
+                start_options=profile.get("start_options", {}),
+                preflight=preflight,
+            )
+            _json_response(
+                self,
+                {
+                    "ok": True,
+                    "profile": profile,
+                    "preflight": preflight,
+                    "supervisor": sup,
+                    "rehearsal": rehearsal,
+                },
+            )
+
+        def _api_post_rehearsal_stop(self, _parsed, _payload) -> None:
+            try:
+                sup = supervisor.stop()
+            except Exception as exc:
+                _error_response(self, f"failed to stop runtime: {exc}", 500)
                 return
-            _error_response(self, f"unknown endpoint: {path}", HTTPStatus.NOT_FOUND)
+            rehearsal = state.stop_rehearsal()
+            _json_response(
+                self, {"ok": True, "supervisor": sup, "rehearsal": rehearsal}
+            )
 
         def _handle_api_post(self, parsed) -> None:
             path = parsed.path
+            method_name = self._POST_HANDLERS.get(path)
+            if not method_name:
+                _error_response(self, f"unknown endpoint: {path}", HTTPStatus.NOT_FOUND)
+                return
+
             try:
                 payload = _read_json_body(self)
             except json.JSONDecodeError:
                 _error_response(self, "invalid JSON body", HTTPStatus.BAD_REQUEST)
                 return
-            if path == "/api/recipe":
-                recipe = str(payload.get("recipe", "")).strip()
-                try:
-                    snapshot = state.set_recipe(recipe)
-                except Exception as exc:  # pragma: no cover - parse/load errors
-                    _error_response(
-                        self, f"failed to load recipe '{recipe}': {exc}", 400
-                    )
-                    return
-                _json_response(self, {"ok": True, "state": snapshot})
-                return
-            if path == "/api/consent":
-                if "consent" not in payload:
-                    _error_response(self, "missing 'consent' field", 400)
-                    return
-                try:
-                    snapshot = state.set_consent(payload["consent"])
-                except Exception:
-                    _error_response(self, "invalid consent value", 400)
-                    return
-                _json_response(self, {"ok": True, "state": snapshot})
-                return
-            if path == "/api/session/export":
-                label = str(payload.get("label", "")).strip()
-                notes = str(payload.get("notes", "")).strip()
-                try:
-                    session = state.export_session(label=label, notes=notes)
-                except Exception as exc:
-                    _error_response(self, f"session export failed: {exc}", 500)
-                    return
-                _json_response(self, {"ok": True, "session": session})
-                return
-            if path == "/api/runtime/start":
-                try:
-                    sup = supervisor.start(payload)
-                except Exception as exc:
-                    _error_response(self, f"failed to start runtime: {exc}", 400)
-                    return
-                _json_response(self, {"ok": True, "supervisor": sup})
-                return
-            if path == "/api/runtime/stop":
-                try:
-                    sup = supervisor.stop()
-                except Exception as exc:
-                    _error_response(self, f"failed to stop runtime: {exc}", 500)
-                    return
-                _json_response(self, {"ok": True, "supervisor": sup})
-                return
-            if path == "/api/rehearsal/preflight":
-                strict = bool(payload.get("strict", False))
-                preflight = preflight_runner.run(strict=strict)
-                rehearsal = state.set_rehearsal_preflight(preflight)
-                _json_response(
-                    self,
-                    {
-                        "ok": preflight["ok"],
-                        "preflight": preflight,
-                        "rehearsal": rehearsal,
-                    },
-                    status=200 if preflight["ok"] else 412,
-                )
-                return
-            if path == "/api/rehearsal/start":
-                profile_id = str(payload.get("profile_id", "safe_synthetic")).strip()
-                notes = str(payload.get("notes", "")).strip()
-                label = str(payload.get("label", "")).strip()
-                if not label:
-                    label = time.strftime(
-                        "rehearsal_%Y%m%d_%H%M%S", time.localtime()
-                    )
-                strict = bool(payload.get("strict_preflight", False))
-                skip_preflight = bool(payload.get("skip_preflight", False))
-                try:
-                    profile = get_rehearsal_profile(profile_id)
-                except ValueError as exc:
-                    _error_response(self, str(exc), 400)
-                    return
-                preflight = state.rehearsal_session().get("last_preflight", {})
-                if not skip_preflight:
-                    preflight = preflight_runner.run(strict=strict)
-                    state.set_rehearsal_preflight(preflight)
-                    if not preflight.get("ok", False):
-                        _json_response(
-                            self,
-                            {
-                                "ok": False,
-                                "error": "preflight failed; rehearsal start blocked",
-                                "preflight": preflight,
-                            },
-                            status=412,
-                        )
-                        return
-                try:
-                    sup = supervisor.start(profile.get("start_options", {}))
-                except Exception as exc:
-                    _error_response(self, f"failed to start runtime: {exc}", 400)
-                    return
-                rehearsal = state.start_rehearsal(
-                    label=label,
-                    profile_id=profile_id,
-                    notes=notes,
-                    start_options=profile.get("start_options", {}),
-                    preflight=preflight,
-                )
-                _json_response(
-                    self,
-                    {
-                        "ok": True,
-                        "profile": profile,
-                        "preflight": preflight,
-                        "supervisor": sup,
-                        "rehearsal": rehearsal,
-                    },
-                )
-                return
-            if path == "/api/rehearsal/stop":
-                try:
-                    sup = supervisor.stop()
-                except Exception as exc:
-                    _error_response(self, f"failed to stop runtime: {exc}", 500)
-                    return
-                rehearsal = state.stop_rehearsal()
-                _json_response(self, {"ok": True, "supervisor": sup, "rehearsal": rehearsal})
-                return
-            _error_response(self, f"unknown endpoint: {path}", HTTPStatus.NOT_FOUND)
+
+            handler = getattr(self, method_name)
+            handler(parsed, payload)
 
         def _handle_static(self, requested_path: str) -> None:
             try:
