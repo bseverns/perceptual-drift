@@ -15,7 +15,9 @@ from typing import Any, Dict, List, Optional
 class StarterSupervisor:
     """Owns start/stop/status for scripts/starter_up.sh."""
 
-    def __init__(self, *, script_path: Path, log_path: Path, cwd: Path) -> None:
+    def __init__(
+        self, *, script_path: Path, log_path: Path, cwd: Path
+    ) -> None:
         self.script_path = script_path
         self.log_path = log_path
         self.cwd = cwd
@@ -71,7 +73,9 @@ class StarterSupervisor:
                 argv.extend([flag, raw])
         return argv
 
-    def start(self, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def start(
+        self, options: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         with self._lock:
             self._refresh_locked()
             if self._proc is not None:
@@ -80,7 +84,9 @@ class StarterSupervisor:
                 return status
 
             if not self.script_path.is_file():
-                raise FileNotFoundError(f"starter script missing: {self.script_path}")
+                raise FileNotFoundError(
+                    f"starter script missing: {self.script_path}"
+                )
 
             opts = dict(options or {})
             argv = self._build_argv(opts)
@@ -151,9 +157,9 @@ class StarterSupervisor:
             "started_at": self._started_at if running else 0.0,
             "args": list(self._argv),
             "log_path": str(self.log_path),
-            "last_exit_code": self._last_exit_code
-            if self._last_exit_code is not None
-            else 0,
+            "last_exit_code": (
+                self._last_exit_code if self._last_exit_code is not None else 0
+            ),
             "last_error": self._last_error,
         }
 
@@ -208,7 +214,10 @@ DEFAULT_REHEARSAL_PROFILES: List[Dict[str, Any]] = [
 
 
 def list_rehearsal_profiles() -> List[Dict[str, Any]]:
-    return [{**profile, "start_options": dict(profile["start_options"])} for profile in DEFAULT_REHEARSAL_PROFILES]
+    return [
+        {**profile, "start_options": dict(profile["start_options"])}
+        for profile in DEFAULT_REHEARSAL_PROFILES
+    ]
 
 
 def get_rehearsal_profile(profile_id: str) -> Dict[str, Any]:

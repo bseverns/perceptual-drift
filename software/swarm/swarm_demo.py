@@ -244,7 +244,7 @@ class SwarmNode(NodeBase):
 
     def _get_default_consent_state(self, mapping: Dict[str, Any]) -> int:
         cfg = mapping.get("consent", {}) if isinstance(mapping, dict) else {}
-        return 1 if cfg.get("default_state", 1) else 0
+        return 1 if cfg.get("default_state", 0) else 0
 
     def _handle_consent_edge(self, previous: int, current: int) -> None:
         """React to consent transitions: logging, auto-recipes, idling."""
@@ -723,7 +723,7 @@ def _map_gestures_to_behavior(gestures: Dict[str, float], mapping: Dict[str, Any
     crowd = gestures.get("crowd", 0.0) or 0.0
 
     consent_cfg = mapping.get("consent", {}) if isinstance(mapping, dict) else {}
-    consent_default = consent_cfg.get("default_state", 1)
+    consent_default = consent_cfg.get("default_state", 0)
     consent_raw = gestures.get("consent", consent_default)
     consent = max(0.0, min(1.0, consent_raw))
 
@@ -766,7 +766,7 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
     active_mapping = mapping
     active_recipe = recipe_name
     consent_cfg = mapping.get("consent", {}) if isinstance(mapping, dict) else {}
-    consent_state = 1 if (consent_cfg.get("default_state", 1) or 0) else 0
+    consent_state = 1 if (consent_cfg.get("default_state", 0) or 0) else 0
     gesture_state["consent"] = float(consent_state)
     last_sent_consent = consent_state
     bench_seq = 0

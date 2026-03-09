@@ -394,6 +394,26 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
                 errors.append(
                     f"{source}.consent.mode must be 'binary' or 'smooth'"
                 )
+            if "default_state" in consent_cfg:
+                default_state = consent_cfg.get("default_state")
+                if isinstance(default_state, bool):
+                    pass
+                elif isinstance(default_state, (int, float)):
+                    if default_state < 0 or default_state > 1:
+                        errors.append(
+                            f"{source}.consent.default_state must be between 0 and 1"
+                        )
+                else:
+                    errors.append(
+                        f"{source}.consent.default_state must be numeric or boolean"
+                    )
+            for flag_name in ("gate_motion", "auto_recipes"):
+                if flag_name in consent_cfg and not isinstance(
+                    consent_cfg.get(flag_name), bool
+                ):
+                    errors.append(
+                        f"{source}.consent.{flag_name} must be boolean when set"
+                    )
             if "idle_altitude" in consent_cfg:
                 _require_number(
                     consent_cfg,

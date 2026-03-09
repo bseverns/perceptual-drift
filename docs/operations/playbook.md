@@ -70,8 +70,23 @@ Use the runtime knobs baked into the script:
 * `--send-interval` and `--cooldown` shorten the OSC/MPS pacing so automated
   runs finish in seconds.
 
-Pair that with `pytest` (see `tests/test_check_stack.py`) to make sure the smoke
-test keeps working whenever someone edits configs.
+Pair that with `pytest` (start in `tests/`) to make sure smoke, validation, and
+operator workflows keep working whenever someone edits configs.
+
+## CI enforcement contract
+
+GitHub Actions in `.github/workflows/ci.yml` currently enforces:
+
+* Lint (no silent fail): `flake8` over `software/control-bridge`,
+  `software/operator_ui`, `scripts/check_stack.py`,
+  `scripts/validate_config.py`, and `tests`.
+* Formatting: `black --check` over the same Python scope.
+* Unit tests: `python -m pytest tests -q` (full test folder, not one file).
+* Smoke test: `pd-check-stack --max-frames 24 --send-interval 0.01 --cooldown 0.05`.
+* Artifact hygiene: `git archive ... HEAD` for zip packaging (tracked files only).
+
+If docs or PR descriptions imply stronger guarantees, update this section and
+the workflow together so they do not drift.
 
 ## Make every environment prove itself (deployment gate)
 
@@ -81,8 +96,8 @@ clear before you put a drone near people.
 
 1. **CI / container sanity (fast loop):**
    * `python -m pip install -r software/control-bridge/requirements.txt`
-   * `python -m pytest tests/test_check_stack.py -q`
-   * `./scripts/check_stack.py --max-frames 24 --send-interval 0.01 --cooldown 0.05`
+   * `python -m pytest tests -q`
+   * `pd-check-stack --max-frames 24 --send-interval 0.01 --cooldown 0.05`
      (keeps the harness short so CI logs stay readable).
    * GitHub Actions (`.github/workflows/ci.yml`) runs this recipe on every push
      and PR.  If the bot fails here, fix the stack before you even think about

@@ -17,6 +17,7 @@ References worth opening in a browser tab while you read this file:
 """
 
 import argparse
+import importlib.util
 import json
 import math
 import os
@@ -48,15 +49,22 @@ except Exception as exc:  # noqa: BLE001
     mido.set_backend("mido.backends.dummy")
 
 BRIDGE_DIR = Path(__file__).resolve().parent
-if str(BRIDGE_DIR) not in sys.path:
-    sys.path.insert(0, str(BRIDGE_DIR))
-
-from config_validation import (  # noqa: E402
-    ModeSettings,
-    ValidationError,
-    validate_mapping_config,
-    validate_midi_mapping_config,
+_CV_PATH = BRIDGE_DIR / "config_validation.py"
+_CV_SPEC = importlib.util.spec_from_file_location(
+    "control_bridge_config_validation", _CV_PATH
 )
+if _CV_SPEC is None or _CV_SPEC.loader is None:  # pragma: no cover - sanity
+    raise RuntimeError(
+        f"Unable to load config validation module from {_CV_PATH}"
+    )
+_cv = importlib.util.module_from_spec(_CV_SPEC)
+sys.modules[_CV_SPEC.name] = _cv
+_CV_SPEC.loader.exec_module(_cv)
+
+ModeSettings = _cv.ModeSettings
+ValidationError = _cv.ValidationError
+validate_mapping_config = _cv.validate_mapping_config
+validate_midi_mapping_config = _cv.validate_midi_mapping_config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MAPPING_PATH = (REPO_ROOT / "config/mapping.yaml").resolve()
@@ -182,6 +190,16 @@ def normalize_cc(value: int, response: str = "bipolar") -> float:
     if response == "unipolar":
         return norm
     return norm * 2 - 1
+
+
+def to_binary_state(value, default=0) -> int:
+    """Normalize mixed bool/int/float input into a strict 0/1 state."""
+
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return 1 if float(value) >= 0.5 else 0
+    return int(default)
 
 
 def resolve_mode_settings(cfg, requested_mode=None):
@@ -458,6 +476,8 @@ class Mapper:
         # ``osc.address_space`` dictionaries.
         self.cfg = cfg
         self.mode = mode or resolve_mode_settings(cfg)
+        consent_cfg = cfg.get("consent", {}) or {}
+        default_consent = to_binary_state(consent_cfg.get("default_state", 0))
         # ``state`` holds the most recent values coming in from OSC.  Every
         # handler updates these keys, and ``apply`` transforms them into RC µs.
         self.state = {
@@ -468,7 +488,7 @@ class Mapper:
             # consent = 0 still streams MSP, but forces a chilled neutral frame
             # so Betaflight keeps seeing a heartbeat while the props stay
             # napping
-            "consent": 0,
+            "consent": default_consent,
         }
 
     def set_mode(self, mode: ModeSettings) -> None:
@@ -1014,8 +1034,7 @@ def main():
         """
 
         prev = mapper.state["consent"]
-        new_val = int(vals[0])
-        mapper.state["consent"] = 1 if new_val == 1 else 0
+        mapper.state["consent"] = to_binary_state(vals[0], default=prev)
         _mark_osc_tick()
         if ghost_buffer and mapper.state["consent"] != 1 and prev == 1:
             ghost_buffer.reset()

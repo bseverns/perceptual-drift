@@ -87,6 +87,40 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 
 ---
 
+## Install + CLI entrypoints
+
+The repo now ships as an installable Python project so scripts can run without
+manual `sys.path` edits.
+
+```bash
+python3 -m pip install --upgrade pip setuptools wheel
+python3 -m pip install -e . --no-build-isolation
+```
+
+Installed entrypoints:
+
+- `pd-check-stack` → control-stack smoke harness
+- `pd-validate-config` → mapping + recipe validator
+- `pd-operator-ui` → operator UI server
+
+Example:
+
+```bash
+pd-validate-config --quiet
+pd-check-stack --max-frames 24 --send-interval 0.01 --cooldown 0.05
+OPERATOR_API_TOKEN=dev-token pd-operator-ui --host 127.0.0.1 --port 8088
+```
+
+You can still run module forms if preferred:
+
+```bash
+python3 -m scripts.check_stack
+python3 -m scripts.validate_config --quiet
+python3 -m software.operator_ui.server --host 127.0.0.1 --port 8088
+```
+
+---
+
 ## Drift Minimal example (hello world)
 
 Need a zero-risk sandbox for class demos? `examples/drift_minimal/drift_minimal.py` is the repo’s new training wheels:

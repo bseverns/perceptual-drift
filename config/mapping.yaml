@@ -14,7 +14,7 @@ osc:
 consent:
   source: "/pd/consent"
   mode: "binary"          # "binary" gates to 0/1; "smooth" scales motion
-  default_state: 1         # if no signal arrives, assume participation is allowed
+  default_state: 0         # if no signal arrives, keep the rig in idle consent-off
   gate_motion: true        # if true, scale or idle motion fields when consent=0
   idle_altitude: 0.2       # normalized altitude to hold when consent=0
   idle_jitter: 0.0         # jitter when nobody is in the participation zone

@@ -40,8 +40,12 @@ def make_supervisor(tmp_path: Path) -> StarterSupervisor:
 def test_supervisor_start_and_status(tmp_path):
     sup = make_supervisor(tmp_path)
     fake = FakeProc(pid=4321)
-    with patch("software.operator_ui.supervisor.subprocess.Popen", return_value=fake) as popen:
-        status = sup.start({"tracker_mode": "synthetic", "video": "off", "osc_port": 9000})
+    with patch(
+        "software.operator_ui.supervisor.subprocess.Popen", return_value=fake
+    ) as popen:
+        status = sup.start(
+            {"tracker_mode": "synthetic", "video": "off", "osc_port": 9000}
+        )
     assert status["running"] is True
     assert status["pid"] == 4321
     assert status["changed"] is True
@@ -54,7 +58,9 @@ def test_supervisor_start_and_status(tmp_path):
 def test_supervisor_stop_transitions_to_not_running(tmp_path):
     sup = make_supervisor(tmp_path)
     fake = FakeProc(pid=7777)
-    with patch("software.operator_ui.supervisor.subprocess.Popen", return_value=fake):
+    with patch(
+        "software.operator_ui.supervisor.subprocess.Popen", return_value=fake
+    ):
         sup.start()
     with patch("software.operator_ui.supervisor.os.killpg") as killpg:
         stopped = sup.stop()
@@ -93,7 +99,9 @@ def test_preflight_runner_parses_doctor_output(tmp_path):
         ),
         stderr="",
     )
-    with patch("software.operator_ui.supervisor.subprocess.run", return_value=fake):
+    with patch(
+        "software.operator_ui.supervisor.subprocess.run", return_value=fake
+    ):
         report = runner.run()
     assert report["ok"] is False
     assert report["required_failures"] == 1

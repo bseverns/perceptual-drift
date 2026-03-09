@@ -13,7 +13,14 @@ This is the first M5 web UI slice:
 From repo root:
 
 ```bash
-python3 software/operator_ui/server.py --host 127.0.0.1 --port 8088
+OPERATOR_API_TOKEN=dev-token \
+python3 -m software.operator_ui.server --host 127.0.0.1 --port 8088
+```
+
+Installed-entrypoint equivalent:
+
+```bash
+OPERATOR_API_TOKEN=dev-token pd-operator-ui --host 127.0.0.1 --port 8088
 ```
 
 Open:
@@ -22,7 +29,7 @@ Open:
 
 ## API
 
-- `GET /api/health`
+- `GET /api/health` (public)
 - `GET /api/state`
 - `GET /api/recipes`
 - `POST /api/recipe` body: `{ "recipe": "ambient" }` (`"base"` resets)
@@ -40,6 +47,37 @@ Open:
 - `POST /api/session/export` body: `{ "label": "run_a", "notes": "optional" }`
 - `GET /api/session/latest`
 
+All API endpoints except `/api/health` require:
+
+`Authorization: Bearer <token>`
+
+Provide the token with `OPERATOR_API_TOKEN` or `--api-token`. For local-only
+dev, pass `--allow-ephemeral-token` to generate a temporary token at startup.
+
+## Security model
+
+Threat model for this alpha:
+
+- The UI is expected to run on localhost or a trusted operator subnet.
+- Any API caller can change live runtime state (`/api/recipe`, `/api/consent`,
+  runtime start/stop), so unauthorized reads are also considered sensitive.
+
+Auth rules:
+
+- `/api/health` is public for uptime probes.
+- All other API GET/POST endpoints require a bearer token.
+
+Token handling guidance:
+
+- Preferred: set a fixed token with `OPERATOR_API_TOKEN` (or `--api-token`) and
+  distribute it only to operators.
+- Development only: use `--allow-ephemeral-token` if you intentionally want a
+  one-off token printed at startup.
+- Rotate token between rehearsals/shows when using shared machines or shared
+  networks.
+- Avoid exposing the service outside loopback unless you add network-level
+  controls (firewall, VPN, or reverse proxy auth/TLS).
+
 ## Runtime dispatch wiring
 
 The server now emits OSC control messages to runtime targets when you call
@@ -53,7 +91,8 @@ Default runtime targets:
 Override targets/routes:
 
 ```bash
-python3 software/operator_ui/server.py \
+OPERATOR_API_TOKEN=dev-token \
+python3 -m software.operator_ui.server \
   --runtime-targets 127.0.0.1:9000,127.0.0.1:9010 \
   --recipe-route /pd/patch \
   --consent-route /pd/consent
@@ -80,7 +119,8 @@ Default paths:
 Override export paths:
 
 ```bash
-python3 software/operator_ui/server.py \
+OPERATOR_API_TOKEN=dev-token \
+python3 -m software.operator_ui.server \
   --session-export-dir runtime/operator_ui_sessions \
   --telemetry-file runtime/swarm_latency.json
 ```
@@ -115,7 +155,8 @@ By default this runs:
 Override with:
 
 ```bash
-python3 software/operator_ui/server.py \
+OPERATOR_API_TOKEN=dev-token \
+python3 -m software.operator_ui.server \
   --starter-script scripts/starter_up.sh \
   --starter-log runtime/operator_ui/starter_supervisor.log
 ```
@@ -132,7 +173,8 @@ The UI now supports a stepwise operator path:
 CLI override for preflight script:
 
 ```bash
-python3 software/operator_ui/server.py \
+OPERATOR_API_TOKEN=dev-token \
+python3 -m software.operator_ui.server \
   --starter-doctor-script scripts/starter_doctor.sh
 ```
 

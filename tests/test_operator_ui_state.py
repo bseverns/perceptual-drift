@@ -71,7 +71,9 @@ def test_operator_state_dispatches_consent_to_runtime_targets():
         def send_message(self, route, payload):
             sent.append((self.host, self.port, route, payload))
 
-    with patch("software.operator_ui.state.udp_client.SimpleUDPClient", DummyClient):
+    with patch(
+        "software.operator_ui.state.udp_client.SimpleUDPClient", DummyClient
+    ):
         state = OperatorState(
             base_mapping_path=ROOT / "config" / "mapping.yaml",
             recipes_dir=ROOT / "config" / "recipes",
@@ -193,7 +195,9 @@ def test_operator_state_runtime_health_falls_back_to_process_scan():
     with patch.object(
         state,
         "_ps_processes",
-        return_value=[(2222, "python software/swarm/swarm_demo.py --simulate")],
+        return_value=[
+            (2222, "python software/swarm/swarm_demo.py --simulate")
+        ],
     ):
         health = state.runtime_health()
     service = health["services"][0]

@@ -16,11 +16,9 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import yaml
 from pythonosc import udp_client
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.append(str(REPO_ROOT))
-
 from software.swarm.mapping_loader import load_mapping
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -48,7 +46,9 @@ def shape_axis(axis_cfg: Dict[str, Any], value: float) -> float:
     shaped = _apply_deadzone(value, deadzone)
     curve = str(axis_cfg.get("curve", "linear")).lower()
     if curve == "expo":
-        strength = float(axis_cfg.get("expo_strength", axis_cfg.get("expo", 0.5)))
+        strength = float(
+            axis_cfg.get("expo_strength", axis_cfg.get("expo", 0.5))
+        )
         shaped = _expo(shaped, strength)
     return _clamp(shaped, -1.0, 1.0)
 
@@ -84,13 +84,17 @@ class OperatorState:
             {
                 "id": "control_bridge",
                 "name": "Control Bridge",
-                "pid_file": str(REPO_ROOT / "runtime" / "starter_bundle" / "bridge.pid"),
+                "pid_file": str(
+                    REPO_ROOT / "runtime" / "starter_bundle" / "bridge.pid"
+                ),
                 "match": "software/control-bridge/osc_msp_bridge.py",
             },
             {
                 "id": "tracker",
                 "name": "Tracker",
-                "pid_file": str(REPO_ROOT / "runtime" / "starter_bundle" / "tracker.pid"),
+                "pid_file": str(
+                    REPO_ROOT / "runtime" / "starter_bundle" / "tracker.pid"
+                ),
                 "match": "software/starter-bundle/minimal_tracker.py",
             },
             {
@@ -100,7 +104,9 @@ class OperatorState:
                 "match": "software/swarm/swarm_demo.py",
             },
         ]
-        self.runtime_services = [dict(s) for s in (runtime_services or default_services)]
+        self.runtime_services = [
+            dict(s) for s in (runtime_services or default_services)
+        ]
         self._lock = threading.Lock()
         self._active_recipe: Optional[str] = None
         self._consent: int = 0
@@ -144,7 +150,10 @@ class OperatorState:
                 except OSError:
                     continue
 
-                if path in self._recipes_cache and self._recipes_cache[path][0] == mtime:
+                if (
+                    path in self._recipes_cache
+                    and self._recipes_cache[path][0] == mtime
+                ):
                     recipes.append(dict(self._recipes_cache[path][1]))
                     continue
 
@@ -158,7 +167,9 @@ class OperatorState:
 
                 if isinstance(parsed, dict):
                     entry["name"] = str(parsed.get("name", path.stem))
-                    entry["description"] = str(parsed.get("description", "")).strip()
+                    entry["description"] = str(
+                        parsed.get("description", "")
+                    ).strip()
 
                 self._recipes_cache[path] = (mtime, entry)
                 recipes.append(dict(entry))
@@ -211,7 +222,9 @@ class OperatorState:
             self._record_dispatch(self._last_dispatch)
             return self.snapshot_unlocked()
 
-    def _emit_runtime(self, action: str, route: str, payload: Any) -> Dict[str, Any]:
+    def _emit_runtime(
+        self, action: str, route: str, payload: Any
+    ) -> Dict[str, Any]:
         results: List[Dict[str, Any]] = []
         for host, port in self.runtime_targets:
             entry = {"host": host, "port": port, "ok": True}
@@ -234,7 +247,9 @@ class OperatorState:
     def _record_dispatch(self, event: Dict[str, Any]) -> None:
         self._dispatch_history.append(copy.deepcopy(event))
         if len(self._dispatch_history) > self.dispatch_history_limit:
-            overflow = len(self._dispatch_history) - self.dispatch_history_limit
+            overflow = (
+                len(self._dispatch_history) - self.dispatch_history_limit
+            )
             if overflow > 0:
                 del self._dispatch_history[:overflow]
 
@@ -258,7 +273,9 @@ class OperatorState:
     def export_session(
         self, *, label: str = "", notes: str = ""
     ) -> Dict[str, Any]:
-        safe_label = "".join(ch for ch in label.strip() if ch.isalnum() or ch in "-_")
+        safe_label = "".join(
+            ch for ch in label.strip() if ch.isalnum() or ch in "-_"
+        )
         timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
         filename = (
             f"session_{timestamp}_{safe_label}.json"
@@ -280,7 +297,9 @@ class OperatorState:
                 "mapping": mapping_copy,
                 "dispatch_history": copy.deepcopy(self._dispatch_history),
                 "rehearsal": copy.deepcopy(self._rehearsal),
-                "curves": self._mapping_curves_from_mapping(mapping_section, 81),
+                "curves": self._mapping_curves_from_mapping(
+                    mapping_section, 81
+                ),
                 "telemetry_snapshot": self._load_telemetry_snapshot(),
             }
 
@@ -312,7 +331,9 @@ class OperatorState:
         with self._lock:
             return copy.deepcopy(self._rehearsal)
 
-    def set_rehearsal_preflight(self, report: Dict[str, Any]) -> Dict[str, Any]:
+    def set_rehearsal_preflight(
+        self, report: Dict[str, Any]
+    ) -> Dict[str, Any]:
         with self._lock:
             self._rehearsal["last_preflight"] = copy.deepcopy(report)
             self._rehearsal["updated_at"] = time.time()
@@ -364,15 +385,25 @@ class OperatorState:
                     if not pid_dir.isdigit():
                         continue
                     try:
-                        with open(f"/proc/{pid_dir}/cmdline", "r", encoding="utf-8", errors="replace") as f:
+                        with open(
+                            f"/proc/{pid_dir}/cmdline",
+                            "r",
+                            encoding="utf-8",
+                            errors="replace",
+                        ) as f:
                             cmdline = f.read().replace("\x00", " ").strip()
                         if not cmdline:
-                            with open(f"/proc/{pid_dir}/stat", "r", encoding="utf-8", errors="replace") as f:
+                            with open(
+                                f"/proc/{pid_dir}/stat",
+                                "r",
+                                encoding="utf-8",
+                                errors="replace",
+                            ) as f:
                                 stat = f.read()
-                                start = stat.find('(')
-                                end = stat.rfind(')')
+                                start = stat.find("(")
+                                end = stat.rfind(")")
                                 if start != -1 and end != -1:
-                                    cmdline = "[" + stat[start+1:end] + "]"
+                                    cmdline = "[" + stat[start + 1 : end] + "]"
                         if cmdline:
                             processes.append((int(pid_dir), cmdline))
                     except (OSError, IOError):
@@ -507,9 +538,15 @@ class OperatorState:
             return self.snapshot_unlocked()
 
     def snapshot_unlocked(self) -> Dict[str, Any]:
-        osc_cfg = self._mapping.get("osc", {}) if isinstance(self._mapping, dict) else {}
+        osc_cfg = (
+            self._mapping.get("osc", {})
+            if isinstance(self._mapping, dict)
+            else {}
+        )
         consent_cfg = (
-            self._mapping.get("consent", {}) if isinstance(self._mapping, dict) else {}
+            self._mapping.get("consent", {})
+            if isinstance(self._mapping, dict)
+            else {}
         )
         return {
             "active_recipe": self._active_recipe or "base",
@@ -523,7 +560,9 @@ class OperatorState:
             ],
             "last_dispatch": self._last_dispatch,
             "dispatch_events": len(self._dispatch_history),
-            "last_export": str(self._last_export_path) if self._last_export_path else "",
+            "last_export": (
+                str(self._last_export_path) if self._last_export_path else ""
+            ),
             "rehearsal": {
                 "active": bool(self._rehearsal.get("active", False)),
                 "label": str(self._rehearsal.get("label", "")),

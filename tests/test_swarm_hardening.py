@@ -2,8 +2,17 @@ import math
 
 import pytest
 
-from software.swarm.replay_scenario import Keyframe, Participant, _aggregate, _sample_participant
-from software.swarm.virtual_swarm import VirtualDrone, enforce_min_separation, minimum_pairwise_distance
+from software.swarm.replay_scenario import (
+    Keyframe,
+    Participant,
+    _aggregate,
+    _sample_participant,
+)
+from software.swarm.virtual_swarm import (
+    VirtualDrone,
+    enforce_min_separation,
+    minimum_pairwise_distance,
+)
 
 
 def test_enforce_min_separation_pushes_overlapping_drones_apart():
@@ -29,7 +38,9 @@ def test_replay_sampling_interpolates_between_keyframes():
         pid="p1",
         weight=1.0,
         keyframes=[
-            Keyframe(t=0.0, alt=0.2, lat=-0.6, yaw=-0.2, crowd=0.1, consent=1.0),
+            Keyframe(
+                t=0.0, alt=0.2, lat=-0.6, yaw=-0.2, crowd=0.1, consent=1.0
+            ),
             Keyframe(t=2.0, alt=0.6, lat=0.2, yaw=0.4, crowd=0.7, consent=0.0),
         ],
     )

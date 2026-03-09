@@ -19,25 +19,36 @@ jobs:
 
     - name: Install deps
       run: |
-        python -m pip install --upgrade pip
+        python -m pip install --upgrade pip setuptools wheel
         python -m pip install -r requirements-dev.txt -c constraints/py310-linux.txt
+        python -m pip install -e . --no-build-isolation
 
     - name: Lint
       run: |
-        flake8 software/control-bridge || true
-        black --check software/control-bridge
+        flake8 --max-line-length 110 --extend-ignore E203 \
+          software/control-bridge \
+          software/operator_ui \
+          scripts/check_stack.py \
+          scripts/validate_config.py \
+          tests
+        black --check \
+          software/control-bridge \
+          software/operator_ui \
+          scripts/check_stack.py \
+          scripts/validate_config.py \
+          tests
 
     - name: Run unit tests
       run: |
-        python -m pytest tests/test_check_stack.py -q
+        python -m pytest tests -q
 
     - name: Smoke the control stack (CI-short)
       run: |
-        ./scripts/check_stack.py --max-frames 24 --send-interval 0.01 --cooldown 0.05
+        pd-check-stack --max-frames 24 --send-interval 0.01 --cooldown 0.05
 
     - name: Package zip
       run: |
-        zip -r perceptual-drift-artifacts.zip .
+        git archive --format=zip --output perceptual-drift-artifacts.zip HEAD
     - uses: actions/upload-artifact@v4
       with:
         name: perceptual-drift

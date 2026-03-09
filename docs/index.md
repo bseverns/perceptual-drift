@@ -12,6 +12,7 @@ Use this page as the stable navigation hub for the repo docs.
 ## Operate
 
 - Full rehearsal smoke tests: [`operations/playbook.md`](operations/playbook.md)
+- Test taxonomy + run recipes: [`testing.md`](testing.md)
 - Bridge telemetry interpretation: [`operations/bridge_telemetry.md`](operations/bridge_telemetry.md)
 - Video path + presets: [`video-pipeline.md`](video-pipeline.md)
 - Platform-specific bring-up: [`platform-lab.md`](platform-lab.md)

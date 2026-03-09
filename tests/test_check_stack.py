@@ -1,15 +1,11 @@
 import json
-import sys
 import time
 from pathlib import Path
 
 from pythonosc import udp_client
+import scripts.check_stack as check_stack
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-import scripts.check_stack as check_stack
 
 FIXTURE = Path("config/test-fixtures/gesture_fixture_frames.json")
 MAPPING = Path("config/mapping.yaml")
@@ -24,13 +20,23 @@ def test_fixture_loader_returns_vectors():
     assert 0.0 <= first.crowd <= 1.0
 
 
+def test_bridge_respects_config_default_consent_state():
+    cfg = check_stack.yaml.safe_load(
+        (REPO_ROOT / "config" / "mapping.yaml").read_text()
+    )
+    mapper = check_stack.bridge.Mapper(cfg)
+    assert mapper.state["consent"] == int(cfg["consent"]["default_state"])
+
+
 def test_bridge_emits_msp_frames():
     serial_link = check_stack.MSPSerialLoopback()
     harness = check_stack.BridgeHarness(MAPPING, serial_link, osc_port=0)
     harness.start()
     try:
         assert harness.wait_ready(), "OSC server never announced readiness"
-        client = udp_client.SimpleUDPClient("127.0.0.1", harness.listening_port)
+        client = udp_client.SimpleUDPClient(
+            "127.0.0.1", harness.listening_port
+        )
         client.send_message(harness.addresses["consent"], 1)
         time.sleep(0.01)
         for vec in check_stack.load_fixture_vectors(FIXTURE)[:25]:
@@ -70,7 +76,9 @@ def test_cli_entrypoint_runs_fast():
 
 def test_cli_rejects_missing_fixture(tmp_path, capsys):
     missing_fixture = tmp_path / "nope.json"
-    exit_code = check_stack.main(["--osc-port", "0", "--fixture", str(missing_fixture)])
+    exit_code = check_stack.main(
+        ["--osc-port", "0", "--fixture", str(missing_fixture)]
+    )
     captured = capsys.readouterr()
     assert exit_code == 2
     assert "Fixture file not found" in captured.err
@@ -90,8 +98,12 @@ def test_each_recipe_initializes_bridge():
         )
         harness.start()
         try:
-            assert harness.wait_ready(), f"Harness never ready for {recipe_path.name}"
-            client = udp_client.SimpleUDPClient("127.0.0.1", harness.listening_port)
+            assert (
+                harness.wait_ready()
+            ), f"Harness never ready for {recipe_path.name}"
+            client = udp_client.SimpleUDPClient(
+                "127.0.0.1", harness.listening_port
+            )
             client.send_message(harness.addresses["consent"], 1)
             time.sleep(0.01)
             for vec in fixture_vectors:
@@ -113,7 +125,9 @@ def test_bridge_neutralizes_after_consent_drop():
     harness.start()
     try:
         assert harness.wait_ready(), "OSC server never announced readiness"
-        client = udp_client.SimpleUDPClient("127.0.0.1", harness.listening_port)
+        client = udp_client.SimpleUDPClient(
+            "127.0.0.1", harness.listening_port
+        )
         client.send_message(harness.addresses["consent"], 1)
         time.sleep(0.01)
         for idx, vec in enumerate(fixture_vectors):
@@ -176,4 +190,6 @@ def test_check_stack_logs_audit_events(tmp_path, monkeypatch):
             else:  # pragma: no cover - defensive guard
                 raise AssertionError(f"{target} missing from actions")
 
-    assert_subsequence(actions, ["consent_toggle", "osc_bridge_stream", "osc_bridge_shutdown"])
+    assert_subsequence(
+        actions, ["consent_toggle", "osc_bridge_stream", "osc_bridge_shutdown"]
+    )

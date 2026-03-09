@@ -13,18 +13,19 @@ import json
 import queue
 import random
 import struct
+import sys
 import threading
 import time
+import importlib.util
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Mapping, Tuple
 
-import sys
-
+import yaml
+from pythonosc import dispatcher, udp_client
+from pythonosc.osc_server import ThreadingOSCUDPServer
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
 
 
 def resolve_repo_path(value: str | Path) -> Path:
@@ -33,17 +34,13 @@ def resolve_repo_path(value: str | Path) -> Path:
         return path
     return (REPO_ROOT / path).resolve()
 
-import yaml
-from pythonosc import dispatcher, udp_client
-from pythonosc.osc_server import ThreadingOSCUDPServer
-
-import importlib.util
 
 BRIDGE_PATH = REPO_ROOT / "software" / "control-bridge" / "osc_msp_bridge.py"
 spec = importlib.util.spec_from_file_location("osc_msp_bridge", BRIDGE_PATH)
 if spec is None or spec.loader is None:  # pragma: no cover - sanity guard
     raise RuntimeError(f"Unable to load osc_msp_bridge from {BRIDGE_PATH}")
 bridge = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = bridge
 spec.loader.exec_module(bridge)
 
 
@@ -55,7 +52,9 @@ def _normalize_cfg(cfg: Mapping) -> Mapping:
     """Deep-copy and sanitize a mapping config for the harness."""
 
     cfg_copy = json.loads(json.dumps(cfg or {}))
-    cfg_copy.setdefault("mapping", {}).setdefault("yaw_bias", {}).setdefault("jitter", 0.0)
+    cfg_copy.setdefault("mapping", {}).setdefault("yaw_bias", {}).setdefault(
+        "jitter", 0.0
+    )
     cfg_copy["mapping"]["yaw_bias"]["jitter"] = 0.0
     return cfg_copy
 
@@ -102,7 +101,9 @@ class TeensyLEDMock:
             if head == "C":
                 try:
                     _, r, g, b = line.split()
-                    self.base_rgb = tuple(max(0, min(255, int(v))) for v in (r, g, b))
+                    self.base_rgb = tuple(
+                        max(0, min(255, int(v))) for v in (r, g, b)
+                    )
                 except ValueError:
                     self._outbox.put(b"ERR led parse\n")
             elif head == "I":
@@ -154,7 +155,9 @@ class FixtureFrame:
     crowd: float
 
 
-def load_fixture_vectors(path: Path, threshold: int = 35) -> List[FixtureFrame]:
+def load_fixture_vectors(
+    path: Path, threshold: int = 35
+) -> List[FixtureFrame]:
     """Translate the prerecorded JSON fixture into gesture vectors.
 
     The math mirrors the Processing sketch in
@@ -212,7 +215,9 @@ def load_fixture_vectors(path: Path, threshold: int = 35) -> List[FixtureFrame]:
         lat = bridge.clamp(norm_x, -1.0, 1.0)
         alt = bridge.clamp(-norm_y, -1.0, 1.0)
         yaw = bridge.clamp(lat * 0.2, -1.0, 1.0)
-        crowd = bridge.clamp((motion_count / float(width * height)) * 5.0, 0.0, 1.0)
+        crowd = bridge.clamp(
+            (motion_count / float(width * height)) * 5.0, 0.0, 1.0
+        )
         vectors.append(FixtureFrame(lat=lat, alt=alt, yaw=yaw, crowd=crowd))
         prev = frame
     return vectors
@@ -233,10 +238,14 @@ class BridgeHarness:
         ghost_buffer_seconds: float = 2.0,
     ) -> None:
         if cfg is None:
-            mapping_path = resolve_repo_path(mapping_path or REPO_ROOT / "config" / "mapping.yaml")
+            mapping_path = resolve_repo_path(
+                mapping_path or REPO_ROOT / "config" / "mapping.yaml"
+            )
             cfg = yaml.safe_load(mapping_path.read_text())
         cfg = _normalize_cfg(cfg)
-        bridge.validate_mapping_config(cfg, str(mapping_path) if mapping_path else "mapping")
+        bridge.validate_mapping_config(
+            cfg, str(mapping_path) if mapping_path else "mapping"
+        )
         self.cfg = cfg
         self.mode = bridge.resolve_mode_settings(cfg)
         self.hz = bridge.resolve_bridge_rate(cfg)
@@ -273,7 +282,9 @@ class BridgeHarness:
         def handler(_addr: str, value: float) -> None:
             self.mapper.state[key] = float(bridge.clamp(value, lo, hi))
             if self.ghost_buffer and self.mapper.state["consent"] != 1:
-                self.ghost_buffer.record(time.monotonic(), self._gesture_snapshot())
+                self.ghost_buffer.record(
+                    time.monotonic(), self._gesture_snapshot()
+                )
 
         return handler
 
@@ -284,11 +295,16 @@ class BridgeHarness:
         prev = self.mapper.state["consent"]
         self.mapper.state["consent"] = int(value)
         if self.audit and self.mapper.state["consent"] != prev:
-            status = "armed" if self.mapper.state["consent"] == 1 else "disarmed"
+            status = (
+                "armed" if self.mapper.state["consent"] == 1 else "disarmed"
+            )
             self.audit.write(
                 "consent_toggle",
                 status=status,
-                details={"value": self.mapper.state["consent"], "osc_addr": _addr},
+                details={
+                    "value": self.mapper.state["consent"],
+                    "osc_addr": _addr,
+                },
             )
             if self.mapper.state["consent"] != 1:
                 if self._streaming_live:
@@ -299,10 +315,20 @@ class BridgeHarness:
                     )
                 self._streaming_live = False
         if self.mapper.state["consent"] != 1 and prev == 1:
-            self.mapper.state.update({"alt": 0.0, "lat": 0.0, "yaw": 0.0, "crowd": 0.0})
-        if self.ghost_buffer and self.mapper.state["consent"] != 1 and prev == 1:
+            self.mapper.state.update(
+                {"alt": 0.0, "lat": 0.0, "yaw": 0.0, "crowd": 0.0}
+            )
+        if (
+            self.ghost_buffer
+            and self.mapper.state["consent"] != 1
+            and prev == 1
+        ):
             self.ghost_buffer.reset()
-        if self.ghost_buffer and self.mapper.state["consent"] == 1 and prev != 1:
+        if (
+            self.ghost_buffer
+            and self.mapper.state["consent"] == 1
+            and prev != 1
+        ):
             self.ghost_buffer.arm_replay(time.monotonic())
             if self.audit and self.ghost_buffer.replaying:
                 self.audit.write(
@@ -313,12 +339,16 @@ class BridgeHarness:
 
     def start(self) -> None:
         self._stop.clear()
-        self._server = ThreadingOSCUDPServer(("127.0.0.1", self.osc_port), self._dispatcher)
+        self._server = ThreadingOSCUDPServer(
+            ("127.0.0.1", self.osc_port), self._dispatcher
+        )
         self._server.daemon_threads = True
         # Bind to an ephemeral port when osc_port == 0 so tests/CI don't clash
         # with a real bridge session.
         self.osc_port = self._server.server_address[1]
-        self._osc_thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._osc_thread = threading.Thread(
+            target=self._server.serve_forever, daemon=True
+        )
         self._osc_thread.start()
         if self.audit:
             self.audit.write(
@@ -372,7 +402,10 @@ class BridgeHarness:
                             "osc_bridge_stream",
                             status="armed",
                             message="Harness MSP stream resumed.",
-                            details={"mode": self.mapper.mode.name, "hz": self.hz},
+                            details={
+                                "mode": self.mapper.mode.name,
+                                "hz": self.hz,
+                            },
                         )
                     self._streaming_live = True
                 else:
@@ -387,13 +420,18 @@ class BridgeHarness:
                         neutral_aux[2],
                         neutral_aux[3],
                     )
-                    self.serial.write(bridge.msp_packet(MSP_SET_RAW_RC, chill_payload))
+                    self.serial.write(
+                        bridge.msp_packet(MSP_SET_RAW_RC, chill_payload)
+                    )
                     if self.audit and self._streaming_live:
                         self.audit.write(
                             "osc_bridge_stream",
                             status="neutralized",
                             message="Harness forced neutral MSP frame.",
-                            details={"mode": self.mapper.mode.name, "hz": self.hz},
+                            details={
+                                "mode": self.mapper.mode.name,
+                                "hz": self.hz,
+                            },
                         )
                     self._streaming_live = False
                 self._last = now
@@ -449,13 +487,19 @@ def decode_msp_frame(frame: bytes) -> Tuple[Tuple[int, ...], Tuple[int, ...]]:
 def assert_msp_activity(serial_link: MSPSerialLoopback) -> None:
     frames = serial_link.packets()
     if not frames:
-        raise AssertionError("Bridge never emitted MSP frames — check OSC input")
+        raise AssertionError(
+            "Bridge never emitted MSP frames — check OSC input"
+        )
     decoded = [decode_msp_frame(pkt) for pkt in frames]
     rc_first, aux_first = decoded[-1]
     if not (1100 <= rc_first[0] <= 1900):
-        raise AssertionError(f"Roll channel outside expected range: {rc_first[0]}")
+        raise AssertionError(
+            f"Roll channel outside expected range: {rc_first[0]}"
+        )
     if not (1100 <= aux_first[0] <= 1900):
-        raise AssertionError(f"AUX1 channel outside expected range: {aux_first[0]}")
+        raise AssertionError(
+            f"AUX1 channel outside expected range: {aux_first[0]}"
+        )
 
 
 def run_led_mock_check() -> None:
@@ -479,10 +523,14 @@ def run_dsp_mock_check() -> None:
 
 
 def main(argv: Iterable[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Spin up a control stack loopback smoke test.")
+    parser = argparse.ArgumentParser(
+        description="Spin up a control stack loopback smoke test."
+    )
 
     default_mapping = resolve_repo_path(REPO_ROOT / "config" / "mapping.yaml")
-    default_fixture = resolve_repo_path(REPO_ROOT / "config" / "test-fixtures" / "gesture_fixture_frames.json")
+    default_fixture = resolve_repo_path(
+        REPO_ROOT / "config" / "test-fixtures" / "gesture_fixture_frames.json"
+    )
 
     parser.add_argument(
         "--mapping",
@@ -502,7 +550,12 @@ def main(argv: Iterable[str] | None = None) -> int:
             " repo root and the default sticks to REPO_ROOT/config/test-fixtures/gesture_fixture_frames.json."
         ),
     )
-    parser.add_argument("--osc-port", type=int, default=9100, help="OSC port for the harness (0 = auto)")
+    parser.add_argument(
+        "--osc-port",
+        type=int,
+        default=9100,
+        help="OSC port for the harness (0 = auto)",
+    )
     parser.add_argument(
         "--max-frames",
         type=int,
@@ -565,7 +618,10 @@ def main(argv: Iterable[str] | None = None) -> int:
         print(f"[check_stack] {exc}", file=sys.stderr)
         return 2
     except (json.JSONDecodeError, ValueError, KeyError) as exc:
-        print(f"[check_stack] Failed to parse fixture {fixture_path}: {exc}", file=sys.stderr)
+        print(
+            f"[check_stack] Failed to parse fixture {fixture_path}: {exc}",
+            file=sys.stderr,
+        )
         return 2
 
     if args.max_frames:
@@ -596,7 +652,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     else:
         client.send_message(harness.addresses["consent"], 1)
         time.sleep(max(0.0, min(args.send_interval, 0.05)))
-    neutralize_after = args.neutralize_after if args.neutralize_after > 0 else None
+    neutralize_after = (
+        args.neutralize_after if args.neutralize_after > 0 else None
+    )
 
     for idx, vec in enumerate(fixture_vectors):
         client.send_message(harness.addresses["lateral"], vec.lat)
@@ -616,7 +674,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     neutral_pause = max(0.0, args.cooldown)
     if args.ghost_mode:
         client.send_message(harness.addresses["consent"], 1)
-        replay_window = max(neutral_pause, len(fixture_vectors) * args.send_interval)
+        replay_window = max(
+            neutral_pause, len(fixture_vectors) * args.send_interval
+        )
         neutral_pause = max(replay_window, args.ghost_buffer_seconds)
     elif neutralize_after:
         neutral_pause = max(neutral_pause, (1.0 / harness.hz) * 2)
@@ -637,7 +697,9 @@ def main(argv: Iterable[str] | None = None) -> int:
                     "Consent neutralization failed; last MSP frame was not neutral"
                 )
         except IndexError:  # pragma: no cover - defensive guard
-            raise AssertionError("No MSP frames emitted before neutralization check")
+            raise AssertionError(
+                "No MSP frames emitted before neutralization check"
+            )
 
     assert_msp_activity(serial_link)
     run_led_mock_check()
