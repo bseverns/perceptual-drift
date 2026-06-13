@@ -60,11 +60,12 @@ def validate(
     midi_path = midi_path.resolve()
     if verbose:
         print(f"[validate] mapping → {mapping_path}")
-    cv.validate_file(mapping_path, source_label="mapping")
+    cv.validate_file(mapping_path, source_label=str(mapping_path))
     if verbose:
         print(f"[validate] midi    → {midi_path}")
-    cv.validate_midi_file(midi_path, source_label="midi")
+    cv.validate_midi_file(midi_path, source_label=str(midi_path))
     failures: List[Path] = []
+    recipe_errors: List[str] = []
     for recipe in _iter_recipe_paths(recipe_dir):
         if verbose:
             print(f"[validate] recipe  → {recipe}")
@@ -72,11 +73,9 @@ def validate(
             cv.validate_recipe(recipe, load_recipe)
         except cv.ValidationError as exc:  # noqa: BLE001
             failures.append(recipe)
-            print(f"[validate] ✖ {recipe.name}: {exc}")
+            recipe_errors.extend(exc.errors)
     if failures:
-        raise cv.ValidationError(
-            [f"{len(failures)} recipe(s) failed validation"]
-        )
+        raise cv.ValidationError(recipe_errors)
     if verbose:
         print("[validate] all clear.")
     return failures

@@ -142,6 +142,18 @@ Validate mapping and recipe alignment with:
 python3 scripts/validate_config.py
 ```
 
+## Validation Troubleshooting
+
+| Validator message mentions | What it usually means | Example fix |
+| --- | --- | --- |
+| `osc.address_space.consent` is missing | The consent OSC route was deleted or misspelled. | Add `consent: "/pd/consent"` under `osc.address_space`. |
+| `mapping.<axis>.deadzone` is above the allowed maximum | The deadzone is so large that the axis would effectively stop responding. | Set `mapping.altitude.deadzone: 0.05` or another value below `1`. |
+| `mapping.<axis>.curve` is not recognized | The curve name is not one of the supported shaping modes. | Use `curve: "linear"` or `curve: "expo"`. |
+| `consent.default_state` is outside the supported range | Startup consent is not a valid OFF/ON-like value. | Set `consent.default_state: 0` for the safe default. |
+| `bridge.modes.<name>.aux_strategy` is not recognized | A bridge mode is referencing an unsupported AUX routing strategy. | Use `aux_strategy: full` or `aux_strategy: crowd_only`. |
+| `recipe could not be loaded` | The recipe file points at a missing `extends` file or has no valid `control_bridge` block. | Point `control_bridge.extends` at a real file, for example `../mapping.yaml`. |
+| `file could not be parsed as YAML/JSON` | The file has a syntax problem such as indentation, a missing colon, or broken brackets. | Recheck spacing and separators; for example `mapping:` on one line and `altitude:` indented below it. |
+
 Use starter preflight for contributor onboarding:
 
 ```bash
