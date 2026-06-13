@@ -1,8 +1,11 @@
 # Starter Bundle (v0)
 
-This is the low-friction launch path for new contributors.
+`pd-safe-rehearsal` is now the canonical no-hardware first run for new
+contributors. This page leads with that safe path, then documents
+`starter_doctor.sh` and `starter_up.sh` as the lower-level manual tools
+underneath it.
 
-It packages the three core lanes:
+The manual starter bundle still packages the three core lanes:
 - tracker (minimal Python tracker, no Processing required)
 - bridge (`osc_msp_bridge.py`)
 - video (optional GStreamer preview)
@@ -13,7 +16,41 @@ It packages the three core lanes:
 - Gives one place to verify OSC routes, consent gating, and bridge health.
 - Supports synthetic mode when no camera hardware is available.
 
-## Quick start
+## Canonical no-hardware first run
+
+1. Install starter dependencies:
+
+```bash
+python3 -m pip install -r requirements-starter.txt
+python3 -m pip install -e . --no-build-isolation
+```
+
+2. Start the safe rehearsal bundle:
+
+```bash
+pd-safe-rehearsal
+```
+
+This starts:
+- operator UI
+- bridge in dry-run mode
+- minimal tracker in synthetic mode
+- consent in the documented safe default: OFF
+
+Status and stop commands:
+
+```bash
+pd-status
+pd-safe-rehearsal stop
+```
+
+Use this path when you want one obvious command for a laptop-only rehearsal.
+It is the recommended first run for docs, onboarding, and CI parity.
+
+## Manual starter path
+
+Use the manual path when you need to drive the lower-level launcher directly,
+debug startup flags, or bypass the operator UI.
 
 1. Install starter dependencies:
 
@@ -27,18 +64,22 @@ python3 -m pip install -r requirements-starter.txt
 ./scripts/starter_doctor.sh
 ```
 
-3. Launch starter bundle:
+3. Launch starter bundle directly:
 
 ```bash
 ./scripts/starter_up.sh
 ```
 
-This starts:
+This manual path starts:
 - bridge in `--dry-run` mode (if `--serial` is left as `FAKE`)
 - minimal tracker in `synthetic` mode
 - video preview if `gst-launch-1.0` and `/dev/video0` are available
 
-## Common options
+Consent remains a required invariant here too: for no-hardware rehearsal,
+keep consent OFF until an operator intentionally changes it through the UI or
+an explicit control path.
+
+## Manual path options
 
 ```bash
 # Use real camera-driven tracker math
@@ -61,6 +102,10 @@ Runtime logs are written to:
 - `tracker.log`
 - `video.log` (if video launched)
 
+Safe rehearsal metadata, UI logs, and PID files live separately under:
+
+`runtime/rehearsal/`
+
 ## Out of scope for v0
 
 - Processing-based tracker setup
@@ -68,4 +113,3 @@ Runtime logs are written to:
 - Teensy firmware flashing/programming
 
 Those stay in the full playbooks and quickstarts.
-

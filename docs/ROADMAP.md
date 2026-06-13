@@ -9,7 +9,7 @@ criteria.
 | Milestone | Window | Status | Primary outcome |
 | --- | --- | --- | --- |
 | M0: Baseline + scope lock | Week 1 | completed | Architecture baseline, dependency matrix, starter scope |
-| M1: Starter bundle | Weeks 2-3 | in progress | One-command local launch for tracker + bridge (+ optional video) |
+| M1: Safe rehearsal path + starter bundle | Weeks 2-3 | in progress | Canonical no-hardware safe path plus lower-level manual launcher |
 | M2: Environment reproducibility | Weeks 4-6 | in progress | Pinned dependency flow for desktop and Jetson |
 | M3: Docs consolidation | Weeks 7-8 | completed | Canonical mapping contract and reduced doc duplication |
 | M4: Swarm hardening | Weeks 9-10 | completed | Latency and collision safety checks with replayable tests |
@@ -33,20 +33,39 @@ criteria.
   - ROS2/CrazySwarm2
   - Teensy firmware flashing flows
 
-## M1 Deliverables (starter bundle)
+## M1 Deliverables (safe rehearsal path + starter bundle)
 
 - [x] Add `scripts/starter_doctor.sh` preflight checks.
 - [x] Add `scripts/starter_up.sh` orchestration launcher.
 - [x] Add minimal tracker with `synthetic` and `camera` modes.
-- [ ] Validate first-run on one desktop and one Jetson image.
+- [x] Add `pd-safe-rehearsal` as the canonical no-hardware first command.
+- [x] Add `pd-status` for local observability of the rehearsal bundle.
+- [x] Document consent OFF as the default safe-path invariant.
+- [ ] Validate software-first run path on one desktop and one Jetson image.
+- [ ] Validate field rehearsal with operators on physical rig.
 - [ ] Document first-run path to <= 30 minutes in rehearsal notes.
 
 ### M1 exit criteria
 
+Software safe-path readiness:
+
 - Fresh clone can run:
-  - `./scripts/starter_doctor.sh`
-  - `./scripts/starter_up.sh`
+  - `pd-safe-rehearsal`
+  - `pd-status`
+  - `pd-safe-rehearsal stop`
+- Consent stays OFF by default on no-hardware startup.
 - Startup failures are actionable (clear error messages, no silent hangs).
+
+Lower-level manual path remains available:
+
+- `./scripts/starter_doctor.sh`
+- `./scripts/starter_up.sh`
+
+Field validation remains separate from code proof:
+
+- One desktop and one Jetson image complete the no-hardware flow.
+- Physical rehearsal still requires rig-specific verification, spotter signoff,
+  and hardware-specific safety checks.
 
 ## M2 Deliverables (reproducible dependencies)
 

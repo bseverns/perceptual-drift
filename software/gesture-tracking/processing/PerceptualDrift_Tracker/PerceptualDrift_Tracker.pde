@@ -59,6 +59,7 @@ int lastConsentChangeFrame = 0;
 boolean consentEnabled = true; // flip false if running in a legacy setup without consent signals
 PImage prev;
 boolean calibrationMode = false; // toggled with 'c'; freezes OSC and HUD numbers while you tune
+boolean havePrevFrame = false;
 
 float consentX, consentY, consentW, consentH;
 int consentFramesRemaining = 0;
@@ -70,33 +71,84 @@ int lastBroadcastConsentCount = -1;
 
 void setup(){
   size(960,540);
+  pixelDensity(1);
   updateConsentZoneDimensions();
   String[] cams = Capture.list();
-  // Pick the first camera unless you override in code.  Replace with an index
-  // or name from ``cams`` if you have multiple USB cameras attached.
-  cam = new Capture(this, cams.length>0? cams[0]: 0);
+  println("Processing video camera scan:");
+  for (int i = 0; i < cams.length; i++){
+    println("  [" + i + "] " + cams[i]);
+  }
+  if (cams.length == 0){
+    println("No cameras found. Connect a camera or use the synthetic tracker path.");
+    println("On macOS, also check System Settings -> Privacy & Security -> Camera and allow Processing.");
+    exit();
+    return;
+  }
+  String selectedCamera = pickPreferredCamera(cams);
+  println("Using camera: " + selectedCamera);
+  cam = new Capture(this, selectedCamera);
   cam.start();
   osc = new OscP5(this, 0);
   dst = new NetAddress("127.0.0.1", 9000);
   prev = createImage(width, height, RGB);
 }
 
+String pickPreferredCamera(String[] cams){
+  int bestIndex = 0;
+  int bestScore = -9999;
+  for (int i = 0; i < cams.length; i++){
+    String entry = cams[i].toLowerCase();
+    int score = 0;
+    if (entry.indexOf("facetime") != -1) score += 100;
+    if (entry.indexOf("built") != -1) score += 80;
+    if (entry.indexOf("default") != -1) score += 60;
+    if (entry.indexOf("640x480") != -1) score += 20;
+    if (entry.indexOf("1280x720") != -1) score += 15;
+    if (entry.indexOf("fps=30") != -1) score += 5;
+    if (entry.indexOf("320x240") != -1) score -= 10;
+    if (score > bestScore){
+      bestScore = score;
+      bestIndex = i;
+    }
+  }
+  return cams[bestIndex];
+}
+
 void draw(){
   background(0);
+  if (cam == null){
+    drawStartupMessage("Camera not initialized.");
+    return;
+  }
   if (cam.available()) cam.read();
+  if (cam.width <= 0 || cam.height <= 0){
+    drawStartupMessage("Waiting for camera stream...");
+    return;
+  }
   PImage working = cam.get();
+  if (working == null){
+    drawStartupMessage("Waiting for first camera frame...");
+    return;
+  }
   if (blurRadius > 0){
     // Soften sensor noise when tuning threshold; this is intentionally optional.
     working.filter(BLUR, blurRadius);
   }
   image(cam, 0,0, width, height);
+  if (!havePrevFrame){
+    prev.copy(working, 0,0, working.width, working.height, 0,0, width, height);
+    havePrevFrame = true;
+    drawStartupMessage("Camera online. Priming motion baseline...");
+    return;
+  }
 
   // optical flow proxy: frame diff magnitude.  We compare the current frame to
   // the previous frame and count pixels above ``threshold`` as "motion".
   PImage diff = createImage(width, height, RGB);
   working.loadPixels(); prev.loadPixels(); diff.loadPixels();
+  int pixelCount = min(working.pixels.length, min(prev.pixels.length, diff.pixels.length));
   int motionCount=0;
-  for (int i=0; i<pixels.length; i++){
+  for (int i=0; i<pixelCount; i++){
     color c1 = working.pixels[i];
     color c0 = prev.pixels[i];
     float d = abs(brightness(c1) - brightness(c0));
@@ -138,7 +190,7 @@ void draw(){
   liveLat = constrain(normX, -1, 1);
   liveAlt = constrain(-normY, -1, 1);
   liveYaw = constrain(liveLat*0.2, -1, 1);
-  liveCrowd = constrain(motionCount / float(pixels.length) * 5.0, 0, 1);
+  liveCrowd = constrain(motionCount / float(pixelCount) * 5.0, 0, 1);
 
   if (!calibrationMode){
     lat = liveLat;
@@ -187,6 +239,16 @@ void draw(){
   drawConsentRestingOverlay();
 
   prev.copy(working, 0,0, working.width, working.height, 0,0, width, height);
+}
+
+void drawStartupMessage(String msg){
+  noStroke();
+  fill(0, 0, 0, 180);
+  rect(0, 0, width, height);
+  fill(255);
+  textAlign(CENTER, CENTER);
+  textSize(20);
+  text(msg, width / 2.0, height / 2.0);
 }
 
 // consent toggle — space bar flips on/off.  Consider mapping this to a foot

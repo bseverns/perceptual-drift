@@ -11,6 +11,7 @@ needs, and how to run it in local/CI-like environments.
 | Config/schema validation | `tests/test_validate_config.py` | Mapping + recipe validation failure/success behavior | Filesystem only |
 | Operator state logic | `tests/test_operator_ui_state.py` | Recipe/consent state transitions, dispatch history, exports, health snapshot logic | Filesystem + mocked dependencies |
 | Supervisor lifecycle | `tests/test_operator_ui_supervisor.py` | Runtime start/stop/status orchestration and option parsing | Local subprocess execution |
+| Safe rehearsal/status CLI | `tests/test_safe_rehearsal.py` | `pd-safe-rehearsal` start/stop/status behavior, consent-OFF startup contract, `pd-status` missing/stale/healthy runtime reporting | Filesystem + mocked process/API state |
 | Bridge integration harness | `tests/test_check_stack.py` | OSC fixture replay, bridge mapper behavior, MSP framing, consent neutralization paths | UDP socket bind allowed |
 | Operator API auth/integration | `tests/test_operator_ui_server.py` | HTTP auth gate behavior (`/api/health` public, others token-protected) | TCP socket bind allowed |
 
@@ -35,6 +36,7 @@ Targeted runs:
 ```bash
 python3 -m pytest tests/test_validate_config.py -q
 python3 -m pytest tests/test_operator_ui_state.py -q
+python3 -m pytest tests/test_safe_rehearsal.py -q
 python3 -m pytest tests/test_check_stack.py -q
 python3 -m pytest tests/test_operator_ui_server.py -q
 ```
@@ -56,6 +58,8 @@ black --check \
   tests
 python3 -m pytest tests -q
 pd-check-stack --max-frames 24 --send-interval 0.01 --cooldown 0.05
+pd-status
+pd-safe-rehearsal status
 ```
 
 ## Socket-binding caveat

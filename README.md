@@ -14,8 +14,8 @@ Perceptual Drift is a participatory drone‑based installation where **audience 
 Want the full syllabus with reasons to care for every doc? The [touring guide lives in `docs/quickstart.md`](docs/quickstart.md#how-to-tour-this-notebook-aka-your-flight-school-syllabus) and calls out where each playbook and diagram fits in the rehearsal arc.
 Need a concise nav map first? Open [`docs/index.md`](docs/index.md) for the "start / operate / extend / swarm" path.
 
-Need a low-friction first run? Start with the [Starter Bundle guide](docs/starter-bundle.md) for a one-command tracker + bridge loop (optional video preview, no Processing required).
-Need the safest no-hardware rehearsal path? Run `pd-safe-rehearsal` after installing the package. It starts the operator UI plus the synthetic tracker + dry-run bridge stack, leaves consent OFF, prints the local UI URL/token, writes pid/log files under `runtime/`, and stops with `pd-safe-rehearsal stop`. Need a quick local status readout for that bundle? Run `pd-status`.
+Need the safest no-hardware first run? Start with `pd-safe-rehearsal` after installing the package. It starts the operator UI plus the synthetic tracker + dry-run bridge stack, leaves consent OFF, prints the local UI URL/token, writes pid/log files under `runtime/`, and stops with `pd-safe-rehearsal stop`. Need a quick local status readout for that bundle? Run `pd-status`.
+Need the lower-level launcher underneath that safe path? Use the [Starter Bundle guide](docs/starter-bundle.md) for the manual `starter_doctor.sh` + `starter_up.sh` flow.
 
 ---
 

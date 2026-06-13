@@ -46,6 +46,11 @@ jobs:
       run: |
         pd-check-stack --max-frames 24 --send-interval 0.01 --cooldown 0.05
 
+    - name: Smoke safe rehearsal status entrypoints
+      run: |
+        pd-status
+        pd-safe-rehearsal status
+
     - name: Package zip
       run: |
         git archive --format=zip --output perceptual-drift-artifacts.zip HEAD
