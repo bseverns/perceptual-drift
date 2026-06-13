@@ -542,6 +542,15 @@ def main() -> int:
     except KeyboardInterrupt:
         pass
     finally:
+        try:
+            if supervisor.status().get("running"):
+                supervisor.stop()
+        except Exception as exc:
+            print(
+                "[operator-ui] WARNING: failed to stop starter runtime: "
+                f"{exc}",
+                file=sys.stderr,
+            )
         server.server_close()
     return 0
 

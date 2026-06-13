@@ -7,6 +7,7 @@ Use this page as the stable navigation hub for the repo docs.
 - New contributor path: [`quickstart.md`](quickstart.md)
 - Structured onboarding drills: [`onboarding/README.md`](onboarding/README.md)
 - Lowest-friction runtime loop: [`starter-bundle.md`](starter-bundle.md)
+- Safe no-hardware rehearsal command: `pd-safe-rehearsal` (synthetic tracker + dry-run bridge + operator UI; stop with `pd-safe-rehearsal stop`)
 - Safety baseline: [`checklists/safety_checklist.md`](checklists/safety_checklist.md)
 
 ## Operate
