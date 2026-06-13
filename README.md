@@ -15,7 +15,7 @@ Want the full syllabus with reasons to care for every doc? The [touring guide li
 Need a concise nav map first? Open [`docs/index.md`](docs/index.md) for the "start / operate / extend / swarm" path.
 
 Need a low-friction first run? Start with the [Starter Bundle guide](docs/starter-bundle.md) for a one-command tracker + bridge loop (optional video preview, no Processing required).
-Need the safest no-hardware rehearsal path? Run `pd-safe-rehearsal` after installing the package. It starts the operator UI plus the synthetic tracker + dry-run bridge stack, leaves consent OFF, prints the local UI URL/token, writes pid/log files under `runtime/`, and stops with `pd-safe-rehearsal stop`.
+Need the safest no-hardware rehearsal path? Run `pd-safe-rehearsal` after installing the package. It starts the operator UI plus the synthetic tracker + dry-run bridge stack, leaves consent OFF, prints the local UI URL/token, writes pid/log files under `runtime/`, and stops with `pd-safe-rehearsal stop`. Need a quick local status readout for that bundle? Run `pd-status`.
 
 ---
 
@@ -104,6 +104,7 @@ Installed entrypoints:
 - `pd-validate-config` → mapping + recipe validator
 - `pd-operator-ui` → operator UI server
 - `pd-safe-rehearsal` → safe no-hardware rehearsal launcher
+- `pd-status` → local safe rehearsal/operator status summary
 
 Example:
 
@@ -112,6 +113,7 @@ pd-validate-config --quiet
 pd-check-stack --max-frames 24 --send-interval 0.01 --cooldown 0.05
 OPERATOR_API_TOKEN=dev-token pd-operator-ui --host 127.0.0.1 --port 8088
 pd-safe-rehearsal
+pd-status
 ```
 
 You can still run module forms if preferred:

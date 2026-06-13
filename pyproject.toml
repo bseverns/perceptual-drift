@@ -28,6 +28,7 @@ dev = [
 pd-check-stack = "scripts.check_stack:main"
 pd-operator-ui = "software.operator_ui.server:main"
 pd-safe-rehearsal = "software.operator_ui.rehearsal:main"
+pd-status = "software.operator_ui.rehearsal:status_main"
 pd-validate-config = "scripts.validate_config:main"
 
 [tool.setuptools]

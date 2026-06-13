@@ -17,6 +17,7 @@ from urllib import error, request
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNTIME_DIR = REPO_ROOT / "runtime" / "rehearsal"
+DEFAULT_STARTER_RUNTIME_DIR = REPO_ROOT / "runtime" / "starter_bundle"
 DEFAULT_START_OPTIONS: Dict[str, Any] = {
     "tracker_mode": "synthetic",
     "video": "off",
@@ -25,17 +26,22 @@ DEFAULT_START_OPTIONS: Dict[str, Any] = {
 }
 
 
-def parse_args() -> argparse.Namespace:
+def _build_parser(*, status_only: bool = False) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Start or control a safe no-hardware rehearsal."
+        description=(
+            "Show local safe rehearsal status."
+            if status_only
+            else "Start or control a safe no-hardware rehearsal."
+        )
     )
-    parser.add_argument(
-        "command",
-        nargs="?",
-        choices=("start", "status", "stop"),
-        default="start",
-        help="Lifecycle command (default: start).",
-    )
+    if not status_only:
+        parser.add_argument(
+            "command",
+            nargs="?",
+            choices=("start", "status", "stop"),
+            default="start",
+            help="Lifecycle command (default: start).",
+        )
     parser.add_argument(
         "--host", default="127.0.0.1", help="Operator UI bind host."
     )
@@ -58,7 +64,17 @@ def parse_args() -> argparse.Namespace:
         default=10.0,
         help="Seconds to wait for the operator UI to accept requests.",
     )
-    return parser.parse_args()
+    return parser
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    return _build_parser().parse_args(argv)
+
+
+def parse_status_args(argv: list[str] | None = None) -> argparse.Namespace:
+    args = _build_parser(status_only=True).parse_args(argv)
+    args.command = "status"
+    return args
 
 
 def _runtime_paths(runtime_dir: Path) -> Dict[str, Path]:
@@ -185,6 +201,133 @@ def _write_metadata(path: Path, payload: Dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n")
 
 
+def _pid_file_status(path: Path) -> Dict[str, Any]:
+    if not path.exists():
+        return {
+            "pid": 0,
+            "running": False,
+            "state": "missing",
+            "detail": "pid file missing",
+            "pid_file": str(path),
+        }
+    try:
+        pid = int(path.read_text().strip())
+    except (OSError, ValueError):
+        return {
+            "pid": 0,
+            "running": False,
+            "state": "invalid",
+            "detail": "invalid pid file",
+            "pid_file": str(path),
+        }
+    if _pid_running(pid):
+        return {
+            "pid": pid,
+            "running": True,
+            "state": "running",
+            "detail": f"running (pid {pid})",
+            "pid_file": str(path),
+        }
+    return {
+        "pid": pid,
+        "running": False,
+        "state": "stale",
+        "detail": f"stale pid file (pid {pid})",
+        "pid_file": str(path),
+    }
+
+
+def _starter_service_statuses(runtime_dir: Path) -> list[Dict[str, Any]]:
+    services = []
+    for sid, name in (
+        ("bridge", "Bridge"),
+        ("tracker", "Tracker"),
+        ("video", "Video"),
+    ):
+        pid_path = runtime_dir / f"{sid}.pid"
+        info = _pid_file_status(pid_path)
+        services.append(
+            {
+                "id": sid,
+                "name": name,
+                "healthy": bool(info["running"]),
+                "pid": int(info["pid"]),
+                "source": "pid_file" if info["state"] == "running" else "none",
+                "detail": str(info["detail"]),
+                "pid_file": str(pid_path),
+                "match": "",
+                "state": str(info["state"]),
+            }
+        )
+    return services
+
+
+def _parse_supervisor_args(argv: list[str]) -> Dict[str, Any]:
+    parsed: Dict[str, Any] = dict(DEFAULT_START_OPTIONS)
+    parsed["osc_port"] = 9000
+    parsed["hz"] = 30
+    parsed["recipe"] = "base"
+    idx = 0
+    while idx < len(argv):
+        key = argv[idx]
+        if key in {
+            "--tracker-mode",
+            "--video",
+            "--serial",
+            "--tracker-host",
+            "--osc-port",
+            "--hz",
+            "--video-device",
+            "--video-preset",
+            "--recipe",
+        } and idx + 1 < len(argv):
+            raw = argv[idx + 1]
+            idx += 2
+            if key == "--tracker-mode":
+                parsed["tracker_mode"] = raw
+            elif key == "--video":
+                parsed["video"] = raw
+            elif key == "--serial":
+                parsed["serial"] = raw
+            elif key == "--tracker-host":
+                parsed["tracker_host"] = raw
+            elif key == "--osc-port":
+                parsed["osc_port"] = int(raw)
+            elif key == "--hz":
+                parsed["hz"] = int(raw)
+            elif key == "--video-device":
+                parsed["video_device"] = raw
+            elif key == "--video-preset":
+                parsed["video_preset"] = raw
+            elif key == "--recipe":
+                parsed["recipe"] = raw
+            continue
+        idx += 1
+
+    recipe = str(parsed.get("recipe", "base")).strip()
+    parsed["recipe_name"] = (
+        Path(recipe).stem if recipe not in {"", "base"} else "base"
+    )
+    parsed["mode"] = (
+        "dry-run" if parsed.get("serial") == "FAKE" else "hardware"
+    )
+    return parsed
+
+
+def _consent_label(value: Any) -> str:
+    if value is None:
+        return "unknown"
+    return "ON" if float(value) >= 0.5 else "OFF"
+
+
+def _service_line(service: Dict[str, Any]) -> str:
+    return (
+        f"{service['id']}: running (pid {service['pid']})"
+        if service.get("healthy")
+        else f"{service['id']}: {service['detail']}"
+    )
+
+
 def _stop_runtime_fallback() -> None:
     runtime_dir = REPO_ROOT / "runtime" / "starter_bundle"
     for name in ("bridge.pid", "tracker.pid", "video.pid"):
@@ -218,34 +361,60 @@ def _collect_status(args: argparse.Namespace) -> Dict[str, Any]:
     port = int(meta.get("port", args.port))
     base_url = _base_url(host, port)
     token = _read_token(paths, args.api_token)
-    pid = _read_pid(paths["pid"])
-    running = _pid_running(pid)
+    ui_pid = _pid_file_status(paths["pid"])
+    starter_runtime_dir = Path(
+        meta.get("starter_runtime_dir", DEFAULT_STARTER_RUNTIME_DIR)
+    ).resolve()
+    starter_services = _starter_service_statuses(starter_runtime_dir)
+    starter_running = any(service["healthy"] for service in starter_services)
     status: Dict[str, Any] = {
-        "operator_ui_running": running,
-        "operator_ui_pid": pid if running else 0,
+        "operator_ui_running": bool(ui_pid["running"]),
+        "operator_ui_pid": int(ui_pid["pid"]) if ui_pid["running"] else 0,
+        "operator_ui_pid_state": ui_pid["state"],
+        "operator_ui_detail": ui_pid["detail"],
         "base_url": base_url,
         "token_path": str(paths["token"]),
         "operator_ui_log": str(paths["log"]),
         "starter_log": str(paths["starter_log"]),
         "runtime_dir": str(runtime_dir),
-        "runtime_running": False,
+        "starter_runtime_dir": str(starter_runtime_dir),
+        "runtime_running": starter_running,
         "runtime_pid": 0,
         "consent_state": None,
+        "active_recipe": "base",
+        "runtime_targets": [],
+        "osc_port": 9000,
+        "mode": "dry-run",
+        "supervisor_args": [],
+        "services": starter_services,
+        "stop_command": "pd-safe-rehearsal stop",
     }
-    if not running:
+    if not ui_pid["running"]:
         return status
     try:
         supervisor = _api_request(
             base_url, "/api/runtime/supervisor", token=token
         )
         state = _api_request(base_url, "/api/state", token=token)
+        runtime = _api_request(base_url, "/api/runtime/health", token=token)
     except Exception:
         return status
     sup = supervisor.get("supervisor", {})
     runtime_state = state.get("state", {})
+    runtime_health = runtime.get("runtime", {})
+    start_options = _parse_supervisor_args(list(sup.get("args", [])))
     status["runtime_running"] = bool(sup.get("running", False))
     status["runtime_pid"] = int(sup.get("pid", 0) or 0)
     status["consent_state"] = runtime_state.get("consent_state")
+    status["active_recipe"] = str(
+        runtime_state.get("active_recipe", start_options["recipe_name"])
+    )
+    status["runtime_targets"] = list(runtime_state.get("runtime_targets", []))
+    status["osc_port"] = int(runtime_state.get("osc_port", 9000))
+    status["mode"] = str(start_options.get("mode", "dry-run"))
+    status["supervisor_args"] = list(sup.get("args", []))
+    status["services"] = list(runtime_health.get("services", starter_services))
+    status["starter_log"] = str(sup.get("log_path", status["starter_log"]))
     return status
 
 
@@ -359,22 +528,33 @@ def _start(args: argparse.Namespace) -> int:
 def _status(args: argparse.Namespace) -> int:
     status = _collect_status(args)
     ui_state = (
-        f"running (pid {status['operator_ui_pid']})"
+        f"running (pid {status['operator_ui_pid']}) at {status['base_url']}"
         if status["operator_ui_running"]
-        else "stopped"
+        else status["operator_ui_detail"]
     )
     runtime_state = (
         f"running (pid {status['runtime_pid']})"
-        if status["runtime_running"]
-        else "stopped"
+        if status["runtime_running"] and status["runtime_pid"]
+        else ("running" if status["runtime_running"] else "stopped")
     )
-    print(f"[safe-rehearsal] operator UI: {ui_state}")
-    print(f"[safe-rehearsal] starter runtime: {runtime_state}")
-    print(f"[safe-rehearsal] url: {status['base_url']}")
-    if status["consent_state"] is not None:
-        print(f"[safe-rehearsal] consent: {status['consent_state']}")
-    print(f"[safe-rehearsal] token file: {status['token_path']}")
-    print(f"[safe-rehearsal] log: {status['operator_ui_log']}")
+    print(f"[pd-status] operator UI: {ui_state}")
+    print(f"[pd-status] starter runtime: {runtime_state}")
+    print(f"[pd-status] recipe: {status['active_recipe']}")
+    print(f"[pd-status] consent: {_consent_label(status['consent_state'])}")
+    print(f"[pd-status] mode: {status['mode']}")
+    print(
+        "[pd-status] ports: "
+        f"operator UI {status['base_url']}, bridge OSC udp/{status['osc_port']}"
+    )
+    for service in status["services"]:
+        print(f"[pd-status] {_service_line(service)}")
+    print(
+        "[pd-status] logs: "
+        f"{status['operator_ui_log']}, {status['starter_log']}, "
+        f"{status['starter_runtime_dir']}"
+    )
+    print(f"[pd-status] token file: {status['token_path']}")
+    print(f"[pd-status] stop: {status['stop_command']}")
     return 0
 
 
@@ -421,6 +601,15 @@ def main() -> int:
         return _stop(args)
     except Exception as exc:
         print(f"[safe-rehearsal] ERROR: {exc}", file=sys.stderr)
+        return 1
+
+
+def status_main() -> int:
+    args = parse_status_args()
+    try:
+        return _status(args)
+    except Exception as exc:
+        print(f"[pd-status] ERROR: {exc}", file=sys.stderr)
         return 1
 
 
