@@ -58,8 +58,11 @@ int lastConsentState = 0;
 int lastConsentChangeFrame = 0;
 boolean consentEnabled = true; // flip false if running in a legacy setup without consent signals
 PImage prev;
+PImage baseline;
 boolean calibrationMode = false; // toggled with 'c'; freezes OSC and HUD numbers while you tune
 boolean havePrevFrame = false;
+boolean haveBaseline = false;
+boolean backgroundRefreshRequested = false;
 
 float consentX, consentY, consentW, consentH;
 int consentFramesRemaining = 0;
@@ -91,6 +94,7 @@ void setup(){
   osc = new OscP5(this, 0);
   dst = new NetAddress("127.0.0.1", 9000);
   prev = createImage(width, height, RGB);
+  baseline = createImage(width, height, RGB);
 }
 
 String pickPreferredCamera(String[] cams){
@@ -130,11 +134,18 @@ void draw(){
     drawStartupMessage("Waiting for first camera frame...");
     return;
   }
+  working.resize(width, height);
   if (blurRadius > 0){
     // Soften sensor noise when tuning threshold; this is intentionally optional.
     working.filter(BLUR, blurRadius);
   }
-  image(cam, 0,0, width, height);
+  image(working, 0,0, width, height);
+  if (!haveBaseline || backgroundRefreshRequested){
+    captureBackground(working, backgroundRefreshRequested? "manual refresh" : "startup");
+    drawStartupMessage("Background captured. Press 'b' to recalibrate when the space is empty.");
+    return;
+  }
+
   if (!havePrevFrame){
     prev.copy(working, 0,0, working.width, working.height, 0,0, width, height);
     havePrevFrame = true;
@@ -142,33 +153,50 @@ void draw(){
     return;
   }
 
-  // optical flow proxy: frame diff magnitude.  We compare the current frame to
-  // the previous frame and count pixels above ``threshold`` as "motion".
-  PImage diff = createImage(width, height, RGB);
-  working.loadPixels(); prev.loadPixels(); diff.loadPixels();
-  int pixelCount = min(working.pixels.length, min(prev.pixels.length, diff.pixels.length));
+  // Hybrid tracker:
+  // - baseline diff (current vs startup/background frame) => presence + centroids
+  // - frame diff (current vs previous frame) => motion intensity / crowd value
+  PImage presenceDiff = createImage(width, height, RGB);
+  working.loadPixels();
+  prev.loadPixels();
+  baseline.loadPixels();
+  presenceDiff.loadPixels();
+  int pixelCount = min(
+    working.pixels.length,
+    min(
+      prev.pixels.length,
+      min(baseline.pixels.length, presenceDiff.pixels.length)
+    )
+  );
   int motionCount=0;
   for (int i=0; i<pixelCount; i++){
     color c1 = working.pixels[i];
-    color c0 = prev.pixels[i];
-    float d = abs(brightness(c1) - brightness(c0));
-    if (d > threshold){
-      diff.pixels[i] = color(255);
+    color cPrev = prev.pixels[i];
+    color cBase = baseline.pixels[i];
+    float presenceDelta = abs(brightness(c1) - brightness(cBase));
+    float motionDelta = abs(brightness(c1) - brightness(cPrev));
+    if (presenceDelta > threshold){
+      presenceDiff.pixels[i] = color(255);
+    } else {
+      presenceDiff.pixels[i] = color(0);
+    }
+    if (motionDelta > threshold){
       motionCount++;
-    } else diff.pixels[i] = color(0);
+    }
   }
-  diff.updatePixels();
+  presenceDiff.updatePixels();
   tint(255, 100);
-  image(diff, 0,0);
+  image(presenceDiff, 0,0);
+  noTint();
 
-  // centroid for lateral mapping — we average the active sample positions so the
-  // "center of motion" follows the crowd instead of the raw sum of pixels.
+  // centroid for lateral mapping — use the baseline-difference mask so a person
+  // can remain "present" even when standing relatively still in a textured room.
   centroids.clear();
   float cx=0, cy=0;
   int activeSamples = 0;
   for (int y=0; y<height; y+=sampleStride){
     for (int x=0; x<width; x+=sampleStride){
-      if (brightness(diff.get(x,y))>128){
+      if (brightness(presenceDiff.get(x,y))>128){
         cx += x;
         cy += y;
         activeSamples++;
@@ -190,7 +218,7 @@ void draw(){
   liveLat = constrain(normX, -1, 1);
   liveAlt = constrain(-normY, -1, 1);
   liveYaw = constrain(liveLat*0.2, -1, 1);
-  liveCrowd = constrain(motionCount / float(pixelCount) * 5.0, 0, 1);
+  liveCrowd = constrain(motionCount / float(max(1, pixelCount)) * 5.0, 0, 1);
 
   if (!calibrationMode){
     lat = liveLat;
@@ -251,11 +279,36 @@ void drawStartupMessage(String msg){
   text(msg, width / 2.0, height / 2.0);
 }
 
+void captureBackground(PImage frame, String reason){
+  baseline.copy(frame, 0,0, frame.width, frame.height, 0,0, width, height);
+  prev.copy(frame, 0,0, frame.width, frame.height, 0,0, width, height);
+  haveBaseline = true;
+  havePrevFrame = true;
+  backgroundRefreshRequested = false;
+  centroids.clear();
+  liveAlt = 0;
+  liveLat = 0;
+  liveYaw = 0;
+  liveCrowd = 0;
+  alt = 0;
+  lat = 0;
+  yaw = 0;
+  crowd = 0;
+  consentState = 0;
+  consentZoneActive = false;
+  consentFramesRemaining = 0;
+  updateConsentState(0);
+  lastConsentSent = -1;
+  lastBroadcastConsentCount = -1;
+  println("Captured background baseline (" + reason + ").");
+}
+
 // consent toggle — space bar flips on/off.  Consider mapping this to a foot
 // switch or physical button in the gallery so the facilitator controls arming.
 // If you need to remap the arming key, this is the block to edit.
 // New calibration helpers:
 //   c   -> freeze OSC output + HUD numbers, show tuning overlay
+//   b   -> capture a new empty-room background baseline
 //   [/] -> threshold down/up
 //   -/= -> blur radius down/up
 //   j/l/i/k/u/o/n/m -> reposition/resize consent zone
@@ -274,6 +327,8 @@ void keyReleased(){
       yaw = liveYaw;
       crowd = liveCrowd;
     }
+  } else if (key == 'b' || key == 'B'){
+    backgroundRefreshRequested = true;
   } else if (key == '['){
     threshold = max(0, threshold-1);
   } else if (key == ']'){
@@ -396,7 +451,7 @@ void drawConsentRestingOverlay(){
 // calibration alike.
 void drawHUD(){
   int hudW = 320;
-  int hudH = 130;
+  int hudH = 150;
   int hudX = 10;
   int hudY = 10;
 
@@ -415,6 +470,8 @@ void drawHUD(){
 
   String consentMsg = "Consent: " + (consent?"1 (armed)":"0") + (consentArmed?"":" (paused)");
   text(consentMsg, hudX + 10, hudY + 96);
+  String baselineMsg = "Presence baseline: " + (haveBaseline?"ready":"capturing") + (backgroundRefreshRequested?" (refresh queued)":"");
+  text(baselineMsg, hudX + 10, hudY + 118);
 }
 
 void drawCalibrationOverlay(){
@@ -431,8 +488,8 @@ void drawCalibrationOverlay(){
   textAlign(LEFT, TOP);
   textSize(14);
   text("Calibration mode (OSC frozen).", overlayX + 12, overlayY + 10);
-  text("[ / ] threshold ±1  •  -/= blur ±1  •  s = dump config", overlayX + 12, overlayY + 32);
-  text("Move ROI: j/l ←→   i/k ↑↓   Resize: u/o width  n/m height", overlayX + 12, overlayY + 52);
+  text("b = capture empty-room baseline  •  [ / ] threshold ±1  •  -/= blur ±1", overlayX + 12, overlayY + 32);
+  text("Move ROI: j/l ←→   i/k ↑↓   Resize: u/o width  n/m height  •  s = dump config", overlayX + 12, overlayY + 52);
 
   String snippet = buildConfigSnippet();
   text("Config snippet (copy/paste):", overlayX + 12, overlayY + 76);
