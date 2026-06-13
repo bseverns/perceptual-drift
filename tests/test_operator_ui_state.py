@@ -49,6 +49,18 @@ def test_operator_state_consent_toggle():
     assert off["consent_state"] == 0
 
 
+def test_operator_state_consent_normalizes_consistently():
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+    )
+    assert state.snapshot()["consent_state"] == 0
+    assert state.set_consent(0.49)["consent_state"] == 0
+    assert state.set_consent(False)["consent_state"] == 0
+    assert state.set_consent(0.5)["consent_state"] == 1
+    assert state.set_consent(True)["consent_state"] == 1
+
+
 def test_operator_state_curve_payload_shape():
     state = OperatorState(
         base_mapping_path=ROOT / "config" / "mapping.yaml",

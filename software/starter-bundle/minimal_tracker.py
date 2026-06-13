@@ -70,7 +70,7 @@ class CameraTracker:
 
         if self.prev_gray is None:
             self.prev_gray = gray
-            return GestureState(0.2, 0.0, 0.0, 0.0, 1)
+            return GestureState(0.2, 0.0, 0.0, 0.0, 0)
 
         diff = cv2.absdiff(self.prev_gray, gray)
         self.prev_gray = gray
@@ -186,7 +186,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--consent-mode",
         choices=["always_on", "pulse", "always_off"],
-        default="always_on",
+        default="always_off",
         help="Consent behavior in synthetic mode.",
     )
     parser.add_argument(

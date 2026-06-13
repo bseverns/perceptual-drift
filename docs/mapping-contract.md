@@ -67,9 +67,9 @@ semantics aligned when changing defaults or thresholds.
 | --- | --- | --- | --- |
 | Processing tracker HUD | Sketch state + published `/pd/consent` route | Starts/returns to visible OFF state until toggled | Publishes explicit `0`/`1` |
 | Control bridge (`osc_msp_bridge.py`) | `consent.default_state` from `config/mapping.yaml` | Mapper initializes to default state; consent `0` keeps neutral MSP heartbeat | Incoming consent is normalized with `>=0.5 => 1` |
-| Swarm runtime (`swarm_demo.py`) | `consent.default_state` from loaded mapping/recipe | Starts with default consent and gates behavior via `gate_motion`/`mode` | Behavior mapper uses normalized consent (`>=0.5`), OSC edge handlers use `>=1.0` for ON |
+| Swarm runtime (`swarm_demo.py`) | `consent.default_state` from loaded mapping/recipe | Starts with default consent and gates behavior via `gate_motion`/`mode` | Startup, OSC handlers, and behavior mapping all normalize consent with `>=0.5 => 1` |
 | Operator UI (`operator_ui/state.py`) | UI-local state (defaults to `0`) + API calls | Starts OFF until operator toggles or dispatches consent | API writes normalize consent with `>=0.5 => 1` |
-| Stack smoke harness (`scripts/check_stack.py`) | Base mapping/recipe loaded for test run | Harness mapper starts from mapping default, then fixture drives updates | Uses bridge consent logic under test |
+| Stack smoke harness (`scripts/check_stack.py`) | Base mapping/recipe loaded for test run | Harness mapper starts from mapping default and should emit neutral RC frames until consent is armed | Uses bridge consent logic under test (`>=0.5 => 1`) |
 
 Precedence notes:
 
@@ -78,6 +78,16 @@ Precedence notes:
 - `consent.default_state` is a startup fallback, not a permanent override.
 - Operator UI dispatch is an explicit control event (it can drive runtime state
   even when tracker input is idle).
+
+## Consent invariants
+
+Treat these as regression-blocking rules:
+
+- Default startup state is consent OFF (`config/mapping.yaml` keeps `consent.default_state: 0`, operator UI starts at `0`, and starter synthetic tracker defaults to `always_off`).
+- Consent normalization is binary and consistent at the control boundary: values `< 0.5` mean OFF, values `>= 0.5` mean ON.
+- When consent is OFF, the control bridge must keep sending neutral/safe RC heartbeat frames rather than live gesture-driven RC output.
+- Swarm behavior must settle into its configured idle posture when consent is OFF.
+- Smoke-harness and UI tests should fail if any subsystem stops honoring these defaults.
 
 ## `mapping`
 

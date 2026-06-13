@@ -154,6 +154,39 @@ def test_bridge_neutralizes_after_consent_drop():
     assert last_rc == neutral_rc
 
 
+def test_bridge_stays_neutral_without_consent_on_startup():
+    serial_link = check_stack.MSPSerialLoopback()
+    harness = check_stack.BridgeHarness(MAPPING, serial_link, osc_port=0)
+    fixture_vectors = check_stack.load_fixture_vectors(FIXTURE)[:8]
+    harness.start()
+    try:
+        assert harness.wait_ready(), "OSC server never announced readiness"
+        client = udp_client.SimpleUDPClient(
+            "127.0.0.1", harness.listening_port
+        )
+        client.send_message(harness.addresses["consent"], 0.49)
+        time.sleep(0.01)
+        for vec in fixture_vectors:
+            client.send_message(harness.addresses["lateral"], vec.lat)
+            client.send_message(harness.addresses["altitude"], vec.alt)
+            client.send_message(harness.addresses["yaw"], vec.yaw)
+            client.send_message(harness.addresses["crowd"], vec.crowd)
+            time.sleep(0.003)
+        time.sleep(0.05)
+    finally:
+        harness.stop()
+
+    check_stack.assert_msp_activity(serial_link)
+    last_rc, _aux = check_stack.decode_msp_frame(serial_link.packets()[-1])
+    neutral_rc = (
+        check_stack.bridge.map_float_to_rc(0.0),
+        check_stack.bridge.map_float_to_rc(0.0),
+        check_stack.bridge.map_float_to_rc(-1.0),
+        check_stack.bridge.map_float_to_rc(0.0),
+    )
+    assert last_rc == neutral_rc
+
+
 def test_check_stack_logs_audit_events(tmp_path, monkeypatch):
     log_dir = tmp_path / "logs"
     monkeypatch.setenv("PERCEPTUAL_DRIFT_LOG_DIR", str(log_dir))

@@ -293,7 +293,9 @@ class BridgeHarness:
 
     def _consent_handler(self, _addr: str, value: float) -> None:
         prev = self.mapper.state["consent"]
-        self.mapper.state["consent"] = int(value)
+        self.mapper.state["consent"] = bridge.to_binary_state(
+            value, default=prev
+        )
         if self.audit and self.mapper.state["consent"] != prev:
             status = (
                 "armed" if self.mapper.state["consent"] == 1 else "disarmed"

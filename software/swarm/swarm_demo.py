@@ -11,6 +11,7 @@ from functools import partial
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from pythonosc import dispatcher, osc_server, udp_client
+
 try:
     from software.swarm.mapping_loader import load_mapping
     from software.swarm.virtual_swarm import (
@@ -68,6 +69,7 @@ GLOBAL_OSC_ROUTES = {
     "alt": "/pd/alt",
 }
 
+
 # Per-drone OSC routes let you break formation and address craft individually.
 @dataclass(frozen=True)
 class CraftConfig:
@@ -115,6 +117,17 @@ ALTITUDE_INPUT_RANGE = (0.0, 1.0)
 ALTITUDE_FLOOR_M = 0.3
 ALTITUDE_SCALE_M = 0.9
 
+
+def _binary_consent_state(value: Any, default: int = 0) -> int:
+    """Normalize consent-ish values into the shared 0/1 rule."""
+
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return 1 if float(value) >= 0.5 else 0
+    return int(default)
+
+
 # Motion timing and default metadata.  Set RELATIVE_MOVES to True if your GoTo
 # service expects relative offsets instead of absolute coordinates.
 GO_TO_DURATION_S = 0.5
@@ -156,11 +169,15 @@ class SwarmNode(NodeBase):
         super().__init__("swarm_node")
         self.fleet_cfg = fleet or DEFAULT_FLEET
         if not self.fleet_cfg:
-            raise RuntimeError("At least one CraftConfig is required to run the swarm bridge")
+            raise RuntimeError(
+                "At least one CraftConfig is required to run the swarm bridge"
+            )
 
         self.base_mapping_path = base_mapping_path
         self.recipes_dir = recipes_dir
-        self.mapping = mapping or load_mapping(base_path=self.base_mapping_path, recipes_dir=self.recipes_dir)
+        self.mapping = mapping or load_mapping(
+            base_path=self.base_mapping_path, recipes_dir=self.recipes_dir
+        )
         self.current_recipe_name = recipe_name
         self._mapping_lock = threading.Lock()
         self._consent_state = self._get_default_consent_state(self.mapping)
@@ -182,7 +199,9 @@ class SwarmNode(NodeBase):
 
         self.crafts: Dict[str, CraftState] = {}
         self._last_status_snapshot: Optional[str] = None
-        self.gesture_state: Dict[str, float] = {"consent": float(self._consent_state)}
+        self.gesture_state: Dict[str, float] = {
+            "consent": float(self._consent_state)
+        }
 
         span = max(len(self.fleet_cfg) - 1, 0)
         for index, cfg in enumerate(self.fleet_cfg):
@@ -207,14 +226,20 @@ class SwarmNode(NodeBase):
             (OSC_BIND_ADDRESS, OSC_BIND_PORT),
             self.dispatcher,
         )
-        self._osc_thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self._osc_thread = threading.Thread(
+            target=self.server.serve_forever, daemon=True
+        )
         self._osc_thread.start()
         self.get_logger().info(
             "OSC listening on %s:%d for %s",
             *self.server.server_address,
             ", ".join(self.crafts.keys()),
         )
-        swarm_cfg = self.mapping.get("swarm", {}) if isinstance(self.mapping, dict) else {}
+        swarm_cfg = (
+            self.mapping.get("swarm", {})
+            if isinstance(self.mapping, dict)
+            else {}
+        )
         self._min_separation_m = float(
             swarm_cfg.get("min_separation_m", SIM_MIN_SEPARATION_M)
         )
@@ -244,7 +269,7 @@ class SwarmNode(NodeBase):
 
     def _get_default_consent_state(self, mapping: Dict[str, Any]) -> int:
         cfg = mapping.get("consent", {}) if isinstance(mapping, dict) else {}
-        return 1 if cfg.get("default_state", 0) else 0
+        return _binary_consent_state(cfg.get("default_state", 0))
 
     def _handle_consent_edge(self, previous: int, current: int) -> None:
         """React to consent transitions: logging, auto-recipes, idling."""
@@ -261,7 +286,9 @@ class SwarmNode(NodeBase):
                         recipe_name=recipe_target,
                         recipes_dir=self.recipes_dir,
                     )
-                except Exception as exc:  # pragma: no cover - defensive edge logging
+                except (
+                    Exception
+                ) as exc:  # pragma: no cover - defensive edge logging
                     self.get_logger().warning(
                         "Auto-recipe: failed to load '%s' on consent %s (%s)",
                         recipe_target,
@@ -324,7 +351,9 @@ class SwarmNode(NodeBase):
         # We intentionally broadcast locally; listeners can subscribe without
         # having to query ROS or tail logs.
         try:
-            client = udp_client.SimpleUDPClient("127.0.0.1", self.server.server_address[1])
+            client = udp_client.SimpleUDPClient(
+                "127.0.0.1", self.server.server_address[1]
+            )
             client.send_message(CONSENT_STATE_BROADCAST, consent_state)
         except Exception:
             # Do not spam logs if the broadcast fails; consent gating should not
@@ -338,7 +367,9 @@ class SwarmNode(NodeBase):
     def _handle_global_lat(self, addr: str, *vals) -> None:
         value = self._extract_first_value(vals)
         if value is None:
-            self.get_logger().warning("%s handler received non-numeric payload: %s", addr, vals)
+            self.get_logger().warning(
+                "%s handler received non-numeric payload: %s", addr, vals
+            )
             return
         clamped = self._clamp(value, LATERAL_INPUT_RANGE)
         self.gesture_state["lat"] = clamped
@@ -347,16 +378,22 @@ class SwarmNode(NodeBase):
     def _handle_global_alt(self, addr: str, *vals) -> None:
         value = self._extract_first_value(vals)
         if value is None:
-            self.get_logger().warning("%s handler received non-numeric payload: %s", addr, vals)
+            self.get_logger().warning(
+                "%s handler received non-numeric payload: %s", addr, vals
+            )
             return
         clamped = self._clamp(value, ALTITUDE_INPUT_RANGE)
         self.gesture_state["alt"] = clamped
         self._apply_behavior_from_gestures(source="global-alt")
 
-    def _handle_direct_command(self, craft: str, axis: str, addr: str, *vals) -> None:
+    def _handle_direct_command(
+        self, craft: str, axis: str, addr: str, *vals
+    ) -> None:
         value = self._extract_first_value(vals)
         if value is None:
-            self.get_logger().warning("%s handler received non-numeric payload: %s", addr, vals)
+            self.get_logger().warning(
+                "%s handler received non-numeric payload: %s", addr, vals
+            )
             return
         if axis == "lat":
             clamped = self._clamp(value, LATERAL_INPUT_RANGE)
@@ -375,21 +412,27 @@ class SwarmNode(NodeBase):
 
         raw_value = self._extract_first_value(vals)
         if raw_value is None:
-            self.get_logger().warning("%s handler received non-numeric payload: %s", addr, vals)
+            self.get_logger().warning(
+                "%s handler received non-numeric payload: %s", addr, vals
+            )
             return
 
         previous = self._consent_state
-        consent_state = 1 if raw_value >= 1.0 else 0
+        consent_state = _binary_consent_state(raw_value, default=previous)
         self._consent_state = consent_state
         self._last_consent_at = time.time()
         self.gesture_state["consent"] = float(consent_state)
 
         if consent_state != previous:
             edge = "ON" if consent_state else "OFF"
-            self.get_logger().info("[consent] %s – participation zone flip via %s", edge, addr)
+            self.get_logger().info(
+                "[consent] %s – participation zone flip via %s", edge, addr
+            )
             self._handle_consent_edge(previous, consent_state)
         else:
-            self.get_logger().debug("[consent] steady at %d via %s", consent_state, addr)
+            self.get_logger().debug(
+                "[consent] steady at %d via %s", consent_state, addr
+            )
 
         # Re-apply behavior so drones can settle into idle posture immediately.
         self._apply_behavior_from_gestures(source="consent")
@@ -397,7 +440,11 @@ class SwarmNode(NodeBase):
     def _handle_patch(self, addr: str, *vals) -> None:
         recipe = self._extract_recipe_name(vals)
         if recipe is None:
-            self.get_logger().warning("%s handler received empty or invalid recipe payload: %s", addr, vals)
+            self.get_logger().warning(
+                "%s handler received empty or invalid recipe payload: %s",
+                addr,
+                vals,
+            )
             return
 
         try:
@@ -407,26 +454,41 @@ class SwarmNode(NodeBase):
                 recipes_dir=self.recipes_dir,
             )
         except Exception as exc:
-            self.get_logger().warning("Failed to load recipe '%s' via OSC (%s): %s", recipe, addr, exc)
+            self.get_logger().warning(
+                "Failed to load recipe '%s' via OSC (%s): %s",
+                recipe,
+                addr,
+                exc,
+            )
             return
 
         with self._mapping_lock:
             self.mapping = new_mapping
             self.current_recipe_name = recipe
 
-        self.get_logger().info("Switched recipe to '%s' via OSC (%s)", recipe, addr)
+        self.get_logger().info(
+            "Switched recipe to '%s' via OSC (%s)", recipe, addr
+        )
 
     # ------------------------------------------------------------------
     # CrazySwarm service helpers
     # ------------------------------------------------------------------
-    def _apply_lateral(self, craft: str, normalized: float, source: str) -> None:
+    def _apply_lateral(
+        self, craft: str, normalized: float, source: str
+    ) -> None:
         state = self.crafts[craft]
         consent_cfg = self._get_consent_config()
         if consent_cfg.get("gate_motion", True) and self._consent_state == 0:
             normalized = 0.0
-        target = LATERAL_HOME_M + state.formation_offset + normalized * LATERAL_SCALE_M
+        target = (
+            LATERAL_HOME_M
+            + state.formation_offset
+            + normalized * LATERAL_SCALE_M
+        )
         previous = state.current_lateral
-        if not math.isclose(state.current_lateral, target, rel_tol=1e-3, abs_tol=1e-3):
+        if not math.isclose(
+            state.current_lateral, target, rel_tol=1e-3, abs_tol=1e-3
+        ):
             state.current_lateral = target
             self._enforce_collision_envelope(craft, previous)
             self.get_logger().info(
@@ -438,13 +500,19 @@ class SwarmNode(NodeBase):
             )
         self._send_go_to(state)
 
-    def _apply_altitude(self, craft: str, normalized: float, source: str) -> None:
+    def _apply_altitude(
+        self, craft: str, normalized: float, source: str
+    ) -> None:
         state = self.crafts[craft]
         consent_cfg = self._get_consent_config()
         if consent_cfg.get("gate_motion", True) and self._consent_state == 0:
-            normalized = consent_cfg.get("idle_altitude", ALTITUDE_INPUT_RANGE[0])
+            normalized = consent_cfg.get(
+                "idle_altitude", ALTITUDE_INPUT_RANGE[0]
+            )
         height = ALTITUDE_FLOOR_M + normalized * ALTITUDE_SCALE_M
-        if not math.isclose(state.current_altitude, height, rel_tol=1e-3, abs_tol=1e-3):
+        if not math.isclose(
+            state.current_altitude, height, rel_tol=1e-3, abs_tol=1e-3
+        ):
             state.current_altitude = height
             self.get_logger().info(
                 "[%s] Altitude %.3f → %.3fm (%s)",
@@ -456,7 +524,9 @@ class SwarmNode(NodeBase):
         self._send_takeoff(state)
 
     def _send_go_to(self, state: CraftState) -> None:
-        if not self._wait_for_service(state.go_to_client, f"{state.config.name}/go_to"):
+        if not self._wait_for_service(
+            state.go_to_client, f"{state.config.name}/go_to"
+        ):
             return
         req = GoTo.Request()
         goal = None
@@ -483,7 +553,9 @@ class SwarmNode(NodeBase):
         state.go_to_client.call_async(req)
 
     def _send_takeoff(self, state: CraftState) -> None:
-        if not self._wait_for_service(state.takeoff_client, f"{state.config.name}/takeoff"):
+        if not self._wait_for_service(
+            state.takeoff_client, f"{state.config.name}/takeoff"
+        ):
             return
         req = Takeoff.Request()
         applied = False
@@ -505,7 +577,9 @@ class SwarmNode(NodeBase):
         if get_message is None:
             return
         try:
-            msg_type = get_message(cfg.telemetry_type) if cfg.telemetry_type else None
+            msg_type = (
+                get_message(cfg.telemetry_type) if cfg.telemetry_type else None
+            )
         except (AttributeError, ModuleNotFoundError, ValueError) as exc:
             self.get_logger().warning(
                 "[%s] Unable to import telemetry type %s: %s",
@@ -573,7 +647,9 @@ class SwarmNode(NodeBase):
                     min_pair = (a.config.name, b.config.name)
         return min_dist, min_pair
 
-    def _enforce_collision_envelope(self, craft: str, previous_lateral: float) -> None:
+    def _enforce_collision_envelope(
+        self, craft: str, previous_lateral: float
+    ) -> None:
         min_dist, pair = self._fleet_min_distance()
         if min_dist >= self._min_separation_m:
             return
@@ -608,7 +684,9 @@ class SwarmNode(NodeBase):
     def _wait_for_service(self, client, label: str) -> bool:
         if client.wait_for_service(timeout_sec=0.0):
             return True
-        self.get_logger().warning("%s service not ready; dropping command", label)
+        self.get_logger().warning(
+            "%s service not ready; dropping command", label
+        )
         return False
 
     @staticmethod
@@ -653,11 +731,28 @@ class SwarmNode(NodeBase):
         super().destroy_node()
 
 
-def _parse_cli(argv: Optional[List[str]] = None) -> Tuple[argparse.Namespace, List[str]]:
-    parser = argparse.ArgumentParser(description="OSC-driven CrazySwarm2 bridge")
-    parser.add_argument("--recipe", help="Optional mapping recipe to apply at startup", default=None)
-    parser.add_argument("--simulate", action="store_true", help="Enable virtual swarm simulation")
-    parser.add_argument("--sim-drones", type=int, default=4, help="Number of virtual drones to simulate")
+def _parse_cli(
+    argv: Optional[List[str]] = None,
+) -> Tuple[argparse.Namespace, List[str]]:
+    parser = argparse.ArgumentParser(
+        description="OSC-driven CrazySwarm2 bridge"
+    )
+    parser.add_argument(
+        "--recipe",
+        help="Optional mapping recipe to apply at startup",
+        default=None,
+    )
+    parser.add_argument(
+        "--simulate",
+        action="store_true",
+        help="Enable virtual swarm simulation",
+    )
+    parser.add_argument(
+        "--sim-drones",
+        type=int,
+        default=4,
+        help="Number of virtual drones to simulate",
+    )
     parser.add_argument(
         "--sim-update-rate",
         type=float,
@@ -665,10 +760,15 @@ def _parse_cli(argv: Optional[List[str]] = None) -> Tuple[argparse.Namespace, Li
         help="Frequency in Hz for simulated drone updates",
     )
     parser.add_argument(
-        "--sim-osc-target", default=SIM_OSC_TARGET, help="OSC host to publish simulated drone state"
+        "--sim-osc-target",
+        default=SIM_OSC_TARGET,
+        help="OSC host to publish simulated drone state",
     )
     parser.add_argument(
-        "--sim-osc-port", type=int, default=SIM_OSC_PORT, help="OSC port to publish simulated drone state"
+        "--sim-osc-port",
+        type=int,
+        default=SIM_OSC_PORT,
+        help="OSC port to publish simulated drone state",
     )
     parser.add_argument(
         "--sim-min-separation",
@@ -679,11 +779,16 @@ def _parse_cli(argv: Optional[List[str]] = None) -> Tuple[argparse.Namespace, Li
     return parser.parse_known_args(argv)
 
 
-def _initialize_mapping(recipe_name: Optional[str]) -> Tuple[Dict[str, Any], Optional[str]]:
+def _initialize_mapping(
+    recipe_name: Optional[str],
+) -> Tuple[Dict[str, Any], Optional[str]]:
     """Load the base mapping and optionally an overlay recipe, with safe fallback."""
 
     if recipe_name is None:
-        mapping = load_mapping(base_path=DEFAULT_BASE_MAPPING_PATH, recipes_dir=DEFAULT_RECIPES_DIR)
+        mapping = load_mapping(
+            base_path=DEFAULT_BASE_MAPPING_PATH,
+            recipes_dir=DEFAULT_RECIPES_DIR,
+        )
         print(f"Loaded base mapping from {DEFAULT_BASE_MAPPING_PATH}")
         print("No recipe specified; using base mapping only")
         return mapping, None
@@ -699,17 +804,24 @@ def _initialize_mapping(recipe_name: Optional[str]) -> Tuple[Dict[str, Any], Opt
             f"Failed to load recipe '{recipe_name}'; falling back to base mapping ({exc})",
             file=sys.stderr,
         )
-        mapping = load_mapping(base_path=DEFAULT_BASE_MAPPING_PATH, recipes_dir=DEFAULT_RECIPES_DIR)
+        mapping = load_mapping(
+            base_path=DEFAULT_BASE_MAPPING_PATH,
+            recipes_dir=DEFAULT_RECIPES_DIR,
+        )
         print(f"Loaded base mapping from {DEFAULT_BASE_MAPPING_PATH}")
         print("Using base mapping only after recipe load failure")
         return mapping, None
 
     print(f"Loaded base mapping from {DEFAULT_BASE_MAPPING_PATH}")
-    print(f"Applied recipe '{recipe_name}' from {DEFAULT_RECIPES_DIR}/{recipe_name}.yaml")
+    print(
+        f"Applied recipe '{recipe_name}' from {DEFAULT_RECIPES_DIR}/{recipe_name}.yaml"
+    )
     return mapping, recipe_name
 
 
-def _map_gestures_to_behavior(gestures: Dict[str, float], mapping: Dict[str, Any]) -> Dict[str, float]:
+def _map_gestures_to_behavior(
+    gestures: Dict[str, float], mapping: Dict[str, Any]
+) -> Dict[str, float]:
     """Translate raw gesture streams into a simplified behavior dictionary.
 
     Consent travels alongside the rest of the OSC stream. Treat it like any
@@ -722,7 +834,9 @@ def _map_gestures_to_behavior(gestures: Dict[str, float], mapping: Dict[str, Any
     yaw = SwarmNode._clamp(gestures.get("yaw", 0.0), (-1.0, 1.0))
     crowd = gestures.get("crowd", 0.0) or 0.0
 
-    consent_cfg = mapping.get("consent", {}) if isinstance(mapping, dict) else {}
+    consent_cfg = (
+        mapping.get("consent", {}) if isinstance(mapping, dict) else {}
+    )
     consent_default = consent_cfg.get("default_state", 0)
     consent_raw = gestures.get("consent", consent_default)
     consent = max(0.0, min(1.0, consent_raw))
@@ -745,7 +859,9 @@ def _map_gestures_to_behavior(gestures: Dict[str, float], mapping: Dict[str, Any
             jitter *= consent
         else:  # default/binary gate
             if consent < 0.5:
-                altitude_target = ALTITUDE_FLOOR_M + idle_alt * ALTITUDE_SCALE_M
+                altitude_target = (
+                    ALTITUDE_FLOOR_M + idle_alt * ALTITUDE_SCALE_M
+                )
                 lateral_bias = LATERAL_HOME_M
                 yaw_bias = 0.0
                 jitter = idle_jitter
@@ -760,13 +876,19 @@ def _map_gestures_to_behavior(gestures: Dict[str, float], mapping: Dict[str, Any
     }
 
 
-def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_name: Optional[str]) -> None:
+def _run_simulation(
+    parsed: argparse.Namespace,
+    mapping: Dict[str, Any],
+    recipe_name: Optional[str],
+) -> None:
     gesture_state: Dict[str, float] = {}
     mapping_lock = threading.Lock()
     active_mapping = mapping
     active_recipe = recipe_name
-    consent_cfg = mapping.get("consent", {}) if isinstance(mapping, dict) else {}
-    consent_state = 1 if (consent_cfg.get("default_state", 0) or 0) else 0
+    consent_cfg = (
+        mapping.get("consent", {}) if isinstance(mapping, dict) else {}
+    )
+    consent_state = _binary_consent_state(consent_cfg.get("default_state", 0))
     gesture_state["consent"] = float(consent_state)
     last_sent_consent = consent_state
     bench_seq = 0
@@ -788,16 +910,22 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
         value = SwarmNode._extract_first_value(vals)
         if value is None:
             return
-        new_state = 1 if value >= 1.0 else 0
+        new_state = _binary_consent_state(value, default=consent_state)
         gesture_state["consent"] = float(new_state)
         if new_state == consent_state:
             return
 
         consent_state = new_state
-        print(f"[consent] {'ON' if consent_state else 'OFF'} – participation zone flip via {addr}")
+        print(
+            f"[consent] {'ON' if consent_state else 'OFF'} – participation zone flip via {addr}"
+        )
 
         with mapping_lock:
-            cfg = active_mapping.get("consent", {}) if isinstance(active_mapping, dict) else {}
+            cfg = (
+                active_mapping.get("consent", {})
+                if isinstance(active_mapping, dict)
+                else {}
+            )
         if cfg.get("auto_recipes", False):
             recipe_key = "on_recipe" if consent_state else "off_recipe"
             recipe_target = (cfg.get(recipe_key) or "").strip()
@@ -840,7 +968,9 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
 
     disp.map(SIM_BENCH_PING_ROUTE, _handle_bench_ping)
 
-    server = osc_server.ThreadingOSCUDPServer((OSC_BIND_ADDRESS, OSC_BIND_PORT), disp)
+    server = osc_server.ThreadingOSCUDPServer(
+        (OSC_BIND_ADDRESS, OSC_BIND_PORT), disp
+    )
     osc_thread = threading.Thread(target=server.serve_forever, daemon=True)
     osc_thread.start()
 
@@ -849,10 +979,14 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
     client = udp_client.SimpleUDPClient(target, port)
 
     drones = [VirtualDrone(i) for i in range(max(1, parsed.sim_drones))]
-    update_rate = parsed.sim_update_rate if parsed.sim_update_rate > 0 else 30.0
+    update_rate = (
+        parsed.sim_update_rate if parsed.sim_update_rate > 0 else 30.0
+    )
     dt = 1.0 / update_rate
 
-    print(f"Simulation mode: ON ({len(drones)} virtual drones @ {update_rate} Hz)")
+    print(
+        f"Simulation mode: ON ({len(drones)} virtual drones @ {update_rate} Hz)"
+    )
     print(f"Sim OSC publish target: {target}:{port}")
     print(
         f"Collision guard: min separation {max(parsed.sim_min_separation, 0.0):.2f}m"
@@ -893,8 +1027,13 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
                 )
 
             for drone in drones:
-                client.send_message(f"/pd/sim/drone/{drone.drone_id}/pos", [drone.x, drone.y, drone.z])
-                client.send_message(f"/pd/sim/drone/{drone.drone_id}/yaw", drone.yaw)
+                client.send_message(
+                    f"/pd/sim/drone/{drone.drone_id}/pos",
+                    [drone.x, drone.y, drone.z],
+                )
+                client.send_message(
+                    f"/pd/sim/drone/{drone.drone_id}/yaw", drone.yaw
+                )
             if consent_state != last_sent_consent:
                 client.send_message("/pd/sim/consent", consent_state)
                 last_sent_consent = consent_state
@@ -902,7 +1041,9 @@ def _run_simulation(parsed: argparse.Namespace, mapping: Dict[str, Any], recipe_
             now = time.time()
             if now - last_summary >= 1.0:
                 recipe_label = local_recipe or "base"
-                client.send_message("/pd/sim/summary", [len(drones), recipe_label])
+                client.send_message(
+                    "/pd/sim/summary", [len(drones), recipe_label]
+                )
                 head = drones[0]
                 print(
                     f"[sim] drone 0 → x={head.x:.2f} y={head.y:.2f} z={head.z:.2f} yaw={head.yaw:.2f} (recipe={recipe_label})"
