@@ -44,6 +44,14 @@ Trackers should publish normalized values to these routes:
 - crowd: `0..1`
 - consent: `0|1` (or float interpreted by consent mode)
 
+Recommended tracker semantics:
+
+- `altitude`, `lateral`, and `yaw` should describe where the active participant
+  mass is located in frame.
+- `crowd` should describe recent motion intensity, not merely static occupancy.
+- Trackers may change how they estimate those values internally as long as the
+  published ranges and consent behavior stay stable.
+
 ## `consent`
 
 Defines how participation state gates motion.

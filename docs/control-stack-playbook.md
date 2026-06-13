@@ -38,8 +38,11 @@ That sequence sketch is the street map—trace any arrow to know which script to
 - **Code**: [`software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde`](../software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde)
 - **Stack**: [Processing](https://processing.org/) with the [processing.video `Capture` API](https://processing.org/reference/libraries/video/Capture.html)
 - **OSC plumbing**: [`oscP5`](http://www.sojamo.de/libraries/oscP5/) (built on [`netP5`](http://www.sojamo.de/libraries/netP5/))
-- **Core trick**: frame differencing as a cheap motion detector. Watch [Daniel Shiffman's "Optical Flow" lesson](https://www.youtube.com/watch?v=cloJrwaOYYE) for the conceptual primer.
+- **Core trick**: a hybrid tracker. The sketch keeps a background baseline for presence/centroid estimation and still uses frame-to-frame differencing for motion intensity. That split makes non-white-cube rooms more forgiving without changing the OSC contract.
 - **Output contract**: the sketch publishes normalized floats on the OSC addresses declared in [`config/mapping.yaml`](../config/mapping.yaml). Latency is effectively frame time, so treat 30 Hz as normal.
+  - `/pd/alt`, `/pd/lat`, `/pd/yaw`: derived from the centroid of the current occupancy mask against the baseline frame.
+  - `/pd/crowd`: derived from recent motion energy, not just static occupancy.
+  - `/pd/consent`: explicit binary participation state.
 - **Customization tips**:
   - Adjust `threshold` for darker or brighter rooms. Lower values see smaller motions but add noise.
   - Rework the centroid logic if you want multi-participant control. If you intentionally port the tracker to C++, start from the Processing sketch’s OSC contract—the openFrameworks experiment lives in an offline archive and is not part of this repo.

@@ -16,6 +16,10 @@ Keep these tabs open while you hack:
 
 1. **OSC listeners** soak up altitude/lateral/yaw/crowd/consent values from
    whatever instruments you throw at port `9000`.
+   - With the current Processing tracker, `/pd/alt`, `/pd/lat`, and `/pd/yaw`
+     represent occupancy centroid against a background baseline.
+   - `/pd/crowd` represents recent motion energy, so it can fall back toward
+     zero even while a participant remains present in frame.
 2. **MIDI intake** mirrors the OSC handlers so CC/Note gestures can ride the
    same shaping curves. Edit `config/mappings/midi.yaml` to point your faders
    and pads at mapper targets; run the bridge with `--dry-run` to watch those
@@ -42,8 +46,9 @@ Keep these tabs open while you hack:
   stick-stiff heading.
 * The OSC `crowd` signal now drives AUX outputs: AUX1 mirrors the raw crowd
   energy, AUX2 ramps between `mapping.glitch_intensity.base` ↔ `max`, and AUX3
-  picks a color slot from `mapping.leds.palette`.  Plug LEDs, VJ software, or
-  synth triggers into those channels downstream.
+  picks a color slot from `mapping.leds.palette`. With the current tracker this
+  means AUX energy follows live motion intensity rather than static presence.
+  Plug LEDs, VJ software, or synth triggers into those channels downstream.
 
 ## Safety checklist
 
