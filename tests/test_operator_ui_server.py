@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import Dict, Iterator, Tuple
 from urllib import error, request
 
-from software.operator_ui.server import make_handler
+import pytest
+
+from software.operator_ui.server import _resolve_static, make_handler
 from software.operator_ui.state import OperatorState
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,3 +138,14 @@ def test_post_endpoint_requires_auth_token():
     assert status == 200
     assert payload["ok"] is True
     assert payload["state"]["consent_state"] == 1
+
+
+def test_static_path_resolution_rejects_sibling_prefix_escape(tmp_path):
+    root = tmp_path / "static"
+    sibling = tmp_path / "static_evil"
+    root.mkdir()
+    sibling.mkdir()
+    (sibling / "secret.txt").write_text("leaked")
+
+    with pytest.raises(FileNotFoundError):
+        _resolve_static(root, "/../static_evil/secret.txt")

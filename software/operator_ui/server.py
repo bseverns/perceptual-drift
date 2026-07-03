@@ -60,8 +60,11 @@ def _resolve_static(root: Path, requested: str) -> Tuple[Path, str]:
         rel = "index.html"
     else:
         rel = requested.lstrip("/")
-    target = (root / rel).resolve()
-    if not str(target).startswith(str(root.resolve())):
+    resolved_root = root.resolve()
+    target = (resolved_root / rel).resolve()
+    try:
+        target.relative_to(resolved_root)
+    except ValueError:
         raise FileNotFoundError("path escape")
     return target, rel
 

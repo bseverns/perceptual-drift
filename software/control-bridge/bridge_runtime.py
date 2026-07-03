@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import struct
+import threading
 import time
 from pathlib import Path
 
@@ -230,6 +231,15 @@ def _load_midi_config(args, audit: AuditLogger):
     return midi_cfg, midi_path
 
 
+def _start_osc_server(
+    server: osc_server.ThreadingOSCUDPServer,
+) -> threading.Thread:
+    server.daemon_threads = True
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return thread
+
+
 def main(argv=None):
     ap = build_arg_parser()
     args = ap.parse_args(argv)
@@ -419,6 +429,7 @@ def main(argv=None):
     disp.map(cfg["osc"]["address_space"]["consent"], on_consent)
 
     server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", args.osc_port), disp)
+    osc_thread = _start_osc_server(server)
     print(f"OSC listening on {server.server_address}")
     audit.write(
         "osc_bridge_boot",
@@ -508,6 +519,9 @@ def main(argv=None):
             message="Operator interrupted bridge (Ctrl+C).",
         )
     finally:
+        server.shutdown()
+        server.server_close()
+        osc_thread.join(timeout=2)
         if midi_listener:
             midi_listener.stop()
         ser.close()

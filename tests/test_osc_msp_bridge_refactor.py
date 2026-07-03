@@ -1,9 +1,15 @@
+import threading
 import time
 from types import SimpleNamespace
 
 import mido
+from pythonosc import dispatcher, udp_client
+from pythonosc.osc_server import ThreadingOSCUDPServer
 
 import scripts.check_stack as check_stack
+
+
+bridge_runtime = check_stack.bridge._bridge_runtime
 
 
 def test_consent_update_replays_buffer_and_neutralizes_on_drop():
@@ -93,3 +99,22 @@ def test_midi_listener_maps_cc_and_toggle_notes_without_runtime_thread():
     assert mapper.state["lat"] == 1.0
     assert 0.49 < mapper.state["crowd"] < 0.51
     assert mapper.state["consent"] == 0
+
+
+def test_start_osc_server_serves_in_background_thread():
+    received = threading.Event()
+    disp = dispatcher.Dispatcher()
+    disp.map("/pd/test", lambda _addr, *_vals: received.set())
+    server = ThreadingOSCUDPServer(("127.0.0.1", 0), disp)
+    thread = bridge_runtime._start_osc_server(server)
+    host, port = server.server_address
+
+    try:
+        client = udp_client.SimpleUDPClient(host, port)
+        client.send_message("/pd/test", 1)
+        assert received.wait(timeout=2)
+        assert thread.is_alive()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
