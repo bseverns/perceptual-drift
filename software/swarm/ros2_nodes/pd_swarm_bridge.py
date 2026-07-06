@@ -119,7 +119,7 @@ class PdSwarmBridge(Node):
             self.get_parameter("max_altitude_velocity_mps").get_parameter_value().double_value
         )
 
-        self._consent_enabled = True
+        self._consent_enabled = False
         self._last_target_update = time.time()
         self._last_collision_warn = 0.0
 
@@ -129,6 +129,8 @@ class PdSwarmBridge(Node):
     # ROS callbacks
     # ------------------------------------------------------------------
     def on_alt(self, msg: Float32) -> None:
+        if not self._consent_enabled:
+            return
         value = self._clamp(msg.data, self._altitude_range)
         target_alt = self._altitude_floor + value * self._altitude_scale
         dt = self._command_dt()
@@ -139,6 +141,8 @@ class PdSwarmBridge(Node):
             self._call_takeoff(name, drone.target[2])
 
     def on_lat(self, msg: Float32) -> None:
+        if not self._consent_enabled:
+            return
         value = self._clamp(msg.data, self._lateral_range)
         span = (len(self.drones) - 1) / 2.0
         dt = self._command_dt()
@@ -165,6 +169,8 @@ class PdSwarmBridge(Node):
             self._call_go_to(name, drone)
 
     def on_yaw(self, msg: Float32) -> None:
+        if not self._consent_enabled:
+            return
         value = self._clamp(msg.data, (-1.0, 1.0))
         for drone in self.drones.values():
             drone.target_yaw = value * self._yaw_scale

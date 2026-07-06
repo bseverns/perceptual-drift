@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 OSC_PORT=9000
+OSC_PORT_SET=0
 HZ=30
 SERIAL_PORT="FAKE"
 TRACKER_MODE="synthetic"
@@ -42,6 +43,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --osc-port)
       OSC_PORT="$2"
+      OSC_PORT_SET=1
       shift 2
       ;;
     --hz)
@@ -101,6 +103,25 @@ fi
 if [[ -n "$RECIPE" && ! -f "$RECIPE" ]]; then
   echo "[starter] recipe not found: $RECIPE" >&2
   exit 2
+fi
+
+if [[ -n "$RECIPE" && "$OSC_PORT_SET" -eq 0 ]]; then
+  recipe_port="$(python3 - "$RECIPE" <<'PY'
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path("software/control-bridge").resolve()))
+from bridge_mapping import load_recipe
+
+cfg, _meta = load_recipe(sys.argv[1])
+port = cfg.get("osc", {}).get("port")
+if port is not None:
+    print(int(port))
+PY
+)"
+  if [[ -n "$recipe_port" ]]; then
+    OSC_PORT="$recipe_port"
+  fi
 fi
 
 echo "[starter] running preflight checks"

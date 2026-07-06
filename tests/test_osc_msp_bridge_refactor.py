@@ -86,9 +86,14 @@ def test_midi_listener_maps_cc_and_toggle_notes_without_runtime_thread():
     listener._handle_message(
         mido.Message("control_change", channel=1, control=11, value=64)
     )
+    assert mapper.state["lat"] == 1.0
+    assert 0.49 < mapper.state["crowd"] < 0.51
+
     listener._handle_message(
         mido.Message("note_on", channel=1, note=60, velocity=100)
     )
+    assert mapper.state["consent"] == 1
+
     listener._handle_message(
         mido.Message("note_on", channel=1, note=60, velocity=100)
     )
@@ -96,9 +101,46 @@ def test_midi_listener_maps_cc_and_toggle_notes_without_runtime_thread():
         mido.Message("control_change", channel=0, control=10, value=0)
     )
 
-    assert mapper.state["lat"] == 1.0
-    assert 0.49 < mapper.state["crowd"] < 0.51
+    assert mapper.state["lat"] == 0.0
+    assert mapper.state["crowd"] == 0.0
     assert mapper.state["consent"] == 0
+
+
+def test_midi_consent_drop_neutralizes_gestures():
+    bridge = check_stack.bridge
+    mapper = SimpleNamespace(
+        state={
+            "alt": 0.8,
+            "lat": -0.7,
+            "yaw": 0.6,
+            "crowd": 0.9,
+            "consent": 1,
+        }
+    )
+    listener = bridge.MidiListener(
+        mapper,
+        {
+            "gestures": [
+                {
+                    "type": "note",
+                    "note_number": 60,
+                    "target": "consent",
+                    "mode": "gate",
+                }
+            ]
+        },
+        audit=SimpleNamespace(write=lambda *args, **kwargs: None),
+    )
+
+    listener._handle_message(mido.Message("note_off", note=60, velocity=0))
+
+    assert mapper.state == {
+        "alt": 0.0,
+        "lat": 0.0,
+        "yaw": 0.0,
+        "crowd": 0.0,
+        "consent": 0,
+    }
 
 
 def test_start_osc_server_serves_in_background_thread():
@@ -118,3 +160,57 @@ def test_start_osc_server_serves_in_background_thread():
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
+
+
+def test_main_binds_recipe_osc_port_when_cli_port_is_default(monkeypatch):
+    seen = {}
+    cfg = {
+        "osc": {
+            "port": 9123,
+            "address_space": {
+                "altitude": "/alt",
+                "lateral": "/lat",
+                "yaw": "/yaw",
+                "crowd": "/crowd",
+                "consent": "/consent",
+            },
+        },
+        "mapping": {"altitude": {}, "lateral": {}},
+    }
+
+    class FakeServer:
+        def __init__(self, address, _disp):
+            seen["address"] = address
+            self.server_address = address
+
+    class FakeMidiListener:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(
+        bridge_runtime, "_load_bridge_config", lambda _args, _audit: (cfg, {})
+    )
+    monkeypatch.setattr(
+        bridge_runtime,
+        "_load_midi_config",
+        lambda _args, _audit: ({}, "midi.yaml"),
+    )
+    monkeypatch.setattr(bridge_runtime, "MidiListener", FakeMidiListener)
+    monkeypatch.setattr(
+        bridge_runtime.osc_server, "ThreadingOSCUDPServer", FakeServer
+    )
+    monkeypatch.setattr(
+        bridge_runtime,
+        "_start_osc_server",
+        lambda _server: (_ for _ in ()).throw(RuntimeError("stop after bind")),
+    )
+
+    try:
+        bridge_runtime.main(["--dry-run", "--recipe", "recipe.yaml"])
+    except RuntimeError as exc:
+        assert str(exc) == "stop after bind"
+
+    assert seen["address"] == ("0.0.0.0", 9123)

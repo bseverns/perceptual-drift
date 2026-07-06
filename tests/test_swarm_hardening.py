@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 
 import pytest
 
@@ -64,3 +65,13 @@ def test_replay_aggregate_weighted_mode():
     assert abs(merged.yaw - 0.1) < 1e-9
     assert abs(merged.crowd - 0.65) < 1e-9
     assert abs(merged.consent - 0.25) < 1e-9
+
+
+def test_ros_swarm_bridge_starts_consent_locked():
+    source = Path("software/swarm/ros2_nodes/pd_swarm_bridge.py").read_text()
+
+    assert "self._consent_enabled = False" in source
+    for callback in ("on_alt", "on_lat", "on_yaw"):
+        start = source.index(f"    def {callback}")
+        body = source[start : source.index("\n    def ", start + 1)]
+        assert "if not self._consent_enabled:\n            return" in body

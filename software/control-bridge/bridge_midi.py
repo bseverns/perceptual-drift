@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import mido
 
+from bridge_consent import apply_consent_update
 from bridge_msp import clamp
 
 if TYPE_CHECKING:
@@ -163,4 +164,4 @@ class MidiListener:
         elif target == "crowd":
             self.mapper.state["crowd"] = float(clamp(value, 0.0, 1.0))
         elif target == "consent":
-            self.mapper.state["consent"] = 1 if value >= 0.5 else 0
+            apply_consent_update(self.mapper.state, value)

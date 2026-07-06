@@ -107,3 +107,12 @@ def test_preflight_runner_parses_doctor_output(tmp_path):
     assert report["required_failures"] == 1
     assert report["warnings"] == 1
     assert len(report["checks"]) == 3
+
+
+def test_starter_script_resolves_recipe_port_before_launch():
+    source = Path("scripts/starter_up.sh").read_text()
+
+    assert "OSC_PORT_SET=0" in source
+    assert "OSC_PORT_SET=1" in source
+    assert "load_recipe" in source
+    assert 'OSC_PORT="$recipe_port"' in source

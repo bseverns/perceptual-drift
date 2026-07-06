@@ -428,7 +428,7 @@ def main(argv=None):
     disp.map(cfg["osc"]["address_space"]["crowd"], on_crowd)
     disp.map(cfg["osc"]["address_space"]["consent"], on_consent)
 
-    server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", args.osc_port), disp)
+    server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", osc_port), disp)
     osc_thread = _start_osc_server(server)
     print(f"OSC listening on {server.server_address}")
     audit.write(
