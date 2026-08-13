@@ -3,16 +3,20 @@
 set -euo pipefail
 
 STRICT=0
+TRAINER=0
 
 usage() {
   cat <<'USAGE'
-Usage: ./scripts/starter_doctor.sh [--strict]
+Usage: ./scripts/starter_doctor.sh [--strict] [--trainer]
 
 Checks required dependencies for the starter bundle:
 - Python + required Python modules
 - Mapping/config file presence
 - Bridge and tracker script presence
 - Optional video dependencies (GStreamer + /dev/video0)
+
+--trainer adds the TX16S/trainer profile and safety-boundary preflight. It
+does not probe, configure, or claim verification of physical hardware.
 USAGE
 }
 
@@ -20,6 +24,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --strict)
       STRICT=1
+      shift
+      ;;
+    --trainer)
+      TRAINER=1
       shift
       ;;
     -h|--help)
@@ -120,6 +128,15 @@ else
   fail "Config validation failed. Run: python3 scripts/validate_config.py"
 fi
 
+if [[ "$TRAINER" -eq 1 ]]; then
+  echo
+  if python3 -m software.trainer_control.preflight; then
+    ok "Trainer integration preflight completed"
+  else
+    fail "Trainer integration preflight failed safe"
+  fi
+fi
+
 echo "[doctor] summary: required_failures=${REQUIRED_FAILURES} warnings=${WARNINGS}"
 
 if [[ "$REQUIRED_FAILURES" -gt 0 ]]; then
@@ -131,4 +148,3 @@ if [[ "$STRICT" -eq 1 && "$WARNINGS" -gt 0 ]]; then
 fi
 
 exit 0
-

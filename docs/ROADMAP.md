@@ -14,6 +14,9 @@ criteria.
 | M3: Docs consolidation | Weeks 7-8 | completed | Canonical mapping contract and reduced doc duplication |
 | M4: Swarm hardening | Weeks 9-10 | completed | Latency and collision safety checks with replayable tests |
 | M5: Operator UI alpha | Weeks 11-12 | in progress | Non-CLI control surface for recipes, consent, and curves |
+| M6: TX16S trainer boundary | Physical integration phase | in progress | One master TX16S, one aircraft, staged props-off trainer path |
+
+M6 explicitly supersedes swarm expansion as the active physical priority. Software boundary tests do not advance the hardware evidence stage.
 
 ## M0 Deliverables (baseline + scope lock)
 

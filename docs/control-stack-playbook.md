@@ -2,6 +2,8 @@
 
 Welcome to the backstage map for everyone who needs to understand how motion in front of the camera makes the drone dance. This document collects all of the references we stuffed into comments last time and gives them a permanent, merge-friendly home.
 
+> **Legacy/experimental control path:** this playbook documents the original direct OSC→MSP stack. It remains useful for software rehearsal, but it is not the reference EZ Pilot Pro physical architecture. Use the [TX16S trainer guide](hardware/tx16s-trainer-integration.md) for physical integration. Claims below are not evidence of simultaneous manual-radio authority, a real kill mechanism, or completed hardware verification.
+
 ---
 
 ## High-level flow
@@ -40,8 +42,8 @@ That sequence sketch is the street map—trace any arrow to know which script to
 - **OSC plumbing**: [`oscP5`](http://www.sojamo.de/libraries/oscP5/) (built on [`netP5`](http://www.sojamo.de/libraries/netP5/))
 - **Core trick**: a hybrid tracker. The sketch keeps a background baseline for presence/centroid estimation and still uses frame-to-frame differencing for motion intensity. That split makes non-white-cube rooms more forgiving without changing the OSC contract.
 - **Output contract**: the sketch publishes normalized floats on the OSC addresses declared in [`config/mapping.yaml`](../config/mapping.yaml). Latency is effectively frame time, so treat 30 Hz as normal.
-  - `/pd/alt`, `/pd/lat`, `/pd/yaw`: derived from the centroid of the current occupancy mask against the baseline frame.
-  - `/pd/crowd`: derived from recent motion energy, not just static occupancy.
+  - `/pd/alt`, `/pd/lat`, `/pd/yaw`: derived only from presence samples inside the explicit consent ROI.
+  - `/pd/crowd`: derived from motion energy inside that ROI, not full-frame bystanders.
   - `/pd/consent`: explicit binary participation state.
 - **Customization tips**:
   - Adjust `threshold` for darker or brighter rooms. Lower values see smaller motions but add noise.

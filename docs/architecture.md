@@ -10,6 +10,16 @@ Perceptual-drift listens to an environment, measures how it changes, and maps th
 - **Mappings**: translates metrics into OSC/MIDI/internal buses.
 - **Actuators**: synths, visuals, LEDs, robots, anything that can be driven by those mappings.
 
+## Reference aircraft control boundary
+
+For the EMAX EZ Pilot Pro/TX16S phase, actuator output is not a direct mapper side effect:
+
+```text
+normalized Intent → aircraft SafetyEnvelope → Backend
+```
+
+The TX16S remains master. The reference backend is a wired trainer bridge; direct MSP is legacy/experimental. The envelope is the final authority on allowed axes and magnitude, and unsafe/unknown conditions bypass artistic mapping into explicit zero contribution. See [`hardware/tx16s-trainer-integration.md`](hardware/tx16s-trainer-integration.md).
+
 ## Proposed code layout
 Keep IO, computation, and scenes cleanly separated so platform quirks stay contained:
 

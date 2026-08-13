@@ -13,5 +13,7 @@
 .pio/
 dist/
 env/
+.venv/
+logs/
 __pycache__/
 runtime/

@@ -9,6 +9,12 @@ from pathlib import Path
 from types import ModuleType
 from typing import Iterable, List
 
+from software.trainer_control.profiles import (
+    ProfileError,
+    load_aircraft_profile,
+    validate_transmitter_profile,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BRIDGE_DIR = REPO_ROOT / "software" / "control-bridge"
 
@@ -36,6 +42,12 @@ load_recipe = _bridge_mod.load_recipe
 DEFAULT_MAPPING = REPO_ROOT / "config" / "mapping.yaml"
 DEFAULT_MIDI_MAPPING = REPO_ROOT / "config" / "mappings" / "midi.yaml"
 DEFAULT_RECIPE_DIR = REPO_ROOT / "config" / "recipes"
+DEFAULT_AIRCRAFT_PROFILE = (
+    REPO_ROOT / "config" / "aircraft" / "ez_pilot_pro.yaml"
+)
+DEFAULT_TRANSMITTER_PROFILE = (
+    REPO_ROOT / "config" / "transmitters" / "tx16s_pd.yaml"
+)
 
 
 def _iter_recipe_paths(recipe_dir: Path) -> Iterable[Path]:
@@ -77,7 +89,7 @@ def validate(
     if failures:
         raise cv.ValidationError(recipe_errors)
     if verbose:
-        print("[validate] all clear.")
+        print("[validate] mappings and recipes clear.")
     return failures
 
 
@@ -106,17 +118,42 @@ def main(argv: Iterable[str] | None = None) -> int:
     ap.add_argument(
         "--quiet", action="store_true", help="Suppress success chatter"
     )
+    ap.add_argument(
+        "--aircraft-profile",
+        type=Path,
+        default=DEFAULT_AIRCRAFT_PROFILE,
+        help="Trainer aircraft safety profile",
+    )
+    ap.add_argument(
+        "--transmitter-profile",
+        type=Path,
+        default=DEFAULT_TRANSMITTER_PROFILE,
+        help="Trainer transmitter expectation profile",
+    )
     args = ap.parse_args(list(argv) if argv is not None else None)
 
     try:
         validate(
             args.mapping, args.recipes, args.midi_map, verbose=not args.quiet
         )
+        if not args.quiet:
+            print(f"[validate] aircraft → {args.aircraft_profile.resolve()}")
+        load_aircraft_profile(args.aircraft_profile.resolve())
+        if not args.quiet:
+            print(f"[validate] TX16S   → {args.transmitter_profile.resolve()}")
+        validate_transmitter_profile(args.transmitter_profile.resolve())
+        if not args.quiet:
+            print("[validate] all clear.")
     except cv.ValidationError as exc:  # noqa: BLE001
         if not args.quiet:
             print("[validate] config errors detected")
         for line in exc.errors:
             print(f"[validate] ✖ {line}")
+        return 1
+    except ProfileError as exc:
+        if not args.quiet:
+            print("[validate] hardware profile error detected")
+        print(f"[validate] ✖ {exc}")
         return 1
     return 0
 

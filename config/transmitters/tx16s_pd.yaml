@@ -1,0 +1,46 @@
+schema_version: 1
+kind: transmitter
+id: tx16s_pd
+display_name: RadioMaster TX16S / EdgeTX
+role:
+  value: master transmitter
+  evidence: CONFIG EXPECTED
+
+rf_link:
+  protocol:
+    value: FrSky D8
+    evidence: OPERATOR VERIFIED
+  module_capability:
+    value: FrSky D8 supported and functioning
+    evidence: OPERATOR VERIFIED
+  operator_confirmation_date: "2026-08-12"
+  note: Successful bind, range, failsafe, and channel behavior with the EZ Pilot Pro remain unverified.
+
+trainer:
+  roll:
+    mode: ADD
+    maximum_weight_percent: 15
+    evidence: CONFIG EXPECTED
+  pitch:
+    mode: "OFF"
+    maximum_weight_percent: 0
+    evidence: CONFIG EXPECTED
+  yaw:
+    mode: ADD
+    maximum_weight_percent: 15
+    evidence: CONFIG EXPECTED
+  throttle:
+    mode: "OFF"
+    maximum_weight_percent: 0
+    evidence: CONFIG EXPECTED
+
+authority:
+  arm:
+    source: physical transmitter switch only
+    evidence: CONFIG EXPECTED
+  flight_mode:
+    source: physical transmitter switch only
+    evidence: CONFIG EXPECTED
+  perceptual_drift_enable:
+    source: dedicated physical transmitter trainer-enable switch
+    evidence: CONFIG EXPECTED
