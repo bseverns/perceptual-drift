@@ -1,5 +1,7 @@
 # Safety Checklist & Run Log
 
+> **Generic/legacy checklist:** the 3S/4S voltage, direct MSP, and unspecified kill-switch rows below do not apply to the EMAX EZ Pilot Pro reference procedure. The reference aircraft is CONFIG EXPECTED to be 1S, but its actual battery must be inspected. For TX16S work, use the [arrival checklist](ez_pilot_pro_arrival.md) and [staged trainer guide](../hardware/tx16s-trainer-integration.md). A physical state is not verified by this document or by software output.
+
 > Print it, laminate it, and mark it up like you mean it. Every step is both a ritual and documentation. Link out as needed: [Flight Cage Build Notes](../../hardware/flight_cage/README.md) · [Control Bridge Playbook](../control-stack-playbook.md) · [Experience Choreography](../experience/README.md).
 
 ## Sectioned Checklist

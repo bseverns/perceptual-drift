@@ -1,0 +1,40 @@
+schema_version: 1
+kind: aircraft
+id: ez_pilot_pro
+display_name: EMAX EZ Pilot Pro BNF
+
+reference_hardware:
+  receiver_protocol:
+    value: FrSky D8
+    evidence: CONFIG EXPECTED
+  receiver_type:
+    value: onboard SPI
+    evidence: CONFIG EXPECTED
+  battery:
+    value: 1S
+    evidence: CONFIG EXPECTED
+  expected_flight_mode:
+    value: Angle
+    evidence: CONFIG EXPECTED
+
+safety:
+  software_arm_allowed: false
+  software_throttle_allowed: false
+  max_normalized_influence:
+    roll: 0.15
+    pitch: 0.0
+    yaw: 0.15
+    throttle: 0.0
+  stale_after_seconds: 0.35
+  bridge_heartbeat_timeout_seconds: 0.25
+
+audience_axes:
+  roll:
+    allowed: true
+    evidence: SOFTWARE VERIFIED
+  pitch:
+    allowed: false
+    evidence: SOFTWARE VERIFIED
+  yaw:
+    allowed: true
+    evidence: SOFTWARE VERIFIED

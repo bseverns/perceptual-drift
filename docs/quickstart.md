@@ -30,6 +30,8 @@ Treat that order as gospel for newcomers: prototype, secure, rehearse, reflect, 
 
 ## Quickstart (Pilot: 1 drone, 1 projector)
 
+> The direct USB/MSP aircraft steps below are a **legacy/experimental historical quickstart**, not the reference EZ Pilot Pro procedure. Do not connect or fly the reference aircraft from this section. Complete the [arrival checklist](checklists/ez_pilot_pro_arrival.md) and follow the [TX16S trainer stages](hardware/tx16s-trainer-integration.md).
+
 1. **Hardware**
    - Net a 2×2 m cage. BetaFPV Cetus Pro or any 65–75 mm whoop running Betaflight 4.x works.
    - USB power a VRX + capture dongle (classic EasyCAP or UVC cards). Mount a short WS2812 strip (8–12 px) to the quad if you want glow feedback.

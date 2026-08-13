@@ -32,6 +32,8 @@ on the components used by the starter bundle and the core single-drone flow.
 | Component | Version target | Pin source | Notes |
 | --- | --- | --- | --- |
 | Betaflight MSP (`MSP_SET_RAW_RC`) | protocol-compatible | `software/control-bridge/osc_msp_bridge.py` | Bridge assumes MSP framing + 8 RC channels |
+| Wired trainer bridge protocol | `PD1` ASCII v1 | `firmware/trainer_bridge/README.md` | Reference trainer scaffold; hardware UNVERIFIED |
+| EdgeTX / TX16S trainer configuration | inspect actual radio | `config/transmitters/tx16s_pd.yaml` | CONFIG EXPECTED / OPERATOR VERIFIED, never inferred by software |
 | Teensy LED/DSP firmware | PlatformIO-managed | `firmware/teensy-*/platformio.ini` | Optional in starter bundle |
 | Processing 4 + video/osc libs | contributor-installed | `docs/quickstart.md` | Full tracker path, out of starter v0 |
 

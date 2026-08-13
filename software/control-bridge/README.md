@@ -1,5 +1,7 @@
 # Control Bridge Cheat Sheet
 
+> **Legacy/experimental backend:** this direct flight-controller path remains for software rehearsal and historical experiments. The reference EZ Pilot Pro architecture uses a master TX16S and wired trainer bridge behind `Intent → SafetyEnvelope → Backend`. See [`docs/hardware/tx16s-trainer-integration.md`](../../docs/hardware/tx16s-trainer-integration.md). Neutral MSP frames are not proof of physical safety, manual-radio authority, or a kill mechanism.
+
 This directory holds the glue that lets weird OSC data pilot a Betaflight quad
 through the MSP serial protocol.  The goal is to make the signal path obvious so
 you can rip it apart and wire in your own sensors, sequencers, or stage props.

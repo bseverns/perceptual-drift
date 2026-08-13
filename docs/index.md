@@ -4,6 +4,9 @@ Use this page as the stable navigation hub for the repo docs.
 
 ## Start
 
+- Reference TX16S trainer path: [`hardware/tx16s-trainer-integration.md`](hardware/tx16s-trainer-integration.md)
+- EZ Pilot Pro first-arrival checklist: [`checklists/ez_pilot_pro_arrival.md`](checklists/ez_pilot_pro_arrival.md)
+
 - New contributor path: [`quickstart.md`](quickstart.md)
 - Structured onboarding drills: [`onboarding/README.md`](onboarding/README.md)
 - Lowest-friction runtime loop: [`starter-bundle.md`](starter-bundle.md)

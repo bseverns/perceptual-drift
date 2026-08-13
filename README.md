@@ -4,7 +4,9 @@
 | --- | --- |
 | CI (full stack, all envs) | [![CI](https://github.com/bseverns/perceptual-drift/actions/workflows/ci.yml/badge.svg)](https://github.com/bseverns/perceptual-drift/actions/workflows/ci.yml) |
 
-Perceptual Drift is a participatory drone‑based installation where **audience motion** modulates **FPV drone** behavior and **live video processing**. It centers shared authorship: many bodies → probabilistic control → drones that “drift” perceptually. The installation leans on **DIY‑friendly stacks**: Betaflight micro‑drones, Raspberry Pi video processing (GStreamer/OBS), Processing for gesture tracking, and an OSC→MSP control bridge. Optional **Teensy DSP/LED** layers extend visual/sonic feedback. Think of it as an unholy jam session between [Betaflight](https://betaflight.com/), [Processing](https://processing.org/), [GStreamer](https://gstreamer.freedesktop.org/), and [python-osc](https://pypi.org/project/python-osc/) with a splash of [Mozzi](https://sensorium.github.io/Mozzi/) and [CrazySwarm2](https://crazyswarm.readthedocs.io/).
+Perceptual Drift is a participatory drone‑based installation where **audience motion** modulates **FPV drone** behavior and **live video processing**. The current reference physical path keeps a RadioMaster TX16S/EdgeTX transmitter authoritative and admits only bounded additive roll/yaw influence through its wired trainer input. The older OSC→MSP path remains a software-rehearsal and legacy/experimental backend, not the reference real-aircraft authority path.
+
+See the [TX16S trainer integration guide](docs/hardware/tx16s-trainer-integration.md) before any physical work. Its current status is **software UNIT TESTED; hardware UNVERIFIED**.
 
 > **No breadcrumbs? No problem.** This README tries to be the "missing field manual" for these tech stacks. Every subsystem below includes links, inspiration, and what to Google when things melt down so you can find your way home.
 
@@ -53,9 +55,9 @@ Short version: pick a platform profile, run the matching setup script, then smok
    - Webcam or depth cam feeds into a Processing sketch that estimates coarse crowd motion.
    - We ship normalized floats over OSC using [oscP5](https://www.sojamo.de/libraries/oscP5/) & [NetP5](https://www.sojamo.de/libraries/netP5/).
    - Inspirations: [OfxCv optical flow demos](https://github.com/kylemcdonald/ofxCv) and [LASER Tag (Graffiti Research Lab)](http://graffitiresearchlab.com/blog/projects/laser-tag/).
-2. **Control bridge (Pi/PC)** *(Python)*
-   - [`osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py) converts the OSC data into Betaflight RC microseconds via the [Minimal Serial Protocol (MSP)](https://github.com/betaflight/betaflight.com/blob/master/docs/development/API/MSP-Extensions.md). Think “software radio transmitter.”
-   - Uses [pyserial](https://pyserial.readthedocs.io/en/latest/), [python-osc](https://pypi.org/project/python-osc/), and config from `config/mapping.yaml`.
+2. **Control boundary (Pi/PC)** *(Python)*
+   - The reference flow is normalized `Intent → SafetyEnvelope → Backend`; the aircraft profile forbids software ARM/throttle and hard-limits trainer roll/yaw.
+   - [`osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py) is retained for dry rehearsal and legacy/experimental direct-MSP work.
    - Modelled after [Tello gesture-flight experiments](https://github.com/kinivi/tello-gesture-control) and [Red Paper Heart’s drone installations](https://redpaperheart.com/).
 3. **FPV video pipeline** *(GStreamer / OBS)*
    - Analog FPV feed → VRX → USB capture card → [GStreamer](https://gstreamer.freedesktop.org/documentation/) pipeline or [OBS Studio](https://obsproject.com/) scenes.
@@ -82,6 +84,7 @@ See `docs/diagrams/system-overview.md` for mermaid diagrams that stitch the abov
 ├─ scripts/                     # Utility scripts (logs, calibration, recorders)
 └─ software/
    ├─ control-bridge/           # OSC → MSP bridge (Python)
+   ├─ trainer_control/          # Intent, hard safety envelope, trainer backends
    ├─ gesture-tracking/         # Processing sketch + HUD for crowd consent
    └─ video-pipeline/           # GStreamer/OBS scenes, launchers
 ```
@@ -105,6 +108,8 @@ Installed entrypoints:
 - `pd-operator-ui` → operator UI server
 - `pd-safe-rehearsal` → safe no-hardware rehearsal launcher
 - `pd-status` → local safe rehearsal/operator status summary
+- `pd-trainer-dry-run` → safe normalized trainer-path rehearsal
+- `pd-trainer-preflight` → evidence-labeled trainer diagnostic
 
 Example:
 

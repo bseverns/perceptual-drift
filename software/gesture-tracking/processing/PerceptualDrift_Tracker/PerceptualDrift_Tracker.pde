@@ -169,7 +169,12 @@ void draw(){
     )
   );
   int motionCount=0;
+  int roiPixelCount=0;
   for (int i=0; i<pixelCount; i++){
+    int pixelX = i % width;
+    int pixelY = i / width;
+    boolean inConsentROI = pointInConsentZone(pixelX, pixelY);
+    if (inConsentROI) roiPixelCount++;
     color c1 = working.pixels[i];
     color cPrev = prev.pixels[i];
     color cBase = baseline.pixels[i];
@@ -180,7 +185,10 @@ void draw(){
     } else {
       presenceDiff.pixels[i] = color(0);
     }
-    if (motionDelta > threshold){
+    // Only explicit participants may shape control intent. The full-frame
+    // presence mask remains visible for calibration, but never enters the
+    // lateral/altitude/yaw/crowd calculations outside the marked ROI.
+    if (inConsentROI && motionDelta > threshold){
       motionCount++;
     }
   }
@@ -196,7 +204,7 @@ void draw(){
   int activeSamples = 0;
   for (int y=0; y<height; y+=sampleStride){
     for (int x=0; x<width; x+=sampleStride){
-      if (brightness(presenceDiff.get(x,y))>128){
+      if (pointInConsentZone(x, y) && brightness(presenceDiff.get(x,y))>128){
         cx += x;
         cy += y;
         activeSamples++;
@@ -218,7 +226,7 @@ void draw(){
   liveLat = constrain(normX, -1, 1);
   liveAlt = constrain(-normY, -1, 1);
   liveYaw = constrain(liveLat*0.2, -1, 1);
-  liveCrowd = constrain(motionCount / float(max(1, pixelCount)) * 5.0, 0, 1);
+  liveCrowd = constrain(motionCount / float(max(1, roiPixelCount)) * 5.0, 0, 1);
 
   if (!calibrationMode){
     lat = liveLat;

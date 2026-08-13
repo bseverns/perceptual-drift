@@ -1,5 +1,7 @@
 # Hardware & Install BOM Cheat Sheet
 
+> **Generic/legacy BOM:** Cetus, 2S, 3S/4S, USB-tether, secondary-radio, and kill-switch items below do not describe or verify the current EZ Pilot Pro/TX16S reference path. Do not apply their battery or control procedures to the 1S reference aircraft. Use [`docs/hardware/tx16s-trainer-integration.md`](../docs/hardware/tx16s-trainer-integration.md) and inspect the actual hardware. Any kill-switch claim requires a measured physical mechanism; software consent is not a kill switch.
+
 Welcome to the parts buffet that keeps Perceptual Drift airborne without sacrificing safety cred. This BOM leans on components you can actually source, with specs noted so you can swap equivalents without breaking the vibe. Prices swing, so think in ranges and order spares.
 
 > **Reading tip**: The tables are organized by subsystem. `Qty` means how many you need for a single playable bay (1 drone, 1 projection). Scale linearly for multi-bay builds, or bring a spreadsheet and a stiff coffee.
