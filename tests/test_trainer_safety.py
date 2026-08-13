@@ -5,6 +5,10 @@ from pathlib import Path
 import pytest
 
 from software.trainer_control.intent import ControlIntent
+from software.trainer_control.profiles import (
+    ProfileError,
+    load_aircraft_profile,
+)
 from software.trainer_control.safety import SafetyEnvelope
 
 
@@ -138,6 +142,20 @@ def test_aircraft_profile_cannot_raise_initial_roll_limit(
     envelope = SafetyEnvelope.from_path(unsafe_profile)
     state = evaluate(envelope, active_intent)
     assert_zero(state, "safety_profile_validation_failure")
+
+
+def test_aircraft_profile_cannot_enable_software_throttle(tmp_path):
+    unsafe_profile = tmp_path / "unsafe.yaml"
+    unsafe_profile.write_text(
+        PROFILE.read_text()
+        .replace(
+            "software_throttle_allowed: false",
+            "software_throttle_allowed: true",
+        )
+        .replace("throttle: 0.0", "throttle: 0.1")
+    )
+    with pytest.raises(ProfileError, match="must forbid software throttle"):
+        load_aircraft_profile(unsafe_profile)
 
 
 def test_intent_api_has_no_arm_field():

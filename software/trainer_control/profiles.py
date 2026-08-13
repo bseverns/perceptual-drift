@@ -112,7 +112,9 @@ def load_aircraft_profile(path: Path) -> AircraftSafetyProfile:
     )
     if arm_allowed:
         raise ProfileError("aircraft profile must forbid software ARM")
-    if not throttle_allowed and limits["throttle"] != 0:
+    if throttle_allowed:
+        raise ProfileError("aircraft profile must forbid software throttle")
+    if limits["throttle"] != 0:
         raise ProfileError(
             "forbidden software throttle must have a zero limit"
         )
