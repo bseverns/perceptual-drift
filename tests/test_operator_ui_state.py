@@ -131,16 +131,22 @@ def test_operator_state_dispatches_consent_to_runtime_targets():
         ]
 
 
-def test_operator_state_base_recipe_skips_runtime_patch():
-    state = OperatorState(
-        base_mapping_path=ROOT / "config" / "mapping.yaml",
-        recipes_dir=ROOT / "config" / "recipes",
-        runtime_targets=[("127.0.0.1", 9010)],
-    )
-    snapshot = state.set_recipe("base")
+def test_operator_state_base_recipe_resets_runtime_patch():
+    with patch(
+        "software.operator_ui.state.udp_client.SimpleUDPClient"
+    ) as client:
+        state = OperatorState(
+            base_mapping_path=ROOT / "config" / "mapping.yaml",
+            recipes_dir=ROOT / "config" / "recipes",
+            runtime_targets=[("127.0.0.1", 9010)],
+        )
+        snapshot = state.set_recipe("base")
     assert snapshot["active_recipe"] == "base"
     assert snapshot["last_dispatch"]["action"] == "recipe"
-    assert snapshot["last_dispatch"]["results"] == []
+    assert snapshot["last_dispatch"]["results"][0]["ok"] is True
+    client.return_value.send_message.assert_called_once_with(
+        "/pd/patch", "base"
+    )
 
 
 def test_operator_state_session_export_includes_state_and_telemetry(tmp_path):
@@ -310,6 +316,23 @@ def test_operator_state_runtime_health_falls_back_to_process_scan():
     assert service["healthy"] is True
     assert service["source"] == "process_scan"
     assert service["pid"] == 2222
+
+
+def test_default_runtime_health_includes_reference_trainer():
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+    )
+    with patch.object(state, "_ps_processes", return_value=[]):
+        health = state.runtime_health()
+
+    trainer = next(
+        service
+        for service in health["services"]
+        if service["id"] == "trainer_runtime"
+    )
+    assert trainer["name"] == "Trainer Runtime"
+    assert trainer["healthy"] is False
 
 
 def test_operator_state_rehearsal_lifecycle_updates_snapshot():

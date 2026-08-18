@@ -98,8 +98,8 @@ python3 -m software.operator_ui.server \
   --consent-route /pd/consent
 ```
 
-Note: selecting recipe `base` resets local state but does not emit a runtime
-recipe patch.
+Selecting recipe `base` emits a `base` patch so trainer and rehearsal runtimes
+return to the canonical mapping as well as resetting local UI state.
 
 ## Session exports
 
@@ -127,8 +127,8 @@ python3 -m software.operator_ui.server \
 
 ## Runtime health visibility
 
-`GET /api/runtime/health` reports status for key daemons (control bridge, tracker,
-swarm demo) using:
+`GET /api/runtime/health` reports status for key daemons (trainer runtime,
+legacy control bridge, tracker, and swarm demo) using:
 
 - PID files (preferred, if present)
 - process table scan fallback (`ps`)

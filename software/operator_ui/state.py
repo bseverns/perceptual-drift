@@ -111,6 +111,12 @@ class OperatorState:
                 "match": "software/control-bridge/osc_msp_bridge.py",
             },
             {
+                "id": "trainer_runtime",
+                "name": "Trainer Runtime",
+                "pid_file": "",
+                "match": "pd-trainer-run",
+            },
+            {
                 "id": "tracker",
                 "name": "Tracker",
                 "pid_file": str(
@@ -224,19 +230,11 @@ class OperatorState:
             self._mapping = mapping
             self._active_recipe = active
             self._updated_at = time.time()
-            if normalized and normalized != "base":
-                self._last_dispatch = self._emit_runtime(
-                    action="recipe",
-                    route=self.recipe_route,
-                    payload=normalized,
-                )
-            else:
-                self._last_dispatch = {
-                    "action": "recipe",
-                    "route": self.recipe_route,
-                    "results": [],
-                    "note": "base mapping selected; no runtime patch emitted",
-                }
+            self._last_dispatch = self._emit_runtime(
+                action="recipe",
+                route=self.recipe_route,
+                payload=normalized or "base",
+            )
             self._record_dispatch(self._last_dispatch)
             return self.snapshot_unlocked()
 
