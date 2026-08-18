@@ -27,8 +27,8 @@ import netP5.*;
 // -----------------------------------------------------------------------------
 // TUNABLE PARAMETERS — tweak up here so the rest of the sketch stays readable.
 // -----------------------------------------------------------------------------
-int threshold = 35;          // frame-diff brightness cutoff; lower = more sensitive
-int blurRadius = 0;          // optional blur applied to the working frame (0 = off)
+int threshold = 50;          // frame-diff brightness cutoff; lower = more sensitive
+int blurRadius = 1;          // optional blur applied to the working frame (0 = off)
 int sampleStride = 8;        // pixel sampling step when estimating the centroid
 int minBlobSamples = 12;     // reject isolated foreground/noise in the sampled mask
 int consentEnterFrames = 3;  // consecutive fresh frames required to opt in
@@ -60,7 +60,7 @@ NetAddress dst;
 float alt=0, lat=0, yaw=0, crowd=0;
 float liveAlt=0, liveLat=0, liveYaw=0, liveCrowd=0; // preview keeps updating while OSC is safely neutral
 boolean consent=false;
-boolean consentArmed=false; // fail closed; facilitator must press space to arm
+boolean consentArmed=true; // facilitator arming; space bar toggles this gate
 boolean consentZoneActive=false;
 int consentState = 0; // 0 = no one in zone, 1 = at least one centroid in bounds
 int lastConsentState = 0;
@@ -406,7 +406,6 @@ void captureBackground(PImage frame, String reason){
   yaw = 0;
   crowd = 0;
   consentState = 0;
-  consentArmed = false;
   consentZoneActive = false;
   consentFramesRemaining = 0;
   consentCandidateFrames = 0;
@@ -426,19 +425,13 @@ void captureBackground(PImage frame, String reason){
 //   s   -> print a config snippet you can paste into the TUNABLES block
 void keyReleased(){
   if (key == ' '){
-    if (calibrationMode || cameraStalled){
-      consentArmed = false;
-      println("Cannot arm while calibration or camera-safe mode is active.");
-    } else {
-      consentArmed = !consentArmed;
-    }
+    consentArmed = !consentArmed;
     // Recompute state so the HUD and OSC reflect the arming gate immediately.
     refreshConsentGate();
   } else if (key == 'c' || key == 'C'){
     calibrationMode = !calibrationMode;
     if (calibrationMode){
-      consentArmed = false;
-      // Hold the last values for the HUD while OSC publishes a neutral heartbeat.
+      // freeze outgoing numbers so downstream mapping stays predictable while tinkering
       lat = liveLat;
       alt = liveAlt;
       yaw = liveYaw;
@@ -502,7 +495,6 @@ void sendSafeOSCFrame(){
 
 void handleCameraStall(){
   cameraStalled = true;
-  consentArmed = false;
   centroids.clear();
   centroidWeights.clear();
   liveAlt = liveLat = liveYaw = liveCrowd = 0;

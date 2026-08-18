@@ -9,7 +9,7 @@ then drop back here for the onboarding sequence.
 
 ## Onboarding flight school (start here)
 
-0. **Touch the Drift Minimal sketch** in [`examples/drift_minimal/`](../examples/drift_minimal/README.md). Run `python3 examples/drift_minimal/drift_minimal.py` and watch one still image drift via three layered offsets. It’s the punk-rock lab demo that lets students feel the installation’s core behavior without drones, OSC, or GStreamer.
+0. **Touch the Drift Minimal sketch** in [`examples/drift_minimal/`](../examples/drift_minimal/README.md). Run `python3 examples/drift_minimal/drift_minimal.py` and watch one still image drift via three layered offsets. It’s a demo that lets students feel the installation’s core behavior without drones, OSC, or GStreamer.
 1. **Run the staged onboarding playbook** in [`docs/onboarding/`](onboarding/README.md). It walks you through three levels — systems sighting, consent choreography, and safety loop drills — with "do this now" exercises so you earn muscle memory, not just vibes.
 2. **Log your artifacts** (Level 1 dry-run screenshot, Level 2 consent rehearsal capture, Level 3 checklist PDF) and open a GitHub discussion titled `Onboarding sign-off — <your name>` tagging `@control-lead`, `@experience-lead`, and `@safety-second` once all drills are done.
 3. **Wait for sign-off** — leads usually respond within 48 hours; once approved you’re clear to co-run rehearsals.
