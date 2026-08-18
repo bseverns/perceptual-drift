@@ -95,6 +95,7 @@ Treat these as regression-blocking rules:
 - Consent normalization is binary and consistent at the control boundary: values `< 0.5` mean OFF, values `>= 0.5` mean ON.
 - When consent is OFF, the control bridge must keep sending neutral/safe RC heartbeat frames rather than live gesture-driven RC output.
 - Swarm behavior must settle into its configured idle posture when consent is OFF.
+- Physical swarm service calls require fresh consent independently of visual idle-posture mapping; stale consent must transition through the same Land/Stop path as an explicit OFF packet.
 - Smoke-harness and UI tests should fail if any subsystem stops honoring these defaults.
 
 ## `mapping`

@@ -8,7 +8,7 @@ rotors. Read it like a zine, treat it like a checklist.
 
 | Interlock | Simulation behavior | Real-world translation |
 | --------- | ------------------ | ---------------------- |
-| **Consent latch** (`/pd/consent`) | `pd_swarm_bridge` refuses to issue new service calls. `pd_sim_pose_driver` keeps the models frozen at their last pose. | Map the same boolean to the CrazySwarm2 `/emergency` or `/all/emergency` service. Hardware version should also trip a physical estop (power strip or deck kill) when the bit flips low. |
+| **Consent latch** (`/pd/consent`) | Consent OFF refuses takeoff/go-to calls; the real `swarm_demo.py` path calls each craft's Land and Stop services. The consent heartbeat also expires to OFF after one second by default. | Keep the software landing/stop transition, and pair it with a physical estop or power cut. Never treat a configured idle visual altitude as permission to fly. |
 | **Altitude floor + ceiling** | `ALTITUDE_FLOOR_M` / `ALTITUDE_SCALE_M` parameters limit commands to a 0.3–1.3 m bubble. The fake telemetry echoes the clamp so overlays never lie. | Match the envelope to your net height. If your venue ceiling is lower, change the params before the show. Never let the crowd stretch it past what your mocap volume supports. |
 | **Lateral bounding box** | `lateral_range` + `lateral_scale_m` restrict crowd pushes to ±1.6 m. Formation offsets keep each quad from trying to occupy the same air. | Mirror the same limits inside your CrazySwarm2 YAML (per-drone `motion_constraints`). Tape the actual floor footprint and rehearse inside it. |
 | **Collision envelope guard** | `pd_swarm_bridge.py` enforces `min_separation_m` and velocity clamps (`max_lateral_velocity_mps`, `max_altitude_velocity_mps`). `swarm_demo.py --simulate` can enforce `--sim-min-separation` on virtual drones. | Mirror the same minimum spacing in hardware planning and treat any violation as an immediate stop-and-reset trigger. |
@@ -22,7 +22,7 @@ rotors. Read it like a zine, treat it like a checklist.
    Anything you build here should be mirrored into CrazySwarm2’s `crazyswarm.yaml`
    so the real drones expect the same geometry.
 2. **Service names stay the same.** The bridge hits `/{drone}/takeoff`,
-   `/{drone}/go_to`, and `/{drone}/land`. As long as your ROS 2 workspace exposes
+   `/{drone}/go_to`, `/{drone}/land`, and `/{drone}/stop`. As long as your ROS 2 workspace exposes
    those endpoints, you can swap the simulated swarm for hardware without touching
    the messaging layer.
 3. **Telemetry loop = your HUD.** The fake `PoseStamped` publishers mimic mocap
@@ -33,6 +33,11 @@ rotors. Read it like a zine, treat it like a checklist.
    `/{drone}/emergency` and, crucially, a physical kill circuit that drops power.
 5. **Logs or it didn’t happen.** Capture rosbag files during rehearsal. When you
    move to hardware, those same bags become your “black box” for R&D and insurance.
+
+The OSC listener defaults to `127.0.0.1:9010`. A tracker on another host requires
+an explicit `--bind 0.0.0.0`, which is unauthenticated and therefore permitted
+only on a physically isolated, trusted control network. The startup warning is a
+preflight stop condition anywhere else.
 
 ## Preflight ritual (sim and real)
 

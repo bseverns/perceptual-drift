@@ -59,7 +59,8 @@ Everything above rides on your existing OSC mappings (`config/mapping.yaml` or r
    ```bash
    python3 software/swarm/swarm_demo.py --base-mapping config/mapping.yaml
    ```
-   - Leave the defaults (`0.0.0.0:9010`) unless your OSC sender expects a different port.
+   - The default listener is loopback-only (`127.0.0.1:9010`). If a tracker on another machine must connect, use `--bind 0.0.0.0` only on a physically isolated, trusted control network and acknowledge the exposure warning during preflight.
+   - Consent must continue sending heartbeats while ON. The default one-second watchdog forces OFF and invokes Land/Stop after tracker loss; tune it with `--consent-timeout` only after a props-off rehearsal.
    - If you run it inside your ROS 2 workspace as an installed package, swap the command for `ros2 run perceptual_drift_swarm swarm_demo`.
 3. **Send OSC gestures** from your tracker or a quick CLI poke:
    ```bash
