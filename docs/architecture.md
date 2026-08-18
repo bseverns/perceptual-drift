@@ -15,10 +15,11 @@ Perceptual-drift listens to an environment, measures how it changes, and maps th
 For the EMAX EZ Pilot Pro/TX16S phase, actuator output is not a direct mapper side effect:
 
 ```text
-normalized Intent → aircraft SafetyEnvelope → Backend
+tracker signals → artistic/recipe IntentMapper → normalized Intent
+                → aircraft SafetyEnvelope → Backend
 ```
 
-The TX16S remains master. The reference backend is a wired trainer bridge; direct MSP is legacy/experimental. The envelope is the final authority on allowed axes and magnitude, and unsafe/unknown conditions bypass artistic mapping into explicit zero contribution. See [`hardware/tx16s-trainer-integration.md`](hardware/tx16s-trainer-integration.md).
+The reference backend is a wired trainer bridge; direct MSP is legacy/experimental. The authority hierarchy is explicit: `SafetyEnvelope` is the final software authority on allowed axes and magnitude, TX16S/EdgeTX is the final physical mixing authority, and the pilot is the final operational authority. Unsafe or unknown conditions bypass artistic mapping into explicit zero contribution. See [`hardware/tx16s-trainer-integration.md`](hardware/tx16s-trainer-integration.md).
 
 ## Proposed code layout
 Keep IO, computation, and scenes cleanly separated so platform quirks stay contained:

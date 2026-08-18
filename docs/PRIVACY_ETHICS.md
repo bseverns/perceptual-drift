@@ -15,10 +15,11 @@ Coordinate these signals before powering the drone:
 - **Projector overlay** — When consent is low the silhouette output fades toward
   grayscale (see `docs/experience/README.md` onboarding table). Once consent is
   granted, motion blooms into full-spectrum color and latency readouts unhide.
-- **Bridge console** — The OSC→MSP bridge slams a neutral RC frame (centered
-  sticks, low throttle, chill AUX) whenever `/pd/consent` drops (see the neutral
-  frame handling in `software/control-bridge/osc_msp_bridge.py`). The terminal prints
-  `consent=0` heartbeat lines while idle and `consent=1` when packets are armed.
+- **Reference trainer console** — `pd-trainer-run` reports
+  `TRAINER STATE → NEUTRAL: consent_off` when consent drops and sends zero
+  trainer contribution. State transitions also enter `logs/ops_events.jsonl`.
+  The older OSC→MSP bridge provides equivalent neutral RC behavior only for
+  legacy and rehearsal setups.
 - **Physical LEDs** — AUX-driven fixtures should mirror the same amber→cyan state
   as the Processing HUD via the consent channel described in
   `config/mapping.yaml`. If your LED controller can’t show both states, it does
@@ -28,13 +29,14 @@ Coordinate these signals before powering the drone:
 
 1. **Idle (consent = 0)**
    - Processing status bar: amber, “CONSENT OFF”.
-   - OSC bridge shell: shows centered roll/pitch/yaw (`1500` µs), explicitly
-     low throttle (`1100` µs), and neutral AUX values.
+   - Trainer runtime: reports `NEUTRAL: consent_off` and sends zero additive
+     roll, pitch, yaw, and throttle contribution. A legacy MSP rehearsal shows
+     centered roll/pitch/yaw (`1500` µs), low throttle (`1100` µs), and neutral AUX.
    - LEDs: amber pulse at 30% brightness.
    - Projection: grayscale silhouettes; “System observing only” footer.
 2. **Engaged (consent = 1)**
    - Processing status bar: cyan, “CONSENT ON”.
-   - OSC bridge shell: live RC packets stream at ~50 Hz.
+   - Trainer runtime: reports `ACTIVE`; bounded trainer packets stream at ~50 Hz.
    - LEDs: cyan sweep pattern at 60% brightness.
    - Projection: full color, latency ticker visible.
 
@@ -46,7 +48,7 @@ When anyone asks for deletion, drop everything and purge the volatile caches.
 
 | Anxiety | Response for spectators | Action for operator |
 | --- | --- | --- |
-| Someone wants to opt out | Step out of the marked zone; projection fades to idle. | Park consent (amber), let MSP fall back to neutral, and keep visuals in idle/gray. |
+| Someone wants to opt out | Step out of the marked zone; projection fades to idle. | Park consent (amber), confirm trainer contribution returns to zero, and keep visuals in idle/gray. |
 | Someone asks for deletion | You’ll hear “purging now” and see visuals idle. | Run the buffer purge, seal the log entry, and confirm verbally. |
 | Camera failure | Projection will dim/freeze while we reboot. | Keep consent parked, reboot the tracker, and announce the pause before re-arming. |
 
@@ -73,8 +75,9 @@ When anyone asks for deletion, drop everything and purge the volatile caches.
 - `logs/ops_events.jsonl` is the canonical ledger. It inherits `.gitignore`
   rules so it never syncs upstream.
 - Automation now covers the usual suspects: `scripts/purge_buffers.sh`,
-  `scripts/record_fpv.sh`, and the OSC→MSP bridge all append structured events
-  with timestamps, hostnames, and the current `OPERATOR_ID`.
+  `scripts/record_fpv.sh`, the trainer runtime, and the OSC→MSP bridge. They
+  append structured events with timestamps, hostnames, and the current
+  `OPERATOR_ID`.
 - Log every consent toggle, buffer purge, manual deletion, and external storage
   connection. When you need a manual entry, echo a JSON blob so the replay tools
   stay happy:
@@ -137,8 +140,9 @@ sideways.
 > the same copy in large-print handouts. Screen-reader script mirrors this text
 > and explicitly calls out the color states for low-vision guests.
 
-The legacy OSC→MSP bridge binds to loopback by default so hosts elsewhere on
-the venue LAN cannot forge the visible consent state. `--bind 0.0.0.0` is an
+The reference `pd-trainer-run` and legacy OSC→MSP bridge bind to loopback by
+default so hosts elsewhere on the venue LAN cannot forge the visible consent
+state. `--bind 0.0.0.0` is an
 explicit exposure override for physically isolated, trusted control networks;
 using it on a shared or internet-routed network invalidates the consent model
 described by this signage.
@@ -172,9 +176,10 @@ Before opening doors each day:
 - **Consent channel source** —
   `software/gesture-tracking/processing/PerceptualDrift_Tracker/PerceptualDrift_Tracker.pde`
   defines the `/pd/consent` toggle and HUD colors.
-- **OSC bridge behavior** —
-  `software/control-bridge/osc_msp_bridge.py` shows how consent gates RC output
-  and where to extend neutral handling.
+- **Reference trainer behavior** — `software/trainer_control/runtime.py` shows
+  how consent, freshness, heartbeat, and operator enable gate zero/bounded
+  trainer contribution. `software/control-bridge/osc_msp_bridge.py` documents
+  the legacy/rehearsal path.
 - **Operator choreography** — `docs/control-stack-playbook.md` and
   `docs/experience/README.md` outline the human-facing flow; keep them in sync
   when you tweak the cues above.

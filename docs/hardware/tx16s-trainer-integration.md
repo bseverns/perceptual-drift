@@ -6,8 +6,10 @@ This is the reference physical architecture for the next Perceptual Drift phase:
 
 ```text
 Audience / ROI-masked tracker
-        ↓ normalized control intent
-Intent → SafetyEnvelope → Backend
+        ↓ normalized tracker signals
+artistic / recipe IntentMapper → ControlIntent
+        ↓
+SafetyEnvelope → Backend
         ↓ bounded roll/yaw contributions only
 USB serial → RP2040/Teensy bridge → wired PPM/CPPM
         ↓
@@ -36,6 +38,8 @@ Longer maturity labels are `ASPIRATIONAL`, `SIMULATED`, `UNIT TESTED`, `BENCH TE
 ## Software contract
 
 `software.trainer_control.intent.ControlIntent` contains only normalized roll, pitch, yaw, throttle, crowd, consent, and timestamp values. It knows nothing about MSP, PPM, SBUS, RC microseconds, receiver protocols, or ARM.
+
+`software.trainer_control.mapping.IntentMapper` is the transport-neutral artistic stage. It applies the canonical lateral deadzone, curve, and gain plus yaw bias/jitter from `config/mapping.yaml` or a validated recipe. It produces normalized intent and has no knowledge of aircraft authority or serial encoding.
 
 `SafetyEnvelope` loads `config/aircraft/ez_pilot_pro.yaml`. It bypasses artistic mapping and produces zero axes on startup, consent OFF, stale/malformed/non-finite input, operator disable, missing/stale bridge heartbeat, or invalid safety profile. Valid inputs are hard-clamped after artistic shaping, so recipes cannot raise physical authority.
 
@@ -83,7 +87,7 @@ That simulation must report roll `0.15`, pitch `0`, yaw `-0.15`, and throttle `0
 
 ## Live host runtime
 
-`pd-trainer-run` is the installed reference host process. It joins the canonical OSC routes, `SafetyEnvelope`, the real USB-serial `TrainerBackend`, and the bridge's independently generated `HB,<sequence>` heartbeat. It listens on loopback by default and transmits neutral packets unless every required condition is current: lateral input, yaw input, consent heartbeat, bridge heartbeat, a valid aircraft profile, and explicit local `--operator-enable`.
+`pd-trainer-run` is the installed reference host process. It joins the canonical OSC routes, artistic mapper, `SafetyEnvelope`, the real USB-serial `TrainerBackend`, and the bridge's independently generated `HB,<sequence>` heartbeat. It validates both the aircraft and declared TX16S profiles before opening the live path. It listens on loopback by default and transmits neutral packets unless every required condition is current: lateral input, yaw input, consent heartbeat, bridge heartbeat, valid profiles, and explicit local `--operator-enable`.
 
 For a props-off bench session:
 
@@ -97,7 +101,17 @@ That command is intentionally neutral-only. After confirming the serial device, 
 pd-trainer-run --serial /dev/ttyACM0 --operator-enable
 ```
 
-The live trainer runtime maps canonical `/pd/lat` to trainer roll and `/pd/yaw` to trainer yaw. `/pd/alt` is deliberately not connected because software pitch and throttle are forbidden. It also consumes `/pd/crowd` for intent completeness/telemetry and `/pd/consent` as a required heartbeat. Invalid/non-finite OSC values do not refresh input freshness. A partial OSC stream cannot keep an old roll or yaw command fresh because roll, yaw, and consent timestamps expire independently through the envelope's oldest required timestamp.
+The live trainer runtime maps canonical `/pd/lat` through lateral deadzone/curve/gain to trainer roll and maps `/pd/yaw` through configured bias/jitter to trainer yaw. Select an initial recipe with `--recipe ambient`; validated `/pd/patch` string messages can change recipes while running. `/pd/alt` is deliberately not connected because software pitch and throttle are forbidden. It consumes `/pd/crowd` for telemetry and `/pd/consent` as a required heartbeat. Invalid/non-finite OSC values do not refresh input freshness. A partial OSC stream cannot keep an old roll, yaw, or consent value fresh because those timestamps expire independently.
+
+The console reports effective state transitions—not every frame—and writes the same events to `logs/ops_events.jsonl`, for example `TRAINER STATE → ACTIVE`, `TRAINER STATE → NEUTRAL: stale_input`, and `TRAINER STATE → NEUTRAL: trainer_bridge_heartbeat_lost`. The Operator UI runtime-health view can discover `pd-trainer-run`; it does not start or enable the physical trainer path.
+
+For a read-only Stage 1→2 serial check, request several MCU heartbeats without transmitting trainer commands:
+
+```bash
+pd-trainer-preflight --serial /dev/ttyACM0
+```
+
+Success is labeled `SOFTWARE OBSERVED: trainer bridge responding`; the PPM electrical signal remains `HARDWARE SIGNAL: still UNVERIFIED` until measured.
 
 Do not expose the OSC socket on a venue LAN. A non-loopback `--bind` is an explicit isolated-rig override and prints a warning. The physical TX16S trainer switch remains the final authority even when `--operator-enable` is present.
 

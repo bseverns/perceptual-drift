@@ -13,7 +13,8 @@ The mapping contract defines:
 
 1. OSC address expectations from gesture trackers.
 2. Consent gating behavior for motion outputs.
-3. Curve/gain shaping from normalized gesture signals to RC intent.
+3. Transport-neutral curve/gain shaping from normalized gesture signals to
+   artistic intent, before any physical safety envelope or backend.
 4. Bridge runtime behavior (rate, modes, stale watchdog).
 
 ## Top-level schema
@@ -75,6 +76,7 @@ semantics aligned when changing defaults or thresholds.
 | --- | --- | --- | --- |
 | Processing tracker HUD | Sketch state + published `/pd/consent` route | Starts/returns to visible OFF state until toggled | Publishes explicit `0`/`1` |
 | Control bridge (`osc_msp_bridge.py`) | `consent.default_state` from `config/mapping.yaml` | Mapper initializes to default state; consent `0` keeps neutral MSP heartbeat | Incoming consent is normalized with `>=0.5 => 1` |
+| Trainer runtime (`pd-trainer-run`) | Complete fresh roll/yaw/consent samples; starts incomplete | Sends zero trainer contribution until consent and every independent freshness/safety gate passes | Incoming consent is normalized with `>=0.5 => 1` |
 | Swarm runtime (`swarm_demo.py`) | `consent.default_state` from loaded mapping/recipe | Starts with default consent and gates behavior via `gate_motion`/`mode` | Startup, OSC handlers, and behavior mapping all normalize consent with `>=0.5 => 1` |
 | Operator UI (`operator_ui/state.py`) | UI-local state (defaults to `0`) + API calls | Starts OFF until operator toggles or dispatches consent | API writes normalize consent with `>=0.5 => 1` |
 | Stack smoke harness (`scripts/check_stack.py`) | Base mapping/recipe loaded for test run | Harness mapper starts from mapping default and should emit neutral RC frames until consent is armed | Uses bridge consent logic under test (`>=0.5 => 1`) |
@@ -101,6 +103,10 @@ Treat these as regression-blocking rules:
 ## `mapping`
 
 Defines control shaping.
+
+The reference trainer runtime applies these values in a transport-neutral
+`IntentMapper` before `SafetyEnvelope`. The envelope then imposes immutable
+aircraft limits; it does not replace artistic gain with safety scaling.
 
 - `mapping.altitude`
   - `deadzone`
@@ -138,6 +144,9 @@ Recipes can override mapping contract values under:
 
 Use `control_bridge.extends` to inherit from a base map (typically
 `config/mapping.yaml`) and override only scenario-specific keys.
+`pd-trainer-run --recipe <name>` selects an initial recipe, and its validated
+`/pd/patch` handler supports operator recipe changes without importing MSP/RC
+conversion into the trainer path.
 
 Reference:
 

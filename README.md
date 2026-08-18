@@ -56,7 +56,7 @@ Short version: pick a platform profile, run the matching setup script, then smok
    - We ship normalized floats over OSC using [oscP5](https://www.sojamo.de/libraries/oscP5/) & [NetP5](https://www.sojamo.de/libraries/netP5/).
    - Inspirations: [OfxCv optical flow demos](https://github.com/kylemcdonald/ofxCv) and [LASER Tag (Graffiti Research Lab)](http://graffitiresearchlab.com/blog/projects/laser-tag/).
 2. **Control boundary (Pi/PC)** *(Python)*
-   - The reference flow is normalized `Intent → SafetyEnvelope → Backend`; the aircraft profile forbids software ARM/throttle and hard-limits trainer-domain roll/yaw to ±0.15 before the separate EdgeTX trainer weight is applied.
+   - The reference flow is `tracker signals → artistic/recipe IntentMapper → ControlIntent → SafetyEnvelope → Backend`; the aircraft profile forbids software ARM/throttle and hard-limits trainer-domain roll/yaw to ±0.15 before the separate EdgeTX trainer weight is applied.
    - [`osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py) is retained for dry rehearsal and legacy/experimental direct-MSP work.
    - Modelled after [Tello gesture-flight experiments](https://github.com/kinivi/tello-gesture-control) and [Red Paper Heart’s drone installations](https://redpaperheart.com/).
 3. **FPV video pipeline** *(GStreamer / OBS)*

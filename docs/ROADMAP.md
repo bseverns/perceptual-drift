@@ -121,3 +121,43 @@ Field validation remains separate from code proof:
 ### M5 exit criteria
 
 - Non-technical operator can run a rehearsal without editing YAML.
+
+## M6 Deliverables (TX16S trainer boundary)
+
+Software boundary:
+
+- [x] Define normalized `ControlIntent`, immutable aircraft limits, and a
+  fail-closed `SafetyEnvelope`.
+- [x] Add a real serial trainer runtime with independent OSC/consent freshness,
+  MCU heartbeat gating, declared aircraft/TX16S profile validation, and neutral
+  shutdown.
+- [x] Place transport-neutral artistic/recipe mapping before the safety envelope.
+- [x] Log effective trainer state transitions to the operational JSONL ledger.
+- [x] Cover active output plus independent stale-input, consent, heartbeat, and
+  operator-disable transitions in automated tests.
+- [x] Add a read-only preflight mode that observes MCU heartbeats without sending
+  trainer commands.
+
+Physical evidence progression:
+
+- [x] Build the RP2040/Pico trainer-bridge target in a clean PlatformIO flow.
+- [ ] Flash the selected trainer bridge board.
+- [ ] Inspect PPM timing, polarity, voltage, channel order, and watchdog behavior
+  on a scope or logic analyzer with no transmitter attached.
+- [ ] Connect the bridge to TX16S with no aircraft and verify trainer ADD/OFF
+  modes, the physical enable switch, and the expected maximum 2.25% channel
+  contribution in the EdgeTX monitor.
+- [ ] Connect the EMAX with props removed and verify manual authority, zero
+  software throttle/pitch/ARM, and zero contribution for every host/bridge loss.
+- [ ] Complete contained manual flight before introducing bounded synthetic or
+  participant influence.
+
+### M6 exit criteria
+
+- Software evidence remains labeled `UNIT TESTED` until physical measurements
+  are retained.
+- Scope/analyzer evidence establishes the bridge signal and watchdog behavior.
+- EdgeTX monitor evidence establishes actual final channel authority and the
+  pilot's physical override path.
+- Props-off aircraft evidence confirms all software loss conditions produce zero
+  trainer contribution without impairing pilot control.
