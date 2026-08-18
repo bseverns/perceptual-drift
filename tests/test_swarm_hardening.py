@@ -100,6 +100,34 @@ def test_swarm_demo_physical_sends_refuse_without_fresh_consent():
     assert state.current_altitude == 0.8
 
 
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_swarm_demo_rejects_nonfinite_osc_values(value):
+    assert swarm_demo.SwarmNode._extract_first_value((value,)) is None
+
+
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+@pytest.mark.parametrize(
+    ("handler_name", "state_key"),
+    [
+        ("_handle_global_lat", "lat"),
+        ("_handle_global_alt", "alt"),
+    ],
+)
+def test_swarm_demo_nonfinite_motion_does_not_mutate_or_apply(
+    handler_name, state_key, value
+):
+    node = swarm_demo.SwarmNode.__new__(swarm_demo.SwarmNode)
+    node.gesture_state = {state_key: 0.25}
+    node.get_logger = lambda: SimpleNamespace(warning=lambda *_args: None)
+    node._apply_behavior_from_gestures = lambda **_kwargs: pytest.fail(
+        "non-finite motion must not reach command handling"
+    )
+
+    getattr(node, handler_name)(f"/pd/{state_key}", value)
+
+    assert node.gesture_state[state_key] == 0.25
+
+
 @pytest.mark.parametrize("last_consent_at", [None, 10.0])
 def test_swarm_demo_watchdog_forces_off_through_land_stop_edge(
     last_consent_at,

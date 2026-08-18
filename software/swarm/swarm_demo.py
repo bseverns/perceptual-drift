@@ -828,9 +828,10 @@ class SwarmNode(NodeBase):
         if not vals:
             return None
         try:
-            return float(vals[0])
-        except (TypeError, ValueError):
+            value = float(vals[0])
+        except (TypeError, ValueError, OverflowError):
             return None
+        return value if math.isfinite(value) else None
 
     @staticmethod
     def _extract_recipe_name(vals: Iterable[Any]) -> Optional[str]:

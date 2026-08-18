@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Mapping
 
 import yaml
@@ -16,6 +17,10 @@ EVIDENCE_LABELS = {
     "OPERATOR VERIFIED",
     "UNVERIFIED",
 }
+
+IMMUTABLE_TRAINER_LIMITS = MappingProxyType(
+    {"roll": 0.15, "pitch": 0.0, "yaw": 0.15, "throttle": 0.0}
+)
 
 
 class ProfileError(ValueError):
@@ -114,16 +119,18 @@ def load_aircraft_profile(path: Path) -> AircraftSafetyProfile:
         raise ProfileError("aircraft profile must forbid software ARM")
     if throttle_allowed:
         raise ProfileError("aircraft profile must forbid software throttle")
-    if limits["throttle"] != 0:
+    if limits["throttle"] != IMMUTABLE_TRAINER_LIMITS["throttle"]:
         raise ProfileError(
             "forbidden software throttle must have a zero limit"
         )
-    if limits["pitch"] != 0:
+    if limits["pitch"] != IMMUTABLE_TRAINER_LIMITS["pitch"]:
         raise ProfileError("initial aircraft profile must disable pitch")
     for axis in ("roll", "yaw"):
-        if limits[axis] > 0.15:
+        if limits[axis] > IMMUTABLE_TRAINER_LIMITS[axis]:
             raise ProfileError(
-                f"initial aircraft {axis} limit cannot exceed 0.15"
+                "initial aircraft {} limit cannot exceed {}".format(
+                    axis, IMMUTABLE_TRAINER_LIMITS[axis]
+                )
             )
     return AircraftSafetyProfile(
         profile_id=str(raw.get("id", "")),
@@ -168,7 +175,7 @@ def validate_transmitter_profile(path: Path) -> Mapping[str, object]:
             float(raw_weight) / 100,
             f"transmitter.trainer.{axis}.maximum_weight_percent",
         )
-        if weight > 0.15:
+        if weight > IMMUTABLE_TRAINER_LIMITS[axis]:
             raise ProfileError(
                 f"transmitter.trainer.{axis}.maximum_weight_percent cannot exceed 15"
             )

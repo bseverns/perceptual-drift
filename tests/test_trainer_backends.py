@@ -1,3 +1,4 @@
+import math
 import struct
 from pathlib import Path
 
@@ -56,11 +57,30 @@ def test_dry_run_exposes_effective_state_without_hardware():
 
 
 def test_trainer_packet_is_inspectable_and_forces_zero_throttle():
-    packet = encode_trainer_packet(7, bounded_state(throttle=0.9))
+    packet = encode_trainer_packet(7, bounded_state())
     fields = packet.decode().strip().split(",")
     assert fields[:2] == ["PD1", "7"]
     assert fields[2:6] == ["0.150000", "0.000000", "-0.150000", "0.000000"]
     assert len(fields[-1]) == 2
+
+
+@pytest.mark.parametrize(
+    "unsafe_state",
+    [
+        bounded_state(active=False),
+        bounded_state(consent=False),
+        bounded_state(roll=0.150001),
+        bounded_state(pitch=0.000001),
+        bounded_state(yaw=-0.150001),
+        bounded_state(throttle=0.000001),
+        bounded_state(roll=math.nan),
+    ],
+)
+def test_trainer_packet_neutralizes_states_outside_backend_limits(
+    unsafe_state,
+):
+    fields = encode_trainer_packet(7, unsafe_state).decode().strip().split(",")
+    assert fields[2:6] == ["0.000000"] * 4
 
 
 def test_trainer_backend_only_accepts_explicit_bridge_heartbeat():
@@ -72,15 +92,45 @@ def test_trainer_backend_only_accepts_explicit_bridge_heartbeat():
     assert backend.last_heartbeat_timestamp == 12.5
 
 
+def test_trainer_backend_send_neutralizes_an_arbitrary_active_state():
+    serial = FakeSerial()
+    backend = TrainerBackend(serial)
+
+    backend.send(bounded_state(roll=1.0, pitch=-1.0, yaw=1.0))
+
+    fields = serial.writes[0].decode().strip().split(",")
+    assert fields[2:6] == ["0.000000"] * 4
+
+
 def test_legacy_msp_backend_has_no_arm_and_forces_low_throttle():
     serial = FakeSerial()
     backend = LegacyMSPBackend(serial)
-    backend.send(bounded_state(throttle=1.0))
+    backend.send(bounded_state())
     packet = serial.writes[0]
     channels = struct.unpack("<8H", packet[5:21])
     assert channels[2] == 1000
     assert channels[4:] == (1500, 1500, 1500, 1500)
     assert not hasattr(backend, "arm")
+
+
+@pytest.mark.parametrize(
+    "unsafe_state",
+    [
+        bounded_state(active=False),
+        bounded_state(roll=1.0),
+        bounded_state(pitch=-1.0),
+        bounded_state(yaw=1.0),
+        bounded_state(throttle=1.0),
+    ],
+)
+def test_legacy_msp_backend_neutralizes_states_outside_limits(unsafe_state):
+    serial = FakeSerial()
+    backend = LegacyMSPBackend(serial)
+
+    backend.send(unsafe_state)
+
+    channels = struct.unpack("<8H", serial.writes[0][5:21])
+    assert channels[:4] == (1500, 1500, 1000, 1500)
 
 
 def test_transmitter_profile_cannot_raise_trainer_weight(tmp_path):

@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import math
 import struct
 import time
 from abc import ABC, abstractmethod
 from dataclasses import asdict
 from typing import Callable, Optional
 
+from .profiles import IMMUTABLE_TRAINER_LIMITS
 from .safety import SafetyState
 
 
@@ -35,6 +37,40 @@ class DryRunBackend(Backend):
         self.output(json.dumps(asdict(state), sort_keys=True))
 
 
+def _safe_backend_state(state: SafetyState) -> SafetyState:
+    """Return an output-safe state or an explicitly neutral replacement."""
+
+    required_flags = (
+        "active",
+        "consent",
+        "operator_enabled",
+        "input_fresh",
+        "heartbeat_fresh",
+    )
+    valid = isinstance(state, SafetyState) and all(
+        getattr(state, flag, False) is True for flag in required_flags
+    )
+    if valid:
+        for axis, limit in IMMUTABLE_TRAINER_LIMITS.items():
+            value = getattr(state, axis, None)
+            if (
+                isinstance(value, bool)
+                or not isinstance(value, (int, float))
+                or not math.isfinite(value)
+                or abs(value) > limit
+            ):
+                valid = False
+                break
+    if valid:
+        return state
+    profile_id = (
+        state.profile_id
+        if isinstance(state, SafetyState) and isinstance(state.profile_id, str)
+        else "invalid"
+    )
+    return SafetyState.neutral("backend_state_rejected", profile_id)
+
+
 def _trainer_payload(sequence: int, state: SafetyState) -> str:
     """Return the inspectable host-to-bridge payload without its checksum."""
 
@@ -47,7 +83,7 @@ def _trainer_payload(sequence: int, state: SafetyState) -> str:
 
 
 def encode_trainer_packet(sequence: int, state: SafetyState) -> bytes:
-    payload = _trainer_payload(sequence, state)
+    payload = _trainer_payload(sequence, _safe_backend_state(state))
     checksum = 0
     for value in payload.encode("ascii"):
         checksum ^= value
@@ -57,8 +93,8 @@ def encode_trainer_packet(sequence: int, state: SafetyState) -> bytes:
 class TrainerBackend(Backend):
     """USB-serial backend for the wired trainer bridge.
 
-    The bridge receives only additive normalized axes. Throttle is encoded as
-    a constant zero even if an invalid ``SafetyState`` is supplied.
+    The bridge receives only validated additive normalized axes. Invalid or
+    inactive states are encoded as neutral, and throttle is always zero.
     """
 
     def __init__(
@@ -112,6 +148,8 @@ class LegacyMSPBackend(Backend):
         return b"$M<" + bytes([size, command]) + payload + bytes([checksum])
 
     def send(self, state: SafetyState) -> None:
+        state = _safe_backend_state(state)
+
         def channel(value: float) -> int:
             return max(
                 1000,
