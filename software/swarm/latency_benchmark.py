@@ -48,15 +48,44 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Measure OSC latency against swarm simulation benchmark hooks."
     )
-    parser.add_argument("--target-host", default="127.0.0.1", help="swarm_demo OSC host")
-    parser.add_argument("--target-port", type=int, default=9010, help="swarm_demo OSC port")
-    parser.add_argument("--listen-host", default="0.0.0.0", help="Local bind host for ack server")
-    parser.add_argument("--listen-port", type=int, default=9101, help="Local bind port for ack server")
-    parser.add_argument("--samples", type=int, default=200, help="Number of measured ping samples")
-    parser.add_argument("--warmup", type=int, default=20, help="Warmup pings before measuring")
-    parser.add_argument("--interval", type=float, default=0.03, help="Seconds between pings")
-    parser.add_argument("--timeout", type=float, default=2.0, help="Ack timeout in seconds per ping")
-    parser.add_argument("--json-out", help="Optional path to write full metrics JSON")
+    parser.add_argument(
+        "--target-host", default="127.0.0.1", help="swarm_demo OSC host"
+    )
+    parser.add_argument(
+        "--target-port", type=int, default=9010, help="swarm_demo OSC port"
+    )
+    parser.add_argument(
+        "--listen-host",
+        default="0.0.0.0",
+        help="Local bind host for ack server",
+    )
+    parser.add_argument(
+        "--listen-port",
+        type=int,
+        default=9101,
+        help="Local bind port for ack server",
+    )
+    parser.add_argument(
+        "--samples",
+        type=int,
+        default=200,
+        help="Number of measured ping samples",
+    )
+    parser.add_argument(
+        "--warmup", type=int, default=20, help="Warmup pings before measuring"
+    )
+    parser.add_argument(
+        "--interval", type=float, default=0.03, help="Seconds between pings"
+    )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=2.0,
+        help="Ack timeout in seconds per ping",
+    )
+    parser.add_argument(
+        "--json-out", help="Optional path to write full metrics JSON"
+    )
     return parser.parse_args()
 
 
@@ -98,7 +127,9 @@ def main() -> int:
 
     disp = dispatcher.Dispatcher()
     disp.map(ACK_ROUTE, on_ack)
-    server = osc_server.ThreadingOSCUDPServer((args.listen_host, args.listen_port), disp)
+    server = osc_server.ThreadingOSCUDPServer(
+        (args.listen_host, args.listen_port), disp
+    )
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
@@ -107,7 +138,8 @@ def main() -> int:
         f"listen={args.listen_host}:{args.listen_port}"
     )
     print(
-        f"[bench] warmup={args.warmup} samples={args.samples} interval={args.interval:.3f}s timeout={args.timeout:.2f}s"
+        f"[bench] warmup={args.warmup} samples={args.samples} "
+        f"interval={args.interval:.3f}s timeout={args.timeout:.2f}s"
     )
 
     seq = 0
@@ -175,7 +207,9 @@ def main() -> int:
             p=summary["sim_processing_ms"]["p95"],
         )
     )
-    print(f"[bench] captured={summary['captured']} dropped={summary['dropped']}")
+    print(
+        f"[bench] captured={summary['captured']} dropped={summary['dropped']}"
+    )
 
     if args.json_out:
         out_path = Path(args.json_out)

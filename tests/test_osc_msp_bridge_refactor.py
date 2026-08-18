@@ -41,6 +41,21 @@ def test_osc_axis_update_ignores_nonfinite_values(key, lower, upper, value):
     assert state[key] == 0.25
 
 
+def test_forced_neutral_msp_packet_bypasses_mapper_and_lowers_throttle():
+    mapper = SimpleNamespace(
+        apply=lambda: pytest.fail("stale output must bypass the mapper")
+    )
+
+    packet = bridge_runtime._build_msp_output_packet(
+        mapper, force_neutral=True
+    )
+    rc_channels, aux_channels = check_stack.decode_msp_frame(packet)
+
+    assert rc_channels == check_stack.bridge.neutral_rc_channels()
+    assert rc_channels[2] == 1100
+    assert aux_channels == (1500, 1500, 1500, 1500)
+
+
 def test_consent_update_replays_buffer_and_neutralizes_on_drop():
     bridge = check_stack.bridge
     state = {

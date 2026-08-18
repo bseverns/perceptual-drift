@@ -38,7 +38,7 @@ Defines OSC ingress port and address routes.
 
 Trackers should publish normalized values to these routes:
 
-- altitude: `0..1`
+- altitude: `-1..1`
 - lateral: `-1..1`
 - yaw: `-1..1`
 - crowd: `0..1`

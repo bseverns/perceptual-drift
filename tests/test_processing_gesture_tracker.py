@@ -104,6 +104,14 @@ def test_consent_signaling_cannot_be_disabled_by_a_legacy_switch():
     assert 'sendOSC("/pd/consent", consentInt);' in source
 
 
+def test_consent_hud_uses_public_amber_and_cyan_contract():
+    source = _source()
+
+    assert "consent? color(0,220,255): color(255,170,0)" in source
+    assert "fill(0, 220, 255, 80);" in source
+    assert "fill(255, 170, 0, 60);" in source
+
+
 def test_overhead_camera_can_be_selected_explicitly():
     source = _source()
     selector = source.split("String pickPreferredCamera", 1)[1]

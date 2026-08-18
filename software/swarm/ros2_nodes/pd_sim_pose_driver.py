@@ -20,8 +20,14 @@ class PdSimPoseDriver(Node):
         self.declare_parameter("drones", ["cf1", "cf2", "cf3"])
 
         world = self.get_parameter("world").get_parameter_value().string_value
-        names = self.get_parameter("drones").get_parameter_value().string_array_value
-        self.pose_client = self.create_client(SetEntityPose, f"/world/{world}/set_pose")
+        names = (
+            self.get_parameter("drones")
+            .get_parameter_value()
+            .string_array_value
+        )
+        self.pose_client = self.create_client(
+            SetEntityPose, f"/world/{world}/set_pose"
+        )
 
         for name in names:
             topic = f"/pd/sim/{name}/pose"
@@ -34,7 +40,9 @@ class PdSimPoseDriver(Node):
 
     def _handle_pose(self, drone: str, msg: PoseStamped) -> None:
         if not self.pose_client.wait_for_service(timeout_sec=0.0):
-            self.get_logger().debug("Gazebo pose service unavailable; skipping %s", drone)
+            self.get_logger().debug(
+                "Gazebo pose service unavailable; skipping %s", drone
+            )
             return
         req = SetEntityPose.Request()
         req.entity = Entity()

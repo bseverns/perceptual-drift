@@ -37,7 +37,9 @@ def parse_args() -> argparse.Namespace:
 
 async def launch_sim(world: Path | None, headless: bool) -> int:
     repo_root = Path(__file__).resolve().parent
-    launch_file = repo_root / "simulation" / "launch" / "pd_swarm_sim.launch.py"
+    launch_file = (
+        repo_root / "simulation" / "launch" / "pd_swarm_sim.launch.py"
+    )
     if world is None:
         world = repo_root / "simulation" / "worlds" / "pd_swarm.world"
 

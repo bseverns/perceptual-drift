@@ -39,11 +39,15 @@ def _validate_mapping(obj: Any, label: str) -> Dict[str, Any]:
     if obj is None:
         return {}
     if not isinstance(obj, dict):
-        raise ValueError(f"Mapping file {label} must contain a top-level dictionary; got {type(obj)}")
+        raise ValueError(
+            f"Mapping file {label} must contain a top-level dictionary; got {type(obj)}"
+        )
     return obj
 
 
-def _deep_merge(base: Dict[str, Any], overlay: Dict[str, Any]) -> Dict[str, Any]:
+def _deep_merge(
+    base: Dict[str, Any], overlay: Dict[str, Any]
+) -> Dict[str, Any]:
     """Recursively merge ``overlay`` on top of ``base``.
 
     - Nested dictionaries are merged so that only the touched keys change.
@@ -103,7 +107,9 @@ def load_mapping(
         with base_file.open("r", encoding="utf-8") as handle:
             base_mapping = yaml.safe_load(handle)
     except yaml.YAMLError as exc:
-        raise ValueError(f"Unable to parse base mapping YAML at {base_file}: {exc}") from exc
+        raise ValueError(
+            f"Unable to parse base mapping YAML at {base_file}: {exc}"
+        ) from exc
 
     base_mapping = _validate_mapping(base_mapping, str(base_file))
 
@@ -112,13 +118,17 @@ def load_mapping(
 
     recipe_file = Path(recipes_dir) / f"{recipe_name}.yaml"
     if not recipe_file.is_file():
-        raise FileNotFoundError(f"Recipe '{recipe_name}' not found in {recipes_dir}")
+        raise FileNotFoundError(
+            f"Recipe '{recipe_name}' not found in {recipes_dir}"
+        )
 
     try:
         with recipe_file.open("r", encoding="utf-8") as handle:
             recipe_mapping = yaml.safe_load(handle)
     except yaml.YAMLError as exc:
-        raise ValueError(f"Unable to parse recipe YAML at {recipe_file}: {exc}") from exc
+        raise ValueError(
+            f"Unable to parse recipe YAML at {recipe_file}: {exc}"
+        ) from exc
 
     recipe_mapping = _validate_mapping(recipe_mapping, str(recipe_file))
 

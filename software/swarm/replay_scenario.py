@@ -90,9 +90,13 @@ def _sample_participant(p: Participant, t: float) -> Keyframe:
     return frames[-1]
 
 
-def _aggregate(samples: List[Keyframe], weights: List[float], mode: str) -> Keyframe:
+def _aggregate(
+    samples: List[Keyframe], weights: List[float], mode: str
+) -> Keyframe:
     if not samples:
-        return Keyframe(t=0.0, alt=0.0, lat=0.0, yaw=0.0, crowd=0.0, consent=0.0)
+        return Keyframe(
+            t=0.0, alt=0.0, lat=0.0, yaw=0.0, crowd=0.0, consent=0.0
+        )
 
     if mode == "max":
         return Keyframe(
@@ -107,7 +111,10 @@ def _aggregate(samples: List[Keyframe], weights: List[float], mode: str) -> Keyf
     denom = max(sum(weights), 1e-9)
 
     def wsum(field: str) -> float:
-        return sum(getattr(s, field) * w for s, w in zip(samples, weights)) / denom
+        return (
+            sum(getattr(s, field) * w for s, w in zip(samples, weights))
+            / denom
+        )
 
     return Keyframe(
         t=samples[0].t,
@@ -123,19 +130,39 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Replay a multi-user gesture scenario into /pd/* OSC routes."
     )
-    parser.add_argument("--scenario", required=True, help="Path to scenario yaml/json file")
+    parser.add_argument(
+        "--scenario", required=True, help="Path to scenario yaml/json file"
+    )
     parser.add_argument("--host", default="127.0.0.1", help="Target OSC host")
-    parser.add_argument("--port", type=int, default=9010, help="Target OSC port")
-    parser.add_argument("--loops", type=int, default=1, help="How many times to replay the scenario")
-    parser.add_argument("--speed", type=float, default=1.0, help="Playback speed multiplier")
+    parser.add_argument(
+        "--port", type=int, default=9010, help="Target OSC port"
+    )
+    parser.add_argument(
+        "--loops",
+        type=int,
+        default=1,
+        help="How many times to replay the scenario",
+    )
+    parser.add_argument(
+        "--speed", type=float, default=1.0, help="Playback speed multiplier"
+    )
     parser.add_argument(
         "--aggregation",
         choices=["mean", "weighted", "max"],
         default=None,
         help="Override scenario aggregation mode",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Print values without sending OSC")
-    parser.add_argument("--print-every", type=float, default=1.0, help="Seconds between progress prints")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print values without sending OSC",
+    )
+    parser.add_argument(
+        "--print-every",
+        type=float,
+        default=1.0,
+        help="Seconds between progress prints",
+    )
     return parser.parse_args()
 
 
@@ -147,12 +174,16 @@ def main() -> int:
     name = str(data.get("name", scenario_path.stem))
     frame_rate = float(data.get("frame_rate", 20.0))
     dt = 1.0 / max(frame_rate, 1.0)
-    agg_mode = (args.aggregation or str(data.get("aggregation", "weighted"))).lower()
+    agg_mode = (
+        args.aggregation or str(data.get("aggregation", "weighted"))
+    ).lower()
     if agg_mode == "mean":
         agg_mode = "weighted"
     participants_raw = data.get("participants", [])
     if not isinstance(participants_raw, list) or not participants_raw:
-        raise ValueError("Scenario must include a non-empty participants list.")
+        raise ValueError(
+            "Scenario must include a non-empty participants list."
+        )
 
     participants: List[Participant] = []
     for raw in participants_raw:
@@ -163,9 +194,13 @@ def main() -> int:
         keyframes_raw = raw.get("keyframes", [])
         if not isinstance(keyframes_raw, list):
             continue
-        keyframes = sorted((_parse_keyframe(kf) for kf in keyframes_raw), key=lambda k: k.t)
+        keyframes = sorted(
+            (_parse_keyframe(kf) for kf in keyframes_raw), key=lambda k: k.t
+        )
         if keyframes:
-            participants.append(Participant(pid=pid, weight=weight, keyframes=keyframes))
+            participants.append(
+                Participant(pid=pid, weight=weight, keyframes=keyframes)
+            )
 
     if not participants:
         raise ValueError("No valid participants/keyframes found in scenario.")
@@ -181,7 +216,8 @@ def main() -> int:
         f"duration={duration_s:.2f}s frame_rate={frame_rate:.1f}Hz mode={agg_mode}"
     )
     print(
-        f"[replay] target={args.host}:{args.port} loops={args.loops} speed={args.speed:.2f} dry_run={args.dry_run}"
+        f"[replay] target={args.host}:{args.port} loops={args.loops} "
+        f"speed={args.speed:.2f} dry_run={args.dry_run}"
     )
 
     last_print = 0.0

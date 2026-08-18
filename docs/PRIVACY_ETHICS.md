@@ -28,8 +28,8 @@ Coordinate these signals before powering the drone:
 
 1. **Idle (consent = 0)**
    - Processing status bar: amber, “CONSENT OFF”.
-   - OSC bridge shell: shows neutral RC values (`1500` µs) thanks to the chill
-     payload fallback.
+   - OSC bridge shell: shows centered roll/pitch/yaw (`1500` µs), explicitly
+     low throttle (`1100` µs), and neutral AUX values.
    - LEDs: amber pulse at 30% brightness.
    - Projection: grayscale silhouettes; “System observing only” footer.
 2. **Engaged (consent = 1)**

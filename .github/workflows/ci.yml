@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  python-core:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -28,12 +28,16 @@ jobs:
         flake8 --max-line-length 110 --extend-ignore E203 \
           software/control-bridge \
           software/operator_ui \
+          software/swarm \
+          software/trainer_control \
           scripts/check_stack.py \
           scripts/validate_config.py \
           tests
         black --check \
           software/control-bridge \
           software/operator_ui \
+          software/swarm \
+          software/trainer_control \
           scripts/check_stack.py \
           scripts/validate_config.py \
           tests
@@ -58,3 +62,27 @@ jobs:
       with:
         name: perceptual-drift
         path: perceptual-drift-artifacts.zip
+
+  firmware:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: firmware/trainer_bridge
+            environment: pico
+          - project: firmware/trainer_bridge
+            environment: teensy40
+          - project: firmware/teensy-led
+            environment: teensy40
+          - project: firmware/teensy-dsp
+            environment: teensy40
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    - name: Install PlatformIO
+      run: python -m pip install platformio==6.1.19
+    - name: Build firmware
+      run: pio run -d ${{ matrix.project }} -e ${{ matrix.environment }}

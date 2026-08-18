@@ -124,7 +124,7 @@ pilot touches propellers.
 
 1. **Processing tracker sanity:** Launch the sketch, hit play, and point it at a
    looping video from the fixture folder.  Confirm the HUD text is changing and
-   the consent bar goes green when you mash the space bar.
+   the consent bar goes cyan when you press the space bar.
 2. **OSC inspection:** Run `./scripts/check_stack.py --osc-port 9101` so the
    automated harness leaves port 9000 free.  Fire up `oscdump localhost 9101`
    (from `liblo` or similar) while the script runs to see the normalized floats

@@ -58,6 +58,18 @@ def _apply_osc_axis_update(state, key, values, lower, upper):
     return True
 
 
+def _build_msp_output_packet(mapper, *, force_neutral=False):
+    """Build a mapped frame, or bypass mapping for an explicit safe frame."""
+
+    if force_neutral:
+        rc_channels = neutral_rc_channels()
+        aux_channels = NEUTRAL_AUX_CHANNELS
+    else:
+        rc_channels, aux_channels = mapper.apply()
+    payload = struct.pack("<8H", *(tuple(rc_channels) + tuple(aux_channels)))
+    return msp_packet(MSP_SET_RAW_RC, payload)
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description=(
@@ -487,7 +499,6 @@ def main(argv=None):
 
     last = 0
     update_interval = 1.0 / hz
-    neutral_rc = neutral_rc_channels()
 
     streaming_live = False
 
@@ -502,8 +513,8 @@ def main(argv=None):
                         "osc_stale_guard",
                         status="warning",
                         message=(
-                            "OSC stream stalled past {:.2f}s; soft-neutralizing "
-                            "live gestures."
+                            "OSC stream stalled past {:.2f}s; forcing explicit "
+                            "low-throttle neutral output."
                         ).format(stale_after),
                     )
                     stale_logged = True
@@ -514,21 +525,15 @@ def main(argv=None):
             if now - last > update_interval:
                 if is_stale and mapper.state["consent"] == 1:
                     neutralize_gesture_state(mapper.state)
-                rc_channels, aux_channels = mapper.apply()
-                payload = struct.pack(
-                    "<8H",
-                    rc_channels[0],
-                    rc_channels[1],
-                    rc_channels[2],
-                    rc_channels[3],
-                    aux_channels[0],
-                    aux_channels[1],
-                    aux_channels[2],
-                    aux_channels[3],
+                streaming_allowed = (
+                    mapper.state["consent"] == 1 and not is_stale
                 )
-                pkt = msp_packet(MSP_SET_RAW_RC, payload)
-                if mapper.state["consent"] == 1:
-                    ser.write(pkt)
+                ser.write(
+                    _build_msp_output_packet(
+                        mapper, force_neutral=not streaming_allowed
+                    )
+                )
+                if streaming_allowed:
                     if not streaming_live:
                         audit.write(
                             "osc_bridge_stream",
@@ -538,18 +543,6 @@ def main(argv=None):
                         )
                         streaming_live = True
                 else:
-                    chill_payload = struct.pack(
-                        "<8H",
-                        neutral_rc[0],
-                        neutral_rc[1],
-                        neutral_rc[2],
-                        neutral_rc[3],
-                        NEUTRAL_AUX_CHANNELS[0],
-                        NEUTRAL_AUX_CHANNELS[1],
-                        NEUTRAL_AUX_CHANNELS[2],
-                        NEUTRAL_AUX_CHANNELS[3],
-                    )
-                    ser.write(msp_packet(MSP_SET_RAW_RC, chill_payload))
                     if streaming_live:
                         audit.write(
                             "osc_bridge_stream",

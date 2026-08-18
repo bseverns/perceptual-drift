@@ -310,9 +310,9 @@ void draw(){
   }
 
   // HUD overlay helps with calibration / explaining to the crew what the drone
-  // currently "feels" from the crowd.  Green bar = consent granted.
+  // currently "feels" from the crowd. Cyan = ON; amber = OFF.
   drawConsentZoneOverlay();
-  noStroke(); fill(consent? color(0,255,0): color(255,0,0));
+  noStroke(); fill(consent? color(0,220,255): color(255,170,0));
   rect(0, height-10, width*(consent?1:0.25), 10);
   drawHUD();
 
@@ -575,12 +575,12 @@ void refreshConsentGate(){
 }
 
 void drawConsentZoneOverlay(){
-  // Visualize the zone — transparent gray when idle, soft green when active.
+  // Mirror the public consent contract: amber when idle, cyan when active.
   noStroke();
   if (consentZoneActive){
-    fill(0, 255, 0, 80);
+    fill(0, 220, 255, 80);
   } else {
-    fill(180, 180, 180, 60);
+    fill(255, 170, 0, 60);
   }
   rect(consentX, consentY, consentW, consentH);
 

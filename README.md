@@ -2,7 +2,7 @@
 
 | Status board | Signal |
 | --- | --- |
-| CI (full stack, all envs) | [![CI](https://github.com/bseverns/perceptual-drift/actions/workflows/ci.yml/badge.svg)](https://github.com/bseverns/perceptual-drift/actions/workflows/ci.yml) |
+| Python core + firmware CI (Processing/ROS2 excluded) | [![CI](https://github.com/bseverns/perceptual-drift/actions/workflows/ci.yml/badge.svg)](https://github.com/bseverns/perceptual-drift/actions/workflows/ci.yml) |
 
 Perceptual Drift is a participatory drone‑based installation where **audience motion** modulates **FPV drone** behavior and **live video processing**. The current reference physical path keeps a RadioMaster TX16S/EdgeTX transmitter authoritative and admits only bounded additive roll/yaw influence through its wired trainer input. The older OSC→MSP path remains a software-rehearsal and legacy/experimental backend, not the reference real-aircraft authority path.
 
@@ -56,7 +56,7 @@ Short version: pick a platform profile, run the matching setup script, then smok
    - We ship normalized floats over OSC using [oscP5](https://www.sojamo.de/libraries/oscP5/) & [NetP5](https://www.sojamo.de/libraries/netP5/).
    - Inspirations: [OfxCv optical flow demos](https://github.com/kylemcdonald/ofxCv) and [LASER Tag (Graffiti Research Lab)](http://graffitiresearchlab.com/blog/projects/laser-tag/).
 2. **Control boundary (Pi/PC)** *(Python)*
-   - The reference flow is normalized `Intent → SafetyEnvelope → Backend`; the aircraft profile forbids software ARM/throttle and hard-limits trainer roll/yaw.
+   - The reference flow is normalized `Intent → SafetyEnvelope → Backend`; the aircraft profile forbids software ARM/throttle and hard-limits trainer-domain roll/yaw to ±0.15 before the separate EdgeTX trainer weight is applied.
    - [`osc_msp_bridge.py`](software/control-bridge/osc_msp_bridge.py) is retained for dry rehearsal and legacy/experimental direct-MSP work.
    - Modelled after [Tello gesture-flight experiments](https://github.com/kinivi/tello-gesture-control) and [Red Paper Heart’s drone installations](https://redpaperheart.com/).
 3. **FPV video pipeline** *(GStreamer / OBS)*
@@ -110,6 +110,7 @@ Installed entrypoints:
 - `pd-status` → local safe rehearsal/operator status summary
 - `pd-trainer-dry-run` → safe normalized trainer-path rehearsal
 - `pd-trainer-preflight` → evidence-labeled trainer diagnostic
+- `pd-trainer-run` → live OSC + serial trainer runtime (neutral unless explicitly enabled)
 
 Example:
 
@@ -119,6 +120,7 @@ pd-check-stack --max-frames 24 --send-interval 0.01 --cooldown 0.05
 OPERATOR_API_TOKEN=dev-token pd-operator-ui --host 127.0.0.1 --port 8088
 pd-safe-rehearsal
 pd-status
+pd-trainer-run --serial /dev/ttyACM0
 ```
 
 You can still run module forms if preferred:

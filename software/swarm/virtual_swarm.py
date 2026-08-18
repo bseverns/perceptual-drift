@@ -11,7 +11,7 @@ import itertools
 import math
 import random
 from dataclasses import dataclass
-from typing import Dict, Iterable, Iterator, List, Tuple
+from typing import Dict, Iterable, Iterator, Tuple
 
 ROOM_BOUND = 5.0
 
@@ -86,7 +86,9 @@ class VirtualDrone:
         self.yaw = math.fmod(self.yaw, math.tau)
 
 
-def pairwise_distances(drones: Iterable[VirtualDrone]) -> Iterator[Tuple[int, int, float]]:
+def pairwise_distances(
+    drones: Iterable[VirtualDrone],
+) -> Iterator[Tuple[int, int, float]]:
     """Yield all pairwise Euclidean distances between drones as (i, j, dist) tuples."""
 
     fleet = list(drones)
@@ -101,7 +103,9 @@ def pairwise_distances(drones: Iterable[VirtualDrone]) -> Iterator[Tuple[int, in
 def minimum_pairwise_distance(drones: Iterable[VirtualDrone]) -> float:
     """Return minimum pairwise distance, inf when <2 drones."""
 
-    return min((dist for _, _, dist in pairwise_distances(drones)), default=math.inf)
+    return min(
+        (dist for _, _, dist in pairwise_distances(drones)), default=math.inf
+    )
 
 
 def enforce_min_separation(

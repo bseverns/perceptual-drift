@@ -39,7 +39,9 @@ class DroneState:
         msg = PoseStamped()
         msg.header.stamp = node.get_clock().now().to_msg()
         msg.header.frame_id = "map"
-        msg.pose.position.x, msg.pose.position.y, msg.pose.position.z = self.position
+        msg.pose.position.x, msg.pose.position.y, msg.pose.position.z = (
+            self.position
+        )
         msg.pose.orientation.w = math.cos(self.yaw / 2.0)
         msg.pose.orientation.z = math.sin(self.yaw / 2.0)
         return msg
@@ -69,16 +71,31 @@ class PdSwarmBridge(Node):
         self.declare_parameter("max_lateral_velocity_mps", 1.2)
         self.declare_parameter("max_altitude_velocity_mps", 0.9)
 
-        names = self.get_parameter("drones").get_parameter_value().string_array_value
-        self.drones: Dict[str, DroneState] = {name: DroneState(name=name) for name in names}
+        names = (
+            self.get_parameter("drones")
+            .get_parameter_value()
+            .string_array_value
+        )
+        self.drones: Dict[str, DroneState] = {
+            name: DroneState(name=name) for name in names
+        }
         for index, drone in enumerate(self.drones.values()):
             drone.target[0] = (index - (len(self.drones) - 1) / 2.0) * 1.5
             drone.position[0] = drone.target[0]
 
-        self.go_to_clients = {name: self._create_client(GoTo, f"/{name}/go_to") for name in names}
-        self.takeoff_clients = {name: self._create_client(Takeoff, f"/{name}/takeoff") for name in names}
-        self.land_clients = {name: self._create_client(Land, f"/{name}/land") for name in names}
-        self.stop_clients = {name: self._create_client(Stop, f"/{name}/stop") for name in names}
+        self.go_to_clients = {
+            name: self._create_client(GoTo, f"/{name}/go_to") for name in names
+        }
+        self.takeoff_clients = {
+            name: self._create_client(Takeoff, f"/{name}/takeoff")
+            for name in names
+        }
+        self.land_clients = {
+            name: self._create_client(Land, f"/{name}/land") for name in names
+        }
+        self.stop_clients = {
+            name: self._create_client(Stop, f"/{name}/stop") for name in names
+        }
 
         qos = QoSProfile(
             history=QoSHistoryPolicy.KEEP_LAST,
@@ -86,44 +103,118 @@ class PdSwarmBridge(Node):
             depth=10,
         )
 
-        self.subscription_alt = self.create_subscription(Float32, "/pd/alt", self.on_alt, qos)
-        self.subscription_lat = self.create_subscription(Float32, "/pd/lat", self.on_lat, qos)
-        self.subscription_yaw = self.create_subscription(Float32, "/pd/yaw", self.on_yaw, qos)
-        self.subscription_consent = self.create_subscription(Bool, "/pd/consent", self.on_consent, qos)
+        self.subscription_alt = self.create_subscription(
+            Float32, "/pd/alt", self.on_alt, qos
+        )
+        self.subscription_lat = self.create_subscription(
+            Float32, "/pd/lat", self.on_lat, qos
+        )
+        self.subscription_yaw = self.create_subscription(
+            Float32, "/pd/yaw", self.on_yaw, qos
+        )
+        self.subscription_consent = self.create_subscription(
+            Bool, "/pd/consent", self.on_consent, qos
+        )
 
         self.publishers = {
-            name: self.create_publisher(PoseStamped, f"/pd/sim/{name}/pose", qos)
+            name: self.create_publisher(
+                PoseStamped, f"/pd/sim/{name}/pose", qos
+            )
             for name in names
         }
 
-        rate = self.get_parameter("publish_rate_hz").get_parameter_value().double_value
-        self.timer = self.create_timer(1.0 / max(rate, 1.0), self._publish_states)
+        rate = (
+            self.get_parameter("publish_rate_hz")
+            .get_parameter_value()
+            .double_value
+        )
+        self.timer = self.create_timer(
+            1.0 / max(rate, 1.0), self._publish_states
+        )
 
-        self._lateral_axis = self.get_parameter("lateral_axis").get_parameter_value().string_value.lower()
-        self._lateral_range = tuple(self.get_parameter("lateral_range").get_parameter_value().double_array_value)
-        self._lateral_scale = self.get_parameter("lateral_scale_m").get_parameter_value().double_value
-        self._altitude_range = tuple(self.get_parameter("altitude_range").get_parameter_value().double_array_value)
-        self._altitude_floor = self.get_parameter("altitude_floor_m").get_parameter_value().double_value
-        self._altitude_scale = self.get_parameter("altitude_scale_m").get_parameter_value().double_value
-        self._yaw_scale = math.radians(self.get_parameter("yaw_scale_deg").get_parameter_value().double_value)
-        self._group_mask = self.get_parameter("group_mask").get_parameter_value().integer_value
-        self._relative = self.get_parameter("relative_moves").get_parameter_value().bool_value
-        self._go_to_duration = self.get_parameter("go_to_duration_s").get_parameter_value().double_value
-        self._takeoff_duration = self.get_parameter("takeoff_duration_s").get_parameter_value().double_value
-        self._land_duration = self.get_parameter("land_duration_s").get_parameter_value().double_value
-        self._min_separation_m = self.get_parameter("min_separation_m").get_parameter_value().double_value
+        self._lateral_axis = (
+            self.get_parameter("lateral_axis")
+            .get_parameter_value()
+            .string_value.lower()
+        )
+        self._lateral_range = tuple(
+            self.get_parameter("lateral_range")
+            .get_parameter_value()
+            .double_array_value
+        )
+        self._lateral_scale = (
+            self.get_parameter("lateral_scale_m")
+            .get_parameter_value()
+            .double_value
+        )
+        self._altitude_range = tuple(
+            self.get_parameter("altitude_range")
+            .get_parameter_value()
+            .double_array_value
+        )
+        self._altitude_floor = (
+            self.get_parameter("altitude_floor_m")
+            .get_parameter_value()
+            .double_value
+        )
+        self._altitude_scale = (
+            self.get_parameter("altitude_scale_m")
+            .get_parameter_value()
+            .double_value
+        )
+        self._yaw_scale = math.radians(
+            self.get_parameter("yaw_scale_deg")
+            .get_parameter_value()
+            .double_value
+        )
+        self._group_mask = (
+            self.get_parameter("group_mask")
+            .get_parameter_value()
+            .integer_value
+        )
+        self._relative = (
+            self.get_parameter("relative_moves")
+            .get_parameter_value()
+            .bool_value
+        )
+        self._go_to_duration = (
+            self.get_parameter("go_to_duration_s")
+            .get_parameter_value()
+            .double_value
+        )
+        self._takeoff_duration = (
+            self.get_parameter("takeoff_duration_s")
+            .get_parameter_value()
+            .double_value
+        )
+        self._land_duration = (
+            self.get_parameter("land_duration_s")
+            .get_parameter_value()
+            .double_value
+        )
+        self._min_separation_m = (
+            self.get_parameter("min_separation_m")
+            .get_parameter_value()
+            .double_value
+        )
         self._max_lateral_velocity_mps = (
-            self.get_parameter("max_lateral_velocity_mps").get_parameter_value().double_value
+            self.get_parameter("max_lateral_velocity_mps")
+            .get_parameter_value()
+            .double_value
         )
         self._max_altitude_velocity_mps = (
-            self.get_parameter("max_altitude_velocity_mps").get_parameter_value().double_value
+            self.get_parameter("max_altitude_velocity_mps")
+            .get_parameter_value()
+            .double_value
         )
 
         self._consent_enabled = False
         self._last_target_update = time.time()
         self._last_collision_warn = 0.0
 
-        self.get_logger().info("PD swarm bridge ready for %s", ", ".join(self.drones.keys()))
+        self.get_logger().info(
+            "PD swarm bridge ready for %s", ", ".join(self.drones.keys())
+        )
 
     # ------------------------------------------------------------------
     # ROS callbacks
@@ -137,7 +228,9 @@ class PdSwarmBridge(Node):
         max_step = max(0.0, self._max_altitude_velocity_mps * dt)
         self.get_logger().debug("/pd/alt -> %.2fm", target_alt)
         for name, drone in self.drones.items():
-            drone.target[2] = self._clamp_step(drone.target[2], target_alt, max_step)
+            drone.target[2] = self._clamp_step(
+                drone.target[2], target_alt, max_step
+            )
             self._call_takeoff(name, drone.target[2])
 
     def on_lat(self, msg: Float32) -> None:
@@ -174,12 +267,17 @@ class PdSwarmBridge(Node):
         value = self._clamp(msg.data, (-1.0, 1.0))
         for drone in self.drones.values():
             drone.target_yaw = value * self._yaw_scale
-        self.get_logger().debug("/pd/yaw -> %.1f deg", math.degrees(self.drones[next(iter(self.drones))].target_yaw))
+        self.get_logger().debug(
+            "/pd/yaw -> %.1f deg",
+            math.degrees(self.drones[next(iter(self.drones))].target_yaw),
+        )
 
     def on_consent(self, msg: Bool) -> None:
         self._consent_enabled = bool(msg.data)
         if not self._consent_enabled:
-            self.get_logger().warning("Consent revoked — landing all drones and locking inputs")
+            self.get_logger().warning(
+                "Consent revoked — landing all drones and locking inputs"
+            )
             for name, drone in self.drones.items():
                 drone.target[2] = 0.0
                 self._call_land(name)

@@ -14,7 +14,7 @@ At 115200 baud, the host sends ASCII lines:
 PD1,<sequence>,<roll>,<pitch>,<yaw>,0.000000,<xor-checksum-hex>\n
 ```
 
-The checksum is an eight-bit XOR of every ASCII byte before the final comma. Axes are normalized contributions in `[-1, 1]`, not RC microseconds. Firmware independently clamps roll/yaw to ±0.15 and forces pitch/throttle to zero.
+The checksum is an eight-bit XOR of every ASCII byte before the final comma. Axes are normalized contributions in `[-1, 1]`, not RC microseconds. Firmware independently clamps roll/yaw to ±0.15 in this trainer domain and forces pitch/throttle to zero. The declared EdgeTX 15% trainer weight is a separate downstream multiplier, so the expected final contribution is at most 2.25% of full stick travel (`0.15 × 0.15`); that result remains hardware-unverified until checked in the EdgeTX channel monitor.
 
 The bridge emits independently generated heartbeats:
 
@@ -30,5 +30,15 @@ If a packet is malformed/non-finite/out of range, or valid packets stop for 250 
 pio run -d firmware/trainer_bridge -e pico
 pio run -d firmware/trainer_bridge -e teensy40
 ```
+
+The matching installed host process is `pd-trainer-run`. With the bridge
+attached over USB, start neutral-only discovery with:
+
+```bash
+pd-trainer-run --serial /dev/ttyACM0
+```
+
+See `docs/hardware/tx16s-trainer-integration.md` before adding the explicit
+`--operator-enable` software gate.
 
 Do not flash or connect this scaffold to a TX16S until the selected board, signal voltage, trainer-jack pinout, required PPM polarity, channel order, and common-ground arrangement have been measured or confirmed from authoritative hardware documentation. First inspect PPM on a scope or logic analyzer with no transmitter or aircraft attached.

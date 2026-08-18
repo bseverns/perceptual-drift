@@ -32,6 +32,7 @@ pd-status = "software.operator_ui.rehearsal:status_main"
 pd-validate-config = "scripts.validate_config:main"
 pd-trainer-dry-run = "software.trainer_control.cli:main"
 pd-trainer-preflight = "software.trainer_control.preflight:main"
+pd-trainer-run = "software.trainer_control.runtime:main"
 
 [tool.setuptools]
 include-package-data = true

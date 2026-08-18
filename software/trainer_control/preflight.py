@@ -60,10 +60,12 @@ def main(argv=None) -> int:
     print("SOFTWARE VERIFIED: software ARM forbidden")
     print("SOFTWARE VERIFIED: software throttle forbidden")
     print(
-        f"SOFTWARE VERIFIED: roll hard limit ±{aircraft.max_influence['roll']:.0%}"
+        "SOFTWARE VERIFIED: trainer-domain roll hard limit "
+        f"±{aircraft.max_influence['roll']:.0%}"
     )
     print(
-        f"SOFTWARE VERIFIED: yaw hard limit ±{aircraft.max_influence['yaw']:.0%}"
+        "SOFTWARE VERIFIED: trainer-domain yaw hard limit "
+        f"±{aircraft.max_influence['yaw']:.0%}"
     )
 
     tx_label = (
@@ -78,6 +80,10 @@ def main(argv=None) -> int:
     print(f"{tx_label}: trainer throttle OFF")
     print(f"{tx_label}: ARM and flight mode physical only")
     print(f"{tx_label}: dedicated physical trainer-enable switch")
+    print(
+        f"{tx_label}: expected final roll/yaw authority <=2.25% "
+        "(15% trainer-domain × 15% EdgeTX weight; bench verification required)"
+    )
 
     print("\nHardware trainer bridge")
     print("UNVERIFIED: NOT CONNECTED (diagnostic performs no serial probing)")

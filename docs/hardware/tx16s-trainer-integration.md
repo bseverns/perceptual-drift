@@ -16,7 +16,13 @@ TX16S trainer input → EdgeTX mixer/hard limits → TX16S RF
 EMAX EZ Pilot Pro
 ```
 
-The TX16S is always the authoritative human-operated transmitter. Perceptual Drift cannot ARM, change flight mode, or contribute throttle. The initial aircraft profile permits additive roll/yaw influence up to ±0.15, disables pitch, and makes every unsafe or unknown state an explicit zero contribution.
+The TX16S is always the authoritative human-operated transmitter. Perceptual Drift cannot ARM, change flight mode, or contribute throttle. The initial aircraft profile permits additive roll/yaw values up to ±0.15 **in the normalized trainer packet domain**, disables pitch, and makes every unsafe or unknown state an explicit zero contribution.
+
+### What the two 15% limits mean
+
+The software profile and trainer-bridge firmware both cap the normalized packet/PPM contribution at ±0.15. Those are redundant checks on the same trainer-domain value; they do not multiply each other. The declared EdgeTX configuration then applies a separate 15% trainer weight when adding that input to the pilot's stick. Under ordinary EdgeTX normalized mixer semantics, the current expected maximum algorithmic contribution at the final TX stick is therefore `0.15 × 0.15 = 0.0225`, or 2.25% of full stick travel—not 15%.
+
+That 2.25% figure is **CONFIG EXPECTED**, not hardware verified. Confirm it in the EdgeTX channel monitor and on the trainer signal during bench stage 3. Do not describe the installation as having “15% final authority”; use “±15% trainer-domain input, additionally weighted to 15% by EdgeTX” until measurements establish the actual final channel contribution.
 
 ## Evidence vocabulary
 
@@ -75,13 +81,33 @@ pd-trainer-dry-run --consent --operator-enable \
 
 That simulation must report roll `0.15`, pitch `0`, yaw `-0.15`, and throttle `0`. A simulated heartbeat is labeled simulated and is never evidence of a connected bridge.
 
+## Live host runtime
+
+`pd-trainer-run` is the installed reference host process. It joins the canonical OSC routes, `SafetyEnvelope`, the real USB-serial `TrainerBackend`, and the bridge's independently generated `HB,<sequence>` heartbeat. It listens on loopback by default and transmits neutral packets unless every required condition is current: lateral input, yaw input, consent heartbeat, bridge heartbeat, a valid aircraft profile, and explicit local `--operator-enable`.
+
+For a props-off bench session:
+
+```bash
+pd-trainer-run --serial /dev/ttyACM0
+```
+
+That command is intentionally neutral-only. After confirming the serial device, heartbeat, PPM output, TX monitor, and physical trainer-enable switch, restart with the local software gate:
+
+```bash
+pd-trainer-run --serial /dev/ttyACM0 --operator-enable
+```
+
+The live trainer runtime maps canonical `/pd/lat` to trainer roll and `/pd/yaw` to trainer yaw. `/pd/alt` is deliberately not connected because software pitch and throttle are forbidden. It also consumes `/pd/crowd` for intent completeness/telemetry and `/pd/consent` as a required heartbeat. Invalid/non-finite OSC values do not refresh input freshness. A partial OSC stream cannot keep an old roll or yaw command fresh because roll, yaw, and consent timestamps expire independently through the envelope's oldest required timestamp.
+
+Do not expose the OSC socket on a venue LAN. A non-loopback `--bind` is an explicit isolated-rig override and prints a warning. The physical TX16S trainer switch remains the final authority even when `--operator-enable` is present.
+
 ## Expected TX16S setup—not software-verified
 
 The declared target in `config/transmitters/tx16s_pd.yaml` is:
 
 - master transmitter role;
-- trainer roll `ADD`, weight no more than 15%;
-- trainer yaw `ADD`, weight no more than 15%;
+- trainer roll `ADD`, weight no more than 15% of the already bounded trainer-domain input;
+- trainer yaw `ADD`, weight no more than 15% of the already bounded trainer-domain input;
 - trainer pitch and throttle `OFF`;
 - ARM and flight mode on physical transmitter switches only;
 - Perceptual Drift authority behind a dedicated physical trainer-enable switch.

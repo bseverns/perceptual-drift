@@ -1,6 +1,7 @@
 #include <Arduino.h>
+#include <Mozzi.h>
+#include <mozzi_fixmath.h>
 #include <AudioDelayFeedback.h>
-#include <MozziGuts.h>
 #include <Oscil.h>
 #include <tables/sin2048_int8.h>
 
@@ -55,13 +56,13 @@ uint8_t msp_request_phase = 0;
 
 // --- Audio building blocks.
 Oscil<SIN2048_NUM_CELLS, AUDIO_RATE> osc(SIN2048_DATA);  // sine oscillator
-AudioDelayFeedback<128> delay;  // 128 sample (~2.9 ms @ 44.1 kHz) buffer
+AudioDelayFeedback<128> audio_delay;  // 128-sample feedback buffer
 
 // --- Live control state (refreshed at control rate).
 uint16_t osc_frequency = 220;
 uint8_t vibrato_depth = 0;
 uint8_t delay_time = 64;
-uint8_t feedback_level = 200;
+int8_t feedback_level = 100;
 uint8_t drive_amount = 0;  // 0..64
 
 // --- Utility: tiny soft clip for drive (fast path friendly).
@@ -177,11 +178,11 @@ void updateControl() {
   }
 
   // --- RC inputs
-  int throttle_raw = mozziAnalogRead(PIN_CH_THROTTLE);
-  int roll_raw = mozziAnalogRead(PIN_CH_ROLL);
-  int pitch_raw = mozziAnalogRead(PIN_CH_PITCH);
-  int yaw_raw = mozziAnalogRead(PIN_CH_YAW);
-  int aux1_raw = mozziAnalogRead(PIN_CH_AUX1);
+  int throttle_raw = mozziAnalogRead<10>(PIN_CH_THROTTLE);
+  int roll_raw = mozziAnalogRead<10>(PIN_CH_ROLL);
+  int pitch_raw = mozziAnalogRead<10>(PIN_CH_PITCH);
+  int yaw_raw = mozziAnalogRead<10>(PIN_CH_YAW);
+  int aux1_raw = mozziAnalogRead<10>(PIN_CH_AUX1);
 
   // Base oscillator frequency driven by throttle, nudged by MSP pitch attitude.
   int16_t pitch_mod = telemetry.pitch_decideg / 40;  // ~ +/-200 -> +/-5 Hz-ish
@@ -193,21 +194,21 @@ void updateControl() {
 
   // Delay time on roll; add attitude roll so banking leans the echo.
   delay_time = constrain(map(roll_raw, 0, 1023, 8, 120) + (abs(telemetry.roll_decideg) / 100), 4, 124);
-  delay.setDelayTime(delay_time);
+  audio_delay.setDelayTimeCells(static_cast<uint16_t>(delay_time));
 
   // Feedback from pitch stick, reduced as battery sags to keep ears safe.
   uint8_t battery_drop = (telemetry.vbat < 100) ? static_cast<uint8_t>(100 - telemetry.vbat) : 0;  // 10.0 V ref
-  uint8_t feedback_target = constrain(map(pitch_raw, 0, 1023, 140, 235), 120, 240);
+  int8_t feedback_target = constrain(map(pitch_raw, 0, 1023, 70, 118), 60, 120);
   feedback_level = (battery_drop > 20) ? feedback_target - 10 : feedback_target;  // soften when voltage low
-  feedback_level = min<uint8_t>(feedback_level, 220);  // hard ceiling to dodge runaway howl
-  delay.setFeedbackLevel(feedback_level);
+  if (feedback_level > 110) feedback_level = 110;  // hard ceiling to dodge runaway howl
+  audio_delay.setFeedbackLevel(feedback_level);
 
   // Drive control from AUX1 plus RSSI (stronger link = hotter signal).
   uint8_t rssi_bonus = (telemetry.rssi > 800) ? 8 : 0;
   drive_amount = constrain(map(aux1_raw, 0, 1023, 0, 56) + rssi_bonus, 0, 64);
 }
 
-int updateAudio() {
+AudioOutput updateAudio() {
   // Fast path: oscillator -> vibrato wiggle -> drive -> delay feedback.
   static uint16_t vibrato_phase = 0;
   vibrato_phase += vibrato_depth + 1;  // tiny phasor for vibrato (integer only)
@@ -218,7 +219,9 @@ int updateAudio() {
 
   int16_t sample = osc.next();
   int16_t driven = softClip(sample, drive_amount);
-  return delay.next(driven);  // Feedback handled by AudioDelayFeedback
+  int8_t delay_input = constrain(driven, -128, 127);
+  int16_t delayed = audio_delay.next(delay_input);
+  return MonoOutput::fromAlmostNBit(9, delayed).clip();
 }
 
 void loop() {
