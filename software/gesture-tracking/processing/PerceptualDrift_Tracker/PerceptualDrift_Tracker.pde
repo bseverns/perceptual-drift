@@ -46,8 +46,9 @@ float consentYRatio = 0.25;
 float consentWRatio = 0.5;
 float consentHRatio = 0.5;
 
-// Debounce so brushing the edge does not flicker consent.
-int consentHoldFrames = 10;
+// Opt-in is frame-debounced; opt-out uses wall-clock time so camera FPS cannot
+// stretch the grace period.
+int consentHoldMs = 350;
 
 // -----------------------------------------------------------------------------
 // END TUNABLES
@@ -65,7 +66,6 @@ boolean consentZoneActive=false;
 int consentState = 0; // 0 = no one in zone, 1 = at least one centroid in bounds
 int lastConsentState = 0;
 int lastConsentChangeFrame = 0;
-boolean consentEnabled = true; // flip false if running in a legacy setup without consent signals
 PImage prev;
 PImage baseline;
 PImage presenceDiff;
@@ -78,7 +78,7 @@ int lastSafetyBroadcastMillis = -1000;
 boolean cameraStalled = false;
 
 float consentX, consentY, consentW, consentH;
-int consentFramesRemaining = 0;
+int consentReleaseDeadlineMillis = 0;
 int consentCandidateFrames = 0;
 
 ArrayList<PVector> centroids = new ArrayList<PVector>();
@@ -164,6 +164,10 @@ void draw(){
   }
   boolean freshFrame = cam.available();
   if (!freshFrame){
+    if (refreshConsentDeadline(millis())){
+      lastConsentCountSent = 0;
+      sendConsentState();
+    }
     if (millis() - lastFreshCameraFrameMillis >= cameraTimeoutMs){
       background(0);
       handleCameraStall();
@@ -408,7 +412,7 @@ void captureBackground(PImage frame, String reason){
   consentState = 0;
   consentArmed = false;
   consentZoneActive = false;
-  consentFramesRemaining = 0;
+  consentReleaseDeadlineMillis = 0;
   consentCandidateFrames = 0;
   updateConsentState(0);
   println("Captured background baseline (" + reason + ").");
@@ -510,7 +514,7 @@ void handleCameraStall(){
   consentState = 0;
   lastConsentCountSent = 0;
   consentCandidateFrames = 0;
-  consentFramesRemaining = 0;
+  consentReleaseDeadlineMillis = 0;
   consentZoneActive = false;
   refreshConsentGate();
   if (millis() - lastSafetyBroadcastMillis >= 250){
@@ -536,21 +540,31 @@ boolean pointInConsentZone(float x, float y){
 }
 
 void updateConsentState(int consentCount){
+  int now = millis();
   if (consentCount > 0){
     consentCandidateFrames = min(consentEnterFrames, consentCandidateFrames + 1);
     if (consentCandidateFrames >= consentEnterFrames){
-      consentFramesRemaining = consentHoldFrames;
+      consentReleaseDeadlineMillis = now + max(1, consentHoldMs);
     }
-  } else if (consentFramesRemaining > 0){
-    consentCandidateFrames = 0;
-    consentFramesRemaining--;
   } else {
     consentCandidateFrames = 0;
   }
 
-  consentZoneActive = consentFramesRemaining > 0;
-  refreshConsentGate();
+  refreshConsentDeadline(now);
   lastConsentCountSent = consentCount;
+}
+
+boolean refreshConsentDeadline(int now){
+  boolean wasActive = consentZoneActive;
+  // Subtraction keeps this comparison safe when millis() wraps, provided the
+  // configured hold remains below half the integer range.
+  consentZoneActive = consentReleaseDeadlineMillis != 0 &&
+                      consentReleaseDeadlineMillis - now > 0;
+  if (wasActive && !consentZoneActive){
+    consentCandidateFrames = 0;
+  }
+  refreshConsentGate();
+  return wasActive && !consentZoneActive;
 }
 
 void refreshConsentGate(){
@@ -584,7 +598,7 @@ void drawConsentZoneOverlay(){
 }
 
 void drawConsentRestingOverlay(){
-  if (!consentEnabled || consent) return;
+  if (consent) return;
 
   String msg;
   if (calibrationMode){
@@ -668,8 +682,11 @@ void drawCalibrationOverlay(){
 }
 
 String buildConfigSnippet(){
-  return String.format("threshold=%d, blur=%d, stride=%d, minBlob=%d, enterFrames=%d, consent=(x:%.2f y:%.2f w:%.2f h:%.2f)",
-                      threshold, blurRadius, sampleStride, minBlobSamples, consentEnterFrames,
+  String format = "threshold=%d, blur=%d, stride=%d, minBlob=%d, " +
+                  "enterFrames=%d, holdMs=%d, consent=(x:%.2f y:%.2f w:%.2f h:%.2f)";
+  return String.format(format,
+                      threshold, blurRadius, sampleStride, minBlobSamples,
+                      consentEnterFrames, consentHoldMs,
                       consentXRatio, consentYRatio, consentWRatio, consentHRatio);
 }
 

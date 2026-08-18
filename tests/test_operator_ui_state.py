@@ -197,6 +197,29 @@ def test_operator_state_latest_export_and_missing_telemetry(tmp_path):
     assert exported["telemetry_snapshot"]["reason"] == "missing_file"
 
 
+def test_operator_state_session_exports_do_not_overwrite_same_second(tmp_path):
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+        export_dir=tmp_path / "exports",
+    )
+
+    with patch(
+        "software.operator_ui.state.time.strftime",
+        return_value="20260818_123149",
+    ):
+        first = state.export_session(label="double", notes="first")
+        second = state.export_session(label="double", notes="second")
+
+    first_path = Path(first["path"])
+    second_path = Path(second["path"])
+    assert first_path != second_path
+    assert first_path.name == "session_20260818_123149_double.json"
+    assert second_path.name == "session_20260818_123149_double_2.json"
+    assert json.loads(first_path.read_text())["notes"] == "first"
+    assert json.loads(second_path.read_text())["notes"] == "second"
+
+
 def test_operator_state_runtime_health_uses_pid_file(tmp_path):
     pid_file = tmp_path / "bridge.pid"
     pid_file.write_text(str(os.getpid()))
@@ -208,11 +231,20 @@ def test_operator_state_runtime_health_uses_pid_file(tmp_path):
                 "id": "bridge",
                 "name": "Bridge",
                 "pid_file": str(pid_file),
-                "match": "does-not-matter",
+                "match": "software/control-bridge/osc_msp_bridge.py",
             }
         ],
     )
-    with patch.object(state, "_ps_processes", return_value=[]):
+    with patch.object(
+        state,
+        "_ps_processes",
+        return_value=[
+            (
+                os.getpid(),
+                "python software/control-bridge/osc_msp_bridge.py",
+            )
+        ],
+    ):
         health = state.runtime_health()
     assert health["healthy"] == 1
     assert health["total"] == 1
@@ -220,6 +252,37 @@ def test_operator_state_runtime_health_uses_pid_file(tmp_path):
     assert service["healthy"] is True
     assert service["source"] == "pid_file"
     assert service["pid"] == os.getpid()
+
+
+def test_operator_state_runtime_health_rejects_reused_pid_and_scans(tmp_path):
+    pid_file = tmp_path / "bridge.pid"
+    pid_file.write_text("1234")
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+        runtime_services=[
+            {
+                "id": "bridge",
+                "name": "Bridge",
+                "pid_file": str(pid_file),
+                "match": "software/control-bridge/osc_msp_bridge.py",
+            }
+        ],
+    )
+    processes = [
+        (1234, "python unrelated_service.py"),
+        (5678, "python software/control-bridge/osc_msp_bridge.py"),
+    ]
+    with (
+        patch.object(state, "_pid_running", return_value=True),
+        patch.object(state, "_ps_processes", return_value=processes),
+    ):
+        health = state.runtime_health()
+
+    service = health["services"][0]
+    assert service["healthy"] is True
+    assert service["source"] == "process_scan"
+    assert service["pid"] == 5678
 
 
 def test_operator_state_runtime_health_falls_back_to_process_scan():

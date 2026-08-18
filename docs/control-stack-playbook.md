@@ -48,7 +48,7 @@ That sequence sketch is the street map—trace any arrow to know which script to
   - `/pd/consent_count`: number of participant-sized foreground blobs in the ROI.
 - **Customization tips**:
   - Adjust `threshold` for darker or brighter rooms. Lower values see smaller motions but add noise.
-  - Tune `minBlobSamples` and `consentEnterFrames` together: the first rejects tiny foreground changes, while the second requires stable detection before consent opens.
+  - Tune `minBlobSamples` and `consentEnterFrames` together: the first rejects tiny foreground changes, while the second requires stable detection before consent opens. `consentHoldMs` controls the wall-clock opt-out grace period independently of camera frame rate.
   - Set `preferredCameraIndex` or `preferredCameraContains` when the overhead camera must be selected deterministically.
   - The facilitator gate starts OFF; press space only after the camera, empty-room baseline, and downstream safe state have been verified.
   - Calibration and camera-stall states publish neutral axes plus consent OFF; downstream systems should still retain their own stale-input guard.

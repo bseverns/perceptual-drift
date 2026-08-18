@@ -308,14 +308,13 @@ class OperatorState:
             ch for ch in label.strip() if ch.isalnum() or ch in "-_"
         )
         timestamp = time.strftime("%Y%m%d_%H%M%S", time.localtime())
-        filename = (
-            f"session_{timestamp}_{safe_label}.json"
+        filename_stem = (
+            f"session_{timestamp}_{safe_label}"
             if safe_label
-            else f"session_{timestamp}.json"
+            else f"session_{timestamp}"
         )
         out_dir = Path(self.export_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / filename
 
         with self._lock:
             mapping_copy = copy.deepcopy(self._mapping)
@@ -334,7 +333,20 @@ class OperatorState:
                 "telemetry_snapshot": self._load_telemetry_snapshot(),
             }
 
-        out_path.write_text(json.dumps(payload, indent=2) + "\n")
+        serialized = json.dumps(payload, indent=2) + "\n"
+        collision = 1
+        while True:
+            suffix = "" if collision == 1 else f"_{collision}"
+            out_path = out_dir / f"{filename_stem}{suffix}.json"
+            try:
+                # Exclusive creation prevents simultaneous export requests from
+                # selecting and overwriting the same session record.
+                with out_path.open("x", encoding="utf-8") as export_file:
+                    export_file.write(serialized)
+                break
+            except FileExistsError:
+                collision += 1
+
         with self._lock:
             self._last_export_path = out_path
 
@@ -490,9 +502,20 @@ class OperatorState:
                     try:
                         pid = int(pid_path.read_text().strip())
                         if self._pid_running(pid):
-                            is_healthy = True
-                            source = "pid_file"
-                            detail = f"pid {pid} from {pid_path.name}"
+                            pid_commands = [
+                                cmd for p, cmd in processes if p == pid
+                            ]
+                            if match and any(
+                                match in cmd for cmd in pid_commands
+                            ):
+                                is_healthy = True
+                                source = "pid_file"
+                                detail = f"pid {pid} from {pid_path.name}"
+                            else:
+                                detail = (
+                                    f"pid {pid} from {pid_path.name} does "
+                                    "not match configured process"
+                                )
                     except ValueError:
                         detail = f"invalid pid file: {pid_path.name}"
 
