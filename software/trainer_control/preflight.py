@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import math
+import time
 from pathlib import Path
 
+import serial
+
+from .backends import TrainerBackend
 from .profiles import (
     ProfileError,
     load_aircraft_profile,
     validate_transmitter_profile,
 )
+from .runtime import HeartbeatLineBuffer, _drain_heartbeats
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -37,7 +43,23 @@ def main(argv=None) -> int:
         action="store_true",
         help="Label TX16S configuration OPERATOR VERIFIED for this invocation only.",
     )
+    parser.add_argument(
+        "--serial",
+        help="Read-only probe: open this bridge device and observe heartbeats.",
+    )
+    parser.add_argument("--baud", type=int, default=115200)
+    parser.add_argument("--heartbeat-count", type=int, default=3)
+    parser.add_argument("--heartbeat-timeout", type=float, default=2.0)
     args = parser.parse_args(argv)
+    if args.baud <= 0:
+        parser.error("--baud must be positive")
+    if args.heartbeat_count <= 0:
+        parser.error("--heartbeat-count must be positive")
+    if (
+        not math.isfinite(args.heartbeat_timeout)
+        or args.heartbeat_timeout <= 0
+    ):
+        parser.error("--heartbeat-timeout must be a positive finite number")
 
     print("PERCEPTUAL DRIFT TRAINER PREFLIGHT\n")
     print("Software")
@@ -86,7 +108,43 @@ def main(argv=None) -> int:
     )
 
     print("\nHardware trainer bridge")
-    print("UNVERIFIED: NOT CONNECTED (diagnostic performs no serial probing)")
+    if not args.serial:
+        print("UNVERIFIED: NOT CONNECTED (no --serial device requested)")
+    else:
+        try:
+            serial_port = serial.Serial(args.serial, args.baud, timeout=0.05)
+        except serial.SerialException as exc:
+            print(f"UNVERIFIED: trainer bridge could not be opened: {exc}")
+            print("\nSTATE: SAFE — ZERO ALGORITHMIC AUTHORITY")
+            return 1
+        backend = TrainerBackend(serial_port)
+        line_buffer = HeartbeatLineBuffer()
+        observed = 0
+        deadline = time.monotonic() + args.heartbeat_timeout
+        try:
+            while (
+                observed < args.heartbeat_count and time.monotonic() < deadline
+            ):
+                observed += _drain_heartbeats(
+                    serial_port, backend, line_buffer
+                )
+                if observed < args.heartbeat_count:
+                    time.sleep(0.01)
+        finally:
+            backend.close()
+        if observed < args.heartbeat_count:
+            print(
+                "UNVERIFIED: trainer bridge heartbeat timeout "
+                f"({observed}/{args.heartbeat_count} observed)"
+            )
+            print("HARDWARE SIGNAL: UNVERIFIED")
+            print("\nSTATE: SAFE — ZERO ALGORITHMIC AUTHORITY")
+            return 1
+        print(
+            "SOFTWARE OBSERVED: trainer bridge responding "
+            f"({observed} valid heartbeats)"
+        )
+        print("HARDWARE SIGNAL: still UNVERIFIED")
     print("\nSTATE: SAFE — ZERO ALGORITHMIC AUTHORITY")
     return 0
 
