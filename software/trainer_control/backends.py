@@ -16,7 +16,7 @@ from .safety import SafetyState
 
 class Backend(ABC):
     @abstractmethod
-    def send(self, state: SafetyState) -> None:
+    def send(self, state: SafetyState) -> SafetyState:
         """Send one already-enveloped state."""
 
     def close(self) -> None:
@@ -31,14 +31,26 @@ class DryRunBackend(Backend):
         self.last_state = SafetyState.neutral("backend_not_started")
         self.frames = 0
 
-    def send(self, state: SafetyState) -> None:
+    def send(self, state: SafetyState) -> SafetyState:
         self.last_state = state
         self.frames += 1
         self.output(json.dumps(asdict(state), sort_keys=True))
+        return state
 
 
 def _safe_backend_state(state: SafetyState) -> SafetyState:
     """Return an output-safe state or an explicitly neutral replacement."""
+
+    if isinstance(state, SafetyState) and not state.active:
+        axes = (state.roll, state.pitch, state.yaw, state.throttle)
+        if all(
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value == 0.0
+            for value in axes
+        ):
+            return state
 
     required_flags = (
         "active",
@@ -105,9 +117,11 @@ class TrainerBackend(Backend):
         self.sequence = 0
         self.last_heartbeat_timestamp: Optional[float] = None
 
-    def send(self, state: SafetyState) -> None:
-        self.serial_port.write(encode_trainer_packet(self.sequence, state))
+    def send(self, state: SafetyState) -> SafetyState:
+        effective = _safe_backend_state(state)
+        self.serial_port.write(encode_trainer_packet(self.sequence, effective))
         self.sequence = (self.sequence + 1) & 0xFFFFFFFF
+        return effective
 
     def observe_line(self, line: bytes) -> bool:
         """Record an independently generated bridge heartbeat."""
@@ -147,7 +161,7 @@ class LegacyMSPBackend(Backend):
             checksum ^= value
         return b"$M<" + bytes([size, command]) + payload + bytes([checksum])
 
-    def send(self, state: SafetyState) -> None:
+    def send(self, state: SafetyState) -> SafetyState:
         state = _safe_backend_state(state)
 
         def channel(value: float) -> int:
@@ -170,6 +184,7 @@ class LegacyMSPBackend(Backend):
         )
         payload = struct.pack("<8H", *channels)
         self.serial_port.write(self._packet(self.MSP_SET_RAW_RC, payload))
+        return state
 
     def close(self) -> None:
         self.serial_port.close()

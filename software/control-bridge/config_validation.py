@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import math
 from pathlib import Path
 from typing import Iterable, Mapping, MutableMapping
 
@@ -167,12 +168,16 @@ def _require_number(
         )
         return None
     value = section[key]
-    if not isinstance(value, (int, float)):
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, (int, float))
+        or not math.isfinite(value)
+    ):
         _add_error(
             errors,
             source,
             full_path,
-            "value must be numeric",
+            "value must be a finite number",
             received=value,
             allowed=_number_rule_text(minimum, maximum),
             example=f"{full_path}: 0.5",
@@ -612,7 +617,12 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
                     example=f'mapping.{axis}.curve: "linear"',
                 )
             gain = axis_cfg.get("gain", 1.0)
-            if not isinstance(gain, (int, float)) or gain < 0:
+            if (
+                isinstance(gain, bool)
+                or not isinstance(gain, (int, float))
+                or not math.isfinite(gain)
+                or gain < 0
+            ):
                 _add_error(
                     errors,
                     source,
@@ -627,7 +637,9 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
                 axis_cfg.get("expo", 0.5),
             )
             if curve == "expo" and (
-                not isinstance(expo_strength, (int, float))
+                isinstance(expo_strength, bool)
+                or not isinstance(expo_strength, (int, float))
+                or not math.isfinite(expo_strength)
                 or expo_strength < 0
             ):
                 _add_error(
@@ -664,7 +676,12 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
     else:
         if yaw_cfg:
             jitter = yaw_cfg.get("jitter", 0.0)
-            if not isinstance(jitter, (int, float)) or jitter < 0:
+            if (
+                isinstance(jitter, bool)
+                or not isinstance(jitter, (int, float))
+                or not math.isfinite(jitter)
+                or jitter < 0
+            ):
                 _add_error(
                     errors,
                     source,
@@ -675,7 +692,12 @@ def validate_mapping_config(cfg: Mapping, source: str = "mapping") -> None:
                     example="mapping.yaw_bias.jitter: 0.05",
                 )
             bias = yaw_cfg.get("bias", 0.0)
-            if not isinstance(bias, (int, float)) or not -1.0 <= bias <= 1.0:
+            if (
+                isinstance(bias, bool)
+                or not isinstance(bias, (int, float))
+                or not math.isfinite(bias)
+                or not -1.0 <= bias <= 1.0
+            ):
                 _add_error(
                     errors,
                     source,
