@@ -146,6 +146,16 @@ class IntentMapper:
         bridge = self.config.get("bridge", {})
         mode_name = bridge.get("mode", "smooth")
         mode = bridge.get("modes", {}).get(mode_name, {})
+        if mode.get("neutral_rc", False):
+            return ControlIntent(
+                roll=0.0,
+                pitch=0.0,
+                yaw=0.0,
+                throttle=0.0,
+                crowd=_clamp(signals.crowd, 0.0, 1.0),
+                consent=signals.consent,
+                timestamp=signals.timestamp,
+            )
         lateral = self._shape_axis(
             mapping.get("lateral", {}),
             signals.lateral,
@@ -161,6 +171,7 @@ class IntentMapper:
         )
         if jitter:
             yaw += self.uniform(-jitter, jitter)
+        yaw *= float(mode.get("gain_scale", {}).get("yaw", 1.0))
         return ControlIntent(
             roll=_clamp(lateral, -1.0, 1.0),
             pitch=0.0,

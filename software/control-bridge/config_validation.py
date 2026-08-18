@@ -46,6 +46,14 @@ VALID_MIDI_NOTE_MODES = {"gate", "toggle"}
 _MISSING = object()
 
 
+def _is_finite_number(value) -> bool:
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, (int, float))
+        and math.isfinite(value)
+    )
+
+
 # ---- validation primitives -------------------------------------------------
 
 
@@ -168,11 +176,7 @@ def _require_number(
         )
         return None
     value = section[key]
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float))
-        or not math.isfinite(value)
-    ):
+    if not _is_finite_number(value):
         _add_error(
             errors,
             source,
@@ -326,7 +330,7 @@ def validate_bridge_modes(
                 example=f"{mode_path}.neutral_rc: false",
             )
         jitter_scale = mode_cfg.get("jitter_scale", 1.0)
-        if not isinstance(jitter_scale, (int, float)) or jitter_scale < 0:
+        if not _is_finite_number(jitter_scale) or jitter_scale < 0:
             _add_error(
                 errors,
                 source,
@@ -350,7 +354,7 @@ def validate_bridge_modes(
                 )
             else:
                 for axis, val in dz_boost.items():
-                    if not isinstance(val, (int, float)) or not (0 <= val < 1):
+                    if not _is_finite_number(val) or not (0 <= val < 1):
                         _add_error(
                             errors,
                             source,
@@ -374,12 +378,12 @@ def validate_bridge_modes(
                 )
             else:
                 for axis, val in gain_scale.items():
-                    if not isinstance(val, (int, float)):
+                    if not _is_finite_number(val):
                         _add_error(
                             errors,
                             source,
                             f"{mode_path}.gain_scale.{axis}",
-                            "gain scale must be numeric",
+                            "gain scale must be a finite number",
                             received=val,
                             allowed="a number >= 0",
                             example=f"{mode_path}.gain_scale.{axis}: 0.6",

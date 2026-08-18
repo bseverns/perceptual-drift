@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 import scripts.validate_config as validate_config
 
@@ -18,6 +19,38 @@ def test_validate_defaults_pass():
         ]
     )
     assert exit_code == 0
+
+
+@pytest.mark.parametrize(
+    "value", [float("nan"), float("inf"), float("-inf"), True]
+)
+@pytest.mark.parametrize(
+    ("section", "axis"),
+    [
+        ("deadzone_boost", "lateral"),
+        ("gain_scale", "lateral"),
+        ("jitter_scale", None),
+    ],
+)
+def test_validate_rejects_nonfinite_or_boolean_mode_numbers(
+    tmp_path: Path, section: str, axis: str | None, value: object
+):
+    config = yaml.safe_load(
+        (REPO_ROOT / "config" / "mapping.yaml").read_text()
+    )
+    smooth = config["bridge"]["modes"]["smooth"]
+    if axis is None:
+        smooth[section] = value
+    else:
+        smooth.setdefault(section, {})[axis] = value
+    bad_map = tmp_path / "bad_mode_number.yaml"
+    bad_map.write_text(yaml.safe_dump(config))
+
+    exit_code = validate_config.main(
+        ["--mapping", str(bad_map), "--recipes", str(tmp_path), "--quiet"]
+    )
+
+    assert exit_code == 1
 
 
 def test_validate_flags_bad_config(tmp_path: Path):

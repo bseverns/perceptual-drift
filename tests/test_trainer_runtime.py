@@ -4,7 +4,11 @@ from pathlib import Path
 import pytest
 
 from software.trainer_control import runtime
-from software.trainer_control.mapping import MappingController
+from software.trainer_control.mapping import (
+    IntentMapper,
+    MappingController,
+    load_mapping_config,
+)
 from software.trainer_control.safety import SafetyEnvelope
 
 
@@ -86,6 +90,36 @@ def test_artistic_mapping_applies_deadzone_gain_bias_and_recipe():
     ambient_intent = base.map(signals)
     assert ambient_intent.roll == 0.0
     assert ambient_intent.yaw == pytest.approx(0.01)
+
+
+def test_idle_visuals_produces_zero_flight_intent():
+    config = load_mapping_config(Path("config/mapping.yaml"))
+    config["bridge"]["mode"] = "idle_visuals"
+    mapper = IntentMapper(config, uniform=lambda _a, _b: 0.05)
+    signals = runtime.TrackerSignals(0.8, -0.6, 0.7, True, 100.0)
+
+    intent = mapper.map(signals)
+
+    assert (intent.roll, intent.pitch, intent.yaw, intent.throttle) == (
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+    )
+    assert intent.crowd == 0.7
+    assert intent.consent is True
+    assert intent.timestamp == 100.0
+
+
+def test_non_neutral_mode_applies_yaw_gain_scale():
+    config = load_mapping_config(Path("config/mapping.yaml"))
+    config["bridge"]["modes"]["smooth"]["gain_scale"] = {"yaw": 0.5}
+    mapper = IntentMapper(config, uniform=lambda _a, _b: 0.0)
+    signals = runtime.TrackerSignals(0.0, 0.2, 0.0, True, 100.0)
+
+    intent = mapper.map(signals)
+
+    assert intent.yaw == pytest.approx(0.15)
 
 
 def test_invalid_recipe_is_rejected_without_replacing_active_mapper(tmp_path):
