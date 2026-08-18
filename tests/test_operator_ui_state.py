@@ -3,7 +3,13 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
-from software.operator_ui.state import OperatorState, shape_axis
+import pytest
+
+from software.operator_ui.state import (
+    CONTROL_BRIDGE_VALIDATOR,
+    OperatorState,
+    shape_axis,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +42,31 @@ def test_operator_state_recipe_switch_and_snapshot():
     assert snap["active_recipe"] == "ambient"
     reset = state.set_recipe("base")
     assert reset["active_recipe"] == "base"
+
+
+def test_operator_state_rejects_invalid_recipe_before_activation(tmp_path):
+    recipe = tmp_path / "invalid_expo.yaml"
+    recipe.write_text(
+        """
+mapping:
+  altitude:
+    curve: expo
+    expo_strength: -1.5
+""".strip()
+    )
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=tmp_path,
+    )
+
+    with pytest.raises(
+        CONTROL_BRIDGE_VALIDATOR.ValidationError, match="expo_strength"
+    ):
+        state.set_recipe("invalid_expo")
+
+    snapshot = state.snapshot()
+    assert snapshot["active_recipe"] == "base"
+    assert state.mapping_curves(points=5)["curves"]["altitude"]["series"]
 
 
 def test_operator_state_consent_toggle():

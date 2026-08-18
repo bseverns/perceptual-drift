@@ -31,6 +31,7 @@ Keep the file append-only during a run. After wrap, sign it with
 | `mapping_load` | Base YAML at `--config` loads | `info`, `error` | `details.path` holds the resolved file. |
 | `recipe_load` | Recipe pulled in via `--recipe` | `info`, `error` | Includes `intent`, `slug`, and requested OSC port if present. |
 | `osc_port_override` | OSC port deviates from default | `info` | `details.source` is `recipe` or `cli`. |
+| `osc_bind_exposure` | OSC bind is not loopback | `warning` | Treat as a stop condition unless the rig is on a physically isolated, trusted control network. |
 | `osc_bridge_boot` | OSC server starts listening | `info` | `message` contains host/port tuple. |
 | `consent_toggle` | Crowd flips the consent gate | `armed`, `disarmed` | `details.value` is `1` or `0`; `details.osc_addr` shows the address that triggered it. |
 | `osc_bridge_stream` | MSP writer changes posture | `armed`, `neutralized` | Fired when consent toggles or drops mid-run. Message clarifies why. |

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import struct
+import sys
 import threading
 import time
 from pathlib import Path
@@ -74,6 +75,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     ap.add_argument("--osc_port", type=int, default=9000)
+    ap.add_argument(
+        "--bind",
+        default="127.0.0.1",
+        help=(
+            "OSC listen address (default: 127.0.0.1). Use 0.0.0.0 only "
+            "on a physically isolated, trusted control network."
+        ),
+    )
     ap.add_argument(
         "--dry-run",
         action="store_true",
@@ -428,7 +437,26 @@ def main(argv=None):
     disp.map(cfg["osc"]["address_space"]["crowd"], on_crowd)
     disp.map(cfg["osc"]["address_space"]["consent"], on_consent)
 
-    server = osc_server.ThreadingOSCUDPServer(("0.0.0.0", osc_port), disp)
+    bind_host = args.bind.strip()
+    if not bind_host:
+        ap.error("--bind must not be empty")
+    is_loopback_bind = bind_host in {"127.0.0.1", "::1", "localhost"}
+    if not is_loopback_bind:
+        warning = (
+            "WARNING: legacy OSC bridge is exposed on "
+            f"{bind_host}:{osc_port}. Any host that can reach this socket can "
+            "send gesture and consent commands. Use only on a physically "
+            "isolated, trusted control network."
+        )
+        print(warning, file=sys.stderr)
+        audit.write(
+            "osc_bind_exposure",
+            status="warning",
+            message=warning,
+            details={"bind": bind_host, "port": osc_port},
+        )
+
+    server = osc_server.ThreadingOSCUDPServer((bind_host, osc_port), disp)
     osc_thread = _start_osc_server(server)
     print(f"OSC listening on {server.server_address}")
     audit.write(

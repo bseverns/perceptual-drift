@@ -477,13 +477,22 @@ def _parse_runtime_targets(raw: str) -> list[tuple[str, int]]:
             raise ValueError(
                 f"invalid runtime target '{text}' (bad port)"
             ) from exc
+        if not 1 <= port <= 65535:
+            raise ValueError(
+                f"invalid runtime target '{text}' "
+                "(port must be in range 1..65535)"
+            )
         targets.append((host, port))
     return targets
 
 
 def main() -> int:
     args = parse_args()
-    runtime_targets = _parse_runtime_targets(args.runtime_targets)
+    try:
+        runtime_targets = _parse_runtime_targets(args.runtime_targets)
+    except ValueError as exc:
+        print(f"[operator-ui] ERROR: {exc}", file=sys.stderr)
+        return 2
 
     api_token = args.api_token.strip()
     if not api_token:

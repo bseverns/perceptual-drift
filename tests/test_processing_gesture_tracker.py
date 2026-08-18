@@ -40,7 +40,9 @@ def test_calibration_sends_neutral_heartbeat_and_consent_is_repeated():
     consent_sender = source.split("void sendConsentState(){", 1)[1]
 
     assert "sendSafeOSCFrame();" in draw
-    assert "!calibrationMode" in source.split("void refreshConsentGate(){", 1)[1]
+    assert (
+        "!calibrationMode" in source.split("void refreshConsentGate(){", 1)[1]
+    )
     assert 'sendOSC("/pd/consent", consentInt);' in consent_sender
     assert "if (consentInt !=" not in consent_sender
 
@@ -64,12 +66,14 @@ def test_consent_requires_persistent_detection_and_roi_stays_onscreen():
     roi_update = source.split("void updateConsentZoneDimensions(){", 1)[1]
 
     assert "boolean consentArmed=false;" in source
-    assert "consentArmed = false;" in source.split(
-        "void handleCameraStall(){", 1
-    )[1]
-    assert "consentArmed = false;" in source.split(
-        "void captureBackground(PImage frame", 1
-    )[1]
+    assert (
+        "consentArmed = false;"
+        in source.split("void handleCameraStall(){", 1)[1]
+    )
+    assert (
+        "consentArmed = false;"
+        in source.split("void captureBackground(PImage frame", 1)[1]
+    )
     assert "consentCandidateFrames" in consent_update
     assert "consentCandidateFrames >= consentEnterFrames" in consent_update
     assert "1.0-consentWRatio" in roi_update

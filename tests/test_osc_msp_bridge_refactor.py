@@ -3,6 +3,7 @@ import time
 from types import SimpleNamespace
 
 import mido
+import pytest
 from pythonosc import dispatcher, udp_client
 from pythonosc.osc_server import ThreadingOSCUDPServer
 
@@ -213,4 +214,57 @@ def test_main_binds_recipe_osc_port_when_cli_port_is_default(monkeypatch):
     except RuntimeError as exc:
         assert str(exc) == "stop after bind"
 
-    assert seen["address"] == ("0.0.0.0", 9123)
+    assert seen["address"] == ("127.0.0.1", 9123)
+
+
+def test_bridge_requires_explicit_bind_for_lan_exposure(monkeypatch, capsys):
+    seen = {}
+    cfg = {
+        "osc": {
+            "port": 9000,
+            "address_space": {
+                "altitude": "/alt",
+                "lateral": "/lat",
+                "yaw": "/yaw",
+                "crowd": "/crowd",
+                "consent": "/consent",
+            },
+        },
+        "mapping": {"altitude": {}, "lateral": {}},
+    }
+
+    class FakeServer:
+        def __init__(self, address, _disp):
+            seen["address"] = address
+            self.server_address = address
+
+    class FakeMidiListener:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(
+        bridge_runtime, "_load_bridge_config", lambda _args, _audit: (cfg, {})
+    )
+    monkeypatch.setattr(
+        bridge_runtime,
+        "_load_midi_config",
+        lambda _args, _audit: ({}, "midi.yaml"),
+    )
+    monkeypatch.setattr(bridge_runtime, "MidiListener", FakeMidiListener)
+    monkeypatch.setattr(
+        bridge_runtime.osc_server, "ThreadingOSCUDPServer", FakeServer
+    )
+    monkeypatch.setattr(
+        bridge_runtime,
+        "_start_osc_server",
+        lambda _server: (_ for _ in ()).throw(RuntimeError("stop after bind")),
+    )
+
+    with pytest.raises(RuntimeError, match="stop after bind"):
+        bridge_runtime.main(["--dry-run", "--bind", "0.0.0.0"])
+
+    assert seen["address"] == ("0.0.0.0", 9000)
+    assert "Any host that can reach this socket" in capsys.readouterr().err

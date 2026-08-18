@@ -8,10 +8,27 @@ from urllib import error, request
 
 import pytest
 
-from software.operator_ui.server import _resolve_static, make_handler
+from software.operator_ui.server import (
+    _parse_runtime_targets,
+    _resolve_static,
+    make_handler,
+)
 from software.operator_ui.state import OperatorState
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.parametrize("port", ["0", "-1", "65536"])
+def test_runtime_targets_reject_impossible_udp_ports(port):
+    with pytest.raises(ValueError, match="port must be in range 1..65535"):
+        _parse_runtime_targets(f"127.0.0.1:{port}")
+
+
+def test_runtime_targets_accept_udp_port_boundaries():
+    assert _parse_runtime_targets("127.0.0.1:1,localhost:65535") == [
+        ("127.0.0.1", 1),
+        ("localhost", 65535),
+    ]
 
 
 class _DummySupervisor:

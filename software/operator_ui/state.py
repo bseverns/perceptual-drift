@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import importlib.util
 import json
 import math
 import os
@@ -19,6 +20,26 @@ from pythonosc import udp_client
 from software.swarm.mapping_loader import load_mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _load_control_bridge_validator():
+    module_name = "operator_ui_control_bridge_config_validation"
+    existing = sys.modules.get(module_name)
+    if existing is not None:
+        return existing
+    path = REPO_ROOT / "software" / "control-bridge" / "config_validation.py"
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(
+            f"Unable to load control bridge validator from {path}"
+        )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+CONTROL_BRIDGE_VALIDATOR = _load_control_bridge_validator()
 
 
 def _clamp(value: float, low: float, high: float) -> float:
@@ -126,6 +147,9 @@ class OperatorState:
         }
         self._recipes_cache: Dict[Path, Tuple[float, Dict[str, str]]] = {}
         self._mapping = load_mapping(base_path=str(self.base_mapping_path))
+        CONTROL_BRIDGE_VALIDATOR.validate_mapping_config(
+            self._mapping, str(self.base_mapping_path)
+        )
 
     def list_recipes(self) -> List[Dict[str, str]]:
         recipes: List[Dict[str, str]] = [
@@ -188,6 +212,13 @@ class OperatorState:
                 recipes_dir=str(self.recipes_dir),
             )
             active = normalized
+
+        source = (
+            str(self.base_mapping_path)
+            if active is None
+            else str(self.recipes_dir / f"{active}.yaml")
+        )
+        CONTROL_BRIDGE_VALIDATOR.validate_mapping_config(mapping, source)
 
         with self._lock:
             self._mapping = mapping

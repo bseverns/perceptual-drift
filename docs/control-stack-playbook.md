@@ -64,6 +64,7 @@ That sequence sketch is the street map—trace any arrow to know which script to
 - **Python helpers**: [`python-osc`](https://github.com/attwad/python-osc) for OSC, [`pySerial`](https://pyserial.readthedocs.io/en/latest/shortintro.html) for UART access.
 - **MSP refresher**: Each packet is `$M<` + payload length + command ID + bytes + XOR checksum. We're only using `MSP_SET_RAW_RC` (ID 200) and pushing eight 16-bit values (roll, pitch, throttle, yaw, AUX1–AUX4).
 - **Config**: [`config/mapping.yaml`](../config/mapping.yaml) holds every gain and OSC path. Change that file, not the code.
+- **Network boundary**: the legacy bridge listens on `127.0.0.1` by default. Exposing it with `--bind 0.0.0.0` permits any reachable host to submit consent and gesture commands, so use that override only on a physically isolated, trusted control network and verify the warning in the audit log.
 - **Safety ritual**:
   - Keep a thumb on the physical arming switch. Software consent gates are helpful but not gospel.
   - Point props away from faces. Tape the drone into a test rig while you calibrate curves.

@@ -137,6 +137,12 @@ sideways.
 > the same copy in large-print handouts. Screen-reader script mirrors this text
 > and explicitly calls out the color states for low-vision guests.
 
+The legacy OSC→MSP bridge binds to loopback by default so hosts elsewhere on
+the venue LAN cannot forge the visible consent state. `--bind 0.0.0.0` is an
+explicit exposure override for physically isolated, trusted control networks;
+using it on a shared or internet-routed network invalidates the consent model
+described by this signage.
+
 ## Storage retention policy
 
 - **Live video + motion buffers**: RAM-only, purged via `purge_buffers.sh` on

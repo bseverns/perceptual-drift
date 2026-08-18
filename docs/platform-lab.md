@@ -31,7 +31,7 @@ Ready-to-run scripts that get each platform gig-ready.
 ### Pi control bridge
 1. On Raspberry Pi OS, run [`scripts/setup_pi.sh`](../scripts/setup_pi.sh).
    - Installs `python-osc`/`pyserial`, GStreamer bits, and writes a `systemd` unit that keeps [`osc_msp_bridge.py`](../software/control-bridge/osc_msp_bridge.py) alive against `/dev/ttyACM0` (swap to `/dev/ttyUSB0` if your FC shows up there).
-2. The unit defaults to `--hz 50` with `config/mapping.yaml`; edit `/etc/systemd/system/osc-msp-bridge.service` then `sudo systemctl daemon-reload && sudo systemctl restart osc-msp-bridge` whenever you change ports or mapping files.
+2. The unit defaults to `--hz 50` with `config/mapping.yaml` and a loopback-only OSC listener. If a separate trusted tracker host must reach the Pi, place both devices on a physically isolated control network and explicitly add `--bind 0.0.0.0`; treat the resulting exposure warning as part of preflight. Edit `/etc/systemd/system/osc-msp-bridge.service`, then run `sudo systemctl daemon-reload && sudo systemctl restart osc-msp-bridge` whenever you change binding, ports, or mapping files.
 3. Serial fallback / heartbeat loop: pass `--dry-run` to `osc_msp_bridge.py` when the flight controller is unplugged; the dry-run serial stub logs every MSP frame so you can rehearse OSC mappings without arming props. When `/pd/consent` drops to `0`, the bridge auto-blasts neutral RC values so Betaflight still sees a heartbeat while the quad stays napping — a safe rehearsal loop layered on top of radio failsafes.
 
 ## Headless-ish hello
