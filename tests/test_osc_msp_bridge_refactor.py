@@ -1,3 +1,4 @@
+import math
 import threading
 import time
 from types import SimpleNamespace
@@ -11,6 +12,33 @@ import scripts.check_stack as check_stack
 
 
 bridge_runtime = check_stack.bridge._bridge_runtime
+
+
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_clamp_rejects_nonfinite_values(value):
+    with pytest.raises(ValueError, match="non-finite"):
+        check_stack.bridge.clamp(value, -1.0, 1.0)
+
+
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+@pytest.mark.parametrize(
+    ("key", "lower", "upper"),
+    [
+        ("alt", -1.0, 1.0),
+        ("lat", -1.0, 1.0),
+        ("yaw", -1.0, 1.0),
+        ("crowd", 0.0, 1.0),
+    ],
+)
+def test_osc_axis_update_ignores_nonfinite_values(key, lower, upper, value):
+    state = {key: 0.25}
+
+    applied = bridge_runtime._apply_osc_axis_update(
+        state, key, (value,), lower, upper
+    )
+
+    assert applied is False
+    assert state[key] == 0.25
 
 
 def test_consent_update_replays_buffer_and_neutralizes_on_drop():

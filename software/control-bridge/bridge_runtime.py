@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import struct
 import sys
 import threading
@@ -40,6 +41,21 @@ from config_validation import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MAPPING_PATH = (REPO_ROOT / "config/mapping.yaml").resolve()
 DEFAULT_MIDI_MAPPING_PATH = (REPO_ROOT / "config/mappings/midi.yaml").resolve()
+
+
+def _apply_osc_axis_update(state, key, values, lower, upper):
+    """Apply one finite OSC axis value, leaving state untouched if malformed."""
+
+    if not values:
+        return False
+    try:
+        value = float(values[0])
+    except (TypeError, ValueError, OverflowError):
+        return False
+    if not math.isfinite(value):
+        return False
+    state[key] = float(clamp(value, lower, upper))
+    return True
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -371,22 +387,26 @@ def main(argv=None):
             stale_logged = False
 
     def on_alt(addr, *vals):
-        mapper.state["alt"] = float(clamp(vals[0], -1.0, 1.0))
+        if not _apply_osc_axis_update(mapper.state, "alt", vals, -1.0, 1.0):
+            return
         _mark_osc_tick()
         maybe_record_gesture()
 
     def on_lat(addr, *vals):
-        mapper.state["lat"] = float(clamp(vals[0], -1.0, 1.0))
+        if not _apply_osc_axis_update(mapper.state, "lat", vals, -1.0, 1.0):
+            return
         _mark_osc_tick()
         maybe_record_gesture()
 
     def on_yaw(addr, *vals):
-        mapper.state["yaw"] = float(clamp(vals[0], -1.0, 1.0))
+        if not _apply_osc_axis_update(mapper.state, "yaw", vals, -1.0, 1.0):
+            return
         _mark_osc_tick()
         maybe_record_gesture()
 
     def on_crowd(addr, *vals):
-        mapper.state["crowd"] = float(clamp(vals[0], 0.0, 1.0))
+        if not _apply_osc_axis_update(mapper.state, "crowd", vals, 0.0, 1.0):
+            return
         _mark_osc_tick()
         maybe_record_gesture()
 

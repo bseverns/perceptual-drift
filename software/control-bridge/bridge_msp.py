@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import struct
 import time
 from typing import Callable
@@ -21,6 +22,8 @@ def msp_packet(cmd, payload=b""):
 def clamp(value, lower, upper):
     """Clamp ``value`` into ``[lower, upper]`` with no surprises."""
 
+    if not math.isfinite(value):
+        raise ValueError("cannot clamp a non-finite value")
     return max(lower, min(upper, value))
 
 
