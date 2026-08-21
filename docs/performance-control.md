@@ -12,7 +12,7 @@ runtime and UI. It is data-driven and only permits these artistic targets:
 | Macro | Targets |
 | --- | --- |
 | Drift | `mapping.lateral.gain` |
-| Touch | `mapping.lateral.deadzone`, `mapping.lateral.expo_strength` |
+| Touch | `mapping.lateral.deadzone`, `mapping.lateral.curvature` |
 | Turn | `mapping.yaw_bias.bias` |
 | Nervousness | `mapping.yaw_bias.jitter` |
 | Crowd FX | `mapping.glitch_intensity.base` |

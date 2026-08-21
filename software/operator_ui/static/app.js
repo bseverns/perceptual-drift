@@ -151,7 +151,9 @@ function macroDisplayValue(macro, value) {
   return macro.type === "bipolar" ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}` : value.toFixed(2);
 }
 
-const macroSendTimers = {};
+const macroStreams = {};
+const MACRO_STREAM_INTERVAL_MS = 40;
+
 async function sendMacro(macroId, value) {
   await fetchJson("/api/performance", {
     method: "POST",
@@ -160,11 +162,48 @@ async function sendMacro(macroId, value) {
   });
 }
 
+function macroStream(macroId) {
+  if (!macroStreams[macroId]) {
+    macroStreams[macroId] = { lastSentAt: 0, pending: null, timer: null };
+  }
+  return macroStreams[macroId];
+}
+
+function transmitMacro(macroId, value) {
+  const stream = macroStream(macroId);
+  stream.lastSentAt = Date.now();
+  stream.pending = null;
+  runAction(() => sendMacro(macroId, value));
+}
+
+function flushMacro(macroId) {
+  const stream = macroStream(macroId);
+  stream.timer = null;
+  if (stream.pending !== null) transmitMacro(macroId, stream.pending);
+}
+
 function streamMacro(macroId, value, final = false) {
-  if (macroSendTimers[macroId]) clearTimeout(macroSendTimers[macroId]);
-  const send = () => runAction(() => sendMacro(macroId, value));
-  if (final) send();
-  else macroSendTimers[macroId] = setTimeout(send, 40);
+  const stream = macroStream(macroId);
+  if (final) {
+    if (stream.timer) clearTimeout(stream.timer);
+    stream.timer = null;
+    transmitMacro(macroId, value);
+    return;
+  }
+
+  const elapsed = Date.now() - stream.lastSentAt;
+  if (elapsed >= MACRO_STREAM_INTERVAL_MS && !stream.timer) {
+    transmitMacro(macroId, value);
+    return;
+  }
+
+  stream.pending = value;
+  if (!stream.timer) {
+    stream.timer = setTimeout(
+      () => flushMacro(macroId),
+      Math.max(0, MACRO_STREAM_INTERVAL_MS - elapsed),
+    );
+  }
 }
 
 async function refreshPerformance() {
