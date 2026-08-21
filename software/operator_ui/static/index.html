@@ -20,10 +20,13 @@
         </div>
       </header>
 
-      <section class="panel play-panel">
-        <div class="mode-tabs" aria-label="Operator modes">
-          <span class="mode-tab active">PLAY</span><span class="mode-tab">CALIBRATE</span><span class="mode-tab">MAINTAIN</span>
-        </div>
+      <nav class="mode-tabs" aria-label="Operator modes">
+        <button class="mode-tab active" data-mode="play">PLAY</button>
+        <button class="mode-tab" data-mode="calibrate">CALIBRATE</button>
+        <button class="mode-tab" data-mode="maintain">MAINTAIN</button>
+      </nav>
+
+      <section class="panel play-panel" data-view="play">
         <h2>Choose a scene</h2>
         <div id="recipeCards" class="recipe-cards" aria-live="polite"></div>
         <h2>Play the character</h2>
@@ -33,7 +36,7 @@
         <div id="signalFlow" class="signal-flow">Waiting for trainer telemetry…</div>
       </section>
 
-      <section class="panel">
+      <section class="panel" data-view="maintain">
         <h2>MAINTAIN — Runtime State</h2>
         <div class="state-grid">
           <div><span class="k">Active recipe</span><span id="activeRecipe">-</span></div>
@@ -47,7 +50,7 @@
         <pre id="runtimeHealthDetails" class="runtime-details">Loading runtime health...</pre>
       </section>
 
-      <section class="panel controls">
+      <section class="panel controls" data-view="calibrate">
         <h2>CALIBRATE / REHEARSE</h2>
         <h3>Preflight and rehearsal guide</h3>
         <label for="rehearsalProfile">Start profile</label>
@@ -108,7 +111,7 @@
         </div>
       </section>
 
-      <section class="panel curves">
+      <section class="panel curves" data-view="calibrate">
         <h2>Mapping Curves</h2>
         <div class="canvas-wrap">
           <h3>Altitude</h3>

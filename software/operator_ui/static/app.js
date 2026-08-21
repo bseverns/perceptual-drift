@@ -151,6 +151,22 @@ function macroDisplayValue(macro, value) {
   return macro.type === "bipolar" ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}` : value.toFixed(2);
 }
 
+const macroSendTimers = {};
+async function sendMacro(macroId, value) {
+  await fetchJson("/api/performance", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ values: { [macroId]: value } }),
+  });
+}
+
+function streamMacro(macroId, value, final = false) {
+  if (macroSendTimers[macroId]) clearTimeout(macroSendTimers[macroId]);
+  const send = () => runAction(() => sendMacro(macroId, value));
+  if (final) send();
+  else macroSendTimers[macroId] = setTimeout(send, 40);
+}
+
 async function refreshPerformance() {
   const { performance } = await fetchJson("/api/performance");
   const root = document.getElementById("macroControls");
@@ -163,8 +179,21 @@ async function refreshPerformance() {
     wrap.innerHTML = `<label>${macro.label}<span class="value">${macroDisplayValue(macro, value)}</span></label><small>${macro.description || ""}</small>`;
     const input = document.createElement("input");
     input.type = "range"; input.min = min; input.max = 1; input.step = "0.01"; input.value = value;
-    input.addEventListener("input", () => { wrap.querySelector(".value").textContent = macroDisplayValue(macro, Number(input.value)); });
-    input.addEventListener("change", () => runAction(async () => { await fetchJson("/api/performance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values: { [macro.id]: Number(input.value) } }) }); await refreshPerformance(); await refreshCurves(); }));
+    const unavailable = (macro.requires || []).length > 0;
+    if (unavailable) {
+      input.disabled = true;
+      wrap.querySelector("small").textContent = `Unavailable — requires ${macro.requires.join(", ")}`;
+    }
+    input.addEventListener("input", () => {
+      const next = Number(input.value);
+      wrap.querySelector(".value").textContent = macroDisplayValue(macro, next);
+      streamMacro(macro.id, next);
+    });
+    input.addEventListener("change", () => {
+      const next = Number(input.value);
+      streamMacro(macro.id, next, true);
+      runAction(refreshCurves);
+    });
     wrap.appendChild(input); root.appendChild(wrap);
   });
 }
@@ -184,9 +213,27 @@ async function refreshRecipeCards() {
 async function refreshLiveFlow() {
   const { data } = await fetchJson("/api/live-flow"); const flow = data.flow;
   const root = document.getElementById("signalFlow");
-  if (!data.available || !flow) { root.textContent = "Waiting for trainer telemetry…"; return; }
+  if (!data.available || !flow) {
+    root.textContent = data.reason === "stale"
+      ? `TRAINER TELEMETRY LOST — last update ${Number(data.age || 0).toFixed(1)}s ago`
+      : "Waiting for trainer telemetry…";
+    return;
+  }
   const stages = [["Body input", flow.input], ["Intent", flow.intent], ["Safe output", flow.safe_output]];
-  root.innerHTML = stages.map(([name, values], idx) => `<div class="flow-stage ${idx === 2 && flow.limited ? "limited" : ""}"><span>${name}</span><strong>roll ${Number(values.roll || 0).toFixed(2)}</strong><br>yaw ${Number(values.yaw || 0).toFixed(2)}</div>`).join("");
+  const observed = data.performance || {};
+  const observedText = observed.targets
+    ? `Observed ${Object.entries(observed.targets).map(([id, value]) => `${id} ${Number(value).toFixed(2)}`).join(" · ")}`
+    : "Observed macro state unavailable";
+  root.innerHTML = stages.map(([name, values], idx) => `<div class="flow-stage ${idx === 2 && flow.limited ? "limited" : ""}"><span>${name}</span><strong>roll ${Number(values.roll || 0).toFixed(2)}</strong><br>yaw ${Number(values.yaw || 0).toFixed(2)}</div>`).join("") + `<small>${observedText}</small>`;
+}
+
+function selectMode(mode) {
+  document.querySelectorAll("[data-view]").forEach((section) => {
+    section.classList.toggle("hidden", section.dataset.view !== mode);
+  });
+  document.querySelectorAll(".mode-tab").forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.mode === mode);
+  });
 }
 
 async function refreshState() {
@@ -419,6 +466,9 @@ function runAction(action) {
 }
 
 function wireEvents() {
+  document.querySelectorAll(".mode-tab").forEach((tab) => {
+    tab.addEventListener("click", () => selectMode(tab.dataset.mode));
+  });
   document.getElementById("applyRecipe").addEventListener("click", () => runAction(applyRecipe));
   document.getElementById("consentOn").addEventListener("click", () => runAction(() => setConsent(1)));
   document.getElementById("consentOff").addEventListener("click", () => runAction(() => setConsent(0)));
@@ -434,6 +484,7 @@ function wireEvents() {
 
 async function boot() {
   wireEvents();
+  selectMode("play");
   renderShowStrip();
   await Promise.all([refreshRecipes(), refreshRecipeCards(), refreshPerformance(), refreshRehearsalProfiles()]);
   await Promise.all([

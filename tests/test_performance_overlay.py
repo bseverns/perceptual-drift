@@ -56,6 +56,41 @@ def test_overlay_reset_restores_recipe_mapping():
     assert restored == baseline
 
 
+def test_first_recipe_relative_drift_touch_has_no_scene_discontinuity():
+    now = [100.0]
+    mapper = MappingController(
+        ROOT / "config/mapping.yaml",
+        uniform=lambda *_: 0.0,
+        performance=PerformanceOverlay(clock=lambda: now[0]),
+    )
+    mapper.select("riot_mode")
+    signal = TrackerSignals(0.8, 0.0, 0.0, True, now[0])
+    before = mapper.map(signal)
+    mapper.set_performance({"drift": 0.01})
+    after_first_touch = mapper.map(signal)
+    assert after_first_touch.roll == pytest.approx(before.roll)
+    now[0] += 0.22
+    after_slew = mapper.map(TrackerSignals(0.8, 0.0, 0.0, True, now[0]))
+    assert abs(after_slew.roll - before.roll) < 0.02
+
+
+def test_touch_continuously_changes_linear_and_legacy_expo_recipes():
+    now = [100.0]
+    overlay = PerformanceOverlay(clock=lambda: now[0])
+    base = {"mapping": {"lateral": {"curve": "linear", "deadzone": 0.05}}}
+    overlay.set({"touch": 1.0})
+    now[0] += 0.22
+    linear = overlay.apply(base, now=now[0])
+    assert linear["mapping"]["lateral"]["curvature"] > 0.0
+    expo = {"mapping": {"lateral": {"curve": "expo", "expo_strength": 0.5}}}
+    softer = PerformanceOverlay(clock=lambda: now[0])
+    softer.set({"touch": -1.0})
+    now[0] += 0.22
+    assert (
+        softer.apply(expo, now=now[0])["mapping"]["lateral"]["curvature"] < 0.5
+    )
+
+
 def test_safety_transitions_are_not_smoothed_by_performance_overlay():
     mapper = MappingController(
         ROOT / "config/mapping.yaml", uniform=lambda *_: 0.0

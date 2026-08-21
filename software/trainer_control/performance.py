@@ -25,6 +25,7 @@ ALLOWED_TARGETS = frozenset(
         "mapping.lateral.gain",
         "mapping.lateral.deadzone",
         "mapping.lateral.expo_strength",
+        "mapping.lateral.curvature",
         "mapping.yaw_bias.bias",
         "mapping.yaw_bias.jitter",
         "mapping.glitch_intensity.base",
@@ -40,7 +41,9 @@ class Macro:
     type: str
     default: float
     description: str
-    targets: tuple[tuple[str, float, float], ...]
+    scope: str
+    requires: tuple[str, ...]
+    targets: tuple[tuple[str, str, float, float], ...]
 
 
 def _number(value: Any, name: str) -> float:
@@ -97,9 +100,13 @@ def load_macros(
                 raise ValueError(
                     f"macro {macro_id} targets forbidden path {target_path!r}"
                 )
+            mode = target.get("mode", "replace")
+            if mode not in {"add", "multiply"}:
+                raise ValueError(f"macro {macro_id} target has invalid mode")
             parsed_targets.append(
                 (
                     target_path,
+                    str(mode),
                     _number(target.get("min"), "target.min"),
                     _number(target.get("max"), "target.max"),
                 )
@@ -110,6 +117,8 @@ def load_macros(
             kind,
             default,
             str(raw.get("description", "")),
+            str(raw.get("scope", "control")),
+            tuple(str(item) for item in raw.get("requires", [])),
             tuple(parsed_targets),
         )
     return macros, slew_ms
@@ -127,6 +136,21 @@ def _set_path(mapping: dict[str, Any], path: str, value: float) -> None:
     cursor[chunks[-1]] = value
 
 
+def _get_path(mapping: Mapping[str, Any], path: str) -> float:
+    cursor: Any = mapping
+    for chunk in path.split("."):
+        if not isinstance(cursor, Mapping) or chunk not in cursor:
+            if path == "mapping.lateral.curvature":
+                lateral = mapping.get("mapping", {}).get("lateral", {})
+                if str(lateral.get("curve", "linear")).lower() == "expo":
+                    return float(
+                        lateral.get("expo_strength", lateral.get("expo", 0.5))
+                    )
+            return 0.0
+        cursor = cursor[chunk]
+    return _number(cursor, path)
+
+
 class PerformanceOverlay:
     """Thread-safe macro state with bounded artistic interpolation only."""
 
@@ -140,6 +164,7 @@ class PerformanceOverlay:
             key: macro.default for key, macro in self.macros.items()
         }
         self._target = dict(self._current)
+        self._start = dict(self._current)
         self._enabled: set[str] = set()
         self._changed_at = self.clock()
 
@@ -153,6 +178,11 @@ class PerformanceOverlay:
             macro = self.macros.get(str(macro_id))
             if macro is None:
                 raise ValueError(f"unknown performance macro {macro_id!r}")
+            if macro.requires:
+                raise ValueError(
+                    f"macro {macro_id} is unavailable: requires "
+                    + ", ".join(macro.requires)
+                )
             numeric = _number(value, f"macro {macro_id}")
             low, high = (0.0, 1.0) if macro.type == "unipolar" else (-1.0, 1.0)
             if not low <= numeric <= high:
@@ -160,6 +190,7 @@ class PerformanceOverlay:
             parsed[macro_id] = numeric
         with self._lock:
             self._advance_unlocked(self.clock())
+            self._start = dict(self._current)
             self._target.update(parsed)
             self._enabled.update(parsed)
             self._changed_at = self.clock()
@@ -171,6 +202,7 @@ class PerformanceOverlay:
                 key: macro.default for key, macro in self.macros.items()
             }
             self._target = dict(self._current)
+            self._start = dict(self._current)
             self._enabled.clear()
             self._changed_at = self.clock()
             return dict(self._target)
@@ -182,11 +214,10 @@ class PerformanceOverlay:
             return
         progress = max(0.0, min(1.0, (now - self._changed_at) / duration))
         for key in self._current:
-            self._current[key] += (
-                self._target[key] - self._current[key]
-            ) * progress
-        if progress < 1.0:
-            self._changed_at = now
+            self._current[key] = (
+                self._start[key]
+                + (self._target[key] - self._start[key]) * progress
+            )
 
     def apply(
         self, base: Mapping[str, Any], *, now: float | None = None
@@ -202,11 +233,26 @@ class PerformanceOverlay:
             normalized = (
                 value if macro.type == "unipolar" else (value + 1.0) / 2.0
             )
-            for target_path, minimum, maximum in macro.targets:
+            for target_path, mode, minimum, maximum in macro.targets:
+                if mode == "multiply" and macro.type == "bipolar":
+                    # A centered bipolar multiplier must be transparent at
+                    # zero: negative and positive ranges may be asymmetric.
+                    amount = (
+                        1.0 + value * (maximum - 1.0)
+                        if value >= 0
+                        else 1.0 + (-value) * (minimum - 1.0)
+                    )
+                else:
+                    amount = minimum + (maximum - minimum) * normalized
+                baseline = _get_path(base, target_path)
                 _set_path(
                     result,
                     target_path,
-                    minimum + (maximum - minimum) * normalized,
+                    (
+                        baseline * amount
+                        if mode == "multiply"
+                        else baseline + amount
+                    ),
                 )
         return result
 
@@ -225,6 +271,8 @@ class PerformanceOverlay:
                         "type": item.type,
                         "default": item.default,
                         "description": item.description,
+                        "scope": item.scope,
+                        "requires": list(item.requires),
                     }
                     for item in self.macros.values()
                 ],

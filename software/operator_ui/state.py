@@ -355,8 +355,22 @@ class OperatorState:
                 "available": False,
                 "reason": telemetry.get("reason", "unavailable"),
             }
-        flow = telemetry.get("data", {}).get("signal_flow", {})
-        return {"available": bool(flow), "flow": flow}
+        data = telemetry.get("data", {})
+        observed_at = data.get("observed_at")
+        try:
+            age = time.time() - float(observed_at)
+        except (TypeError, ValueError):
+            return {"available": False, "reason": "missing_observed_at"}
+        if not math.isfinite(age) or age < 0 or age > 1.0:
+            return {"available": False, "reason": "stale", "age": age}
+        flow = data.get("signal_flow", {})
+        return {
+            "available": bool(flow),
+            "flow": flow,
+            "performance": data.get("performance", {}),
+            "recipe": data.get("recipe", ""),
+            "observed_at": observed_at,
+        }
 
     def export_session(
         self, *, label: str = "", notes: str = ""

@@ -372,6 +372,7 @@ def main(argv=None) -> int:
     source = LiveOscIntentSource()
     reporter = StateTransitionReporter(audit)
     heartbeat_buffer = HeartbeatLineBuffer()
+    last_telemetry_write = 0.0
     osc_dispatcher = dispatcher.Dispatcher()
     osc_dispatcher.map(routes["lateral"], source.on_lateral)
     osc_dispatcher.map(routes["yaw"], source.on_yaw)
@@ -472,17 +473,25 @@ def main(argv=None) -> int:
                 now=started,
                 operator_enabled=args.operator_enable,
             )
-            if args.telemetry_file:
+            if args.telemetry_file and started - last_telemetry_write >= 0.1:
                 telemetry_path = args.telemetry_file.expanduser()
                 telemetry_path.parent.mkdir(parents=True, exist_ok=True)
                 temporary = telemetry_path.with_suffix(
                     telemetry_path.suffix + ".tmp"
                 )
                 temporary.write_text(
-                    json.dumps({"signal_flow": intent_mapper.flow_snapshot()}),
+                    json.dumps(
+                        {
+                            "observed_at": time.time(),
+                            "recipe": intent_mapper.active_recipe,
+                            "performance": intent_mapper.performance_snapshot(),
+                            "signal_flow": intent_mapper.flow_snapshot(),
+                        }
+                    ),
                     encoding="utf-8",
                 )
                 temporary.replace(telemetry_path)
+                last_telemetry_write = started
             frames += 1
             time.sleep(max(0.0, period - (time.monotonic() - started)))
     except KeyboardInterrupt:

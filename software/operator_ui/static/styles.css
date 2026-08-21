@@ -99,6 +99,7 @@ body {
 .mode-tabs { display: flex; gap: 6px; margin: -2px 0 14px; }
 .mode-tab { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; color: #756d60; font-size: .78rem; }
 .mode-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+[data-view].hidden { display: none; }
 .recipe-cards, .macro-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 10px; margin: 0 0 16px; }
 .recipe-card, .macro { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 11px; text-align: left; }
 .recipe-card.active { border: 2px solid var(--accent); background: #eff8f7; }

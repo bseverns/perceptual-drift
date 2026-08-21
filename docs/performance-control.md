@@ -18,7 +18,11 @@ runtime and UI. It is data-driven and only permits these artistic targets:
 | Crowd FX | `mapping.glitch_intensity.base` |
 | Visual Memory | `mapping.glitch_intensity.max` |
 
-Macro changes slew over 220 ms by default. The overlay is bypassed immediately
+Macros are recipe-relative: centered bipolar controls leave the selected scene
+exactly as authored. Drift is a multiplier around the recipe gain; Touch adds
+continuous deadzone and curvature around the recipe response (legacy `linear`
+and `expo` recipes remain compatible). Macro changes slew over 220 ms by default.
+The overlay is bypassed immediately
 when consent is off, the operator gate is off, input is stale, bridge heartbeat
 is lost, or `SafetyEnvelope` faults. It has no access to aircraft/transmitter
 profiles, heartbeat settings, ARM, throttle, flight mode, trainer-enable, ports,
@@ -41,6 +45,12 @@ pd-trainer-run --serial <bridge-port> --operator-enable \
 
 The trace displays tracker roll/yaw input, pre-safety artistic intent, and the
 safe output. A highlighted safe-output card means the envelope clipped intent.
+Trainer telemetry includes observed recipe/macro state and is written at 10 Hz;
+PLAY marks it lost after one second rather than showing a stale ACTIVE state.
+
+Crowd FX and Visual Memory remain visibly unavailable until a video/lighting
+runtime consumes the performance protocol; their UI controls are disabled, not
+placebo knobs.
 
 ## MIDI and calibration
 

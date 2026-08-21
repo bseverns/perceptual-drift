@@ -8,6 +8,7 @@ import math
 import random
 import sys
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Mapping, Optional
@@ -136,9 +137,16 @@ class IntentMapper:
             shaped = math.copysign(
                 (abs(value) - deadzone) / (1.0 - deadzone), value
             )
-        if str(axis.get("curve", "linear")).lower() == "expo":
-            strength = float(axis.get("expo_strength", axis.get("expo", 0.5)))
-            shaped = math.copysign(abs(shaped) ** (1.0 + strength), shaped)
+        curvature = axis.get("curvature")
+        if curvature is None:
+            curvature = (
+                axis.get("expo_strength", axis.get("expo", 0.5))
+                if str(axis.get("curve", "linear")).lower() == "expo"
+                else 0.0
+            )
+        curvature = _clamp(float(curvature), -0.75, 1.0)
+        if curvature:
+            shaped = math.copysign(abs(shaped) ** (1.0 + curvature), shaped)
         gain = float(axis.get("gain", 1.0)) * gain_scale
         return _clamp(shaped * gain, -1.0, 1.0)
 
@@ -280,6 +288,7 @@ class MappingController:
                     )
                 ),
                 "neutral_reason": safe_state.neutral_reason,
+                "observed_at": time.time(),
             }
 
     def flow_snapshot(self) -> dict:

@@ -203,6 +203,22 @@ def test_operator_state_latest_export_and_missing_telemetry(tmp_path):
     assert exported["telemetry_snapshot"]["reason"] == "missing_file"
 
 
+def test_live_flow_rejects_stale_trainer_telemetry(tmp_path):
+    telemetry_file = tmp_path / "trainer.json"
+    telemetry_file.write_text(
+        json.dumps({"observed_at": 1.0, "signal_flow": {"active": True}})
+    )
+    state = OperatorState(
+        base_mapping_path=ROOT / "config" / "mapping.yaml",
+        recipes_dir=ROOT / "config" / "recipes",
+        telemetry_snapshot_file=telemetry_file,
+    )
+    with patch("software.operator_ui.state.time.time", return_value=3.0):
+        flow = state.live_signal_flow()
+    assert flow["available"] is False
+    assert flow["reason"] == "stale"
+
+
 def test_operator_state_session_exports_do_not_overwrite_same_second(tmp_path):
     state = OperatorState(
         base_mapping_path=ROOT / "config" / "mapping.yaml",
