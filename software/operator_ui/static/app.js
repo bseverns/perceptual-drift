@@ -147,6 +147,48 @@ function drawCurve(canvas, series, color) {
   ctx.stroke();
 }
 
+function macroDisplayValue(macro, value) {
+  return macro.type === "bipolar" ? `${value >= 0 ? "+" : ""}${value.toFixed(2)}` : value.toFixed(2);
+}
+
+async function refreshPerformance() {
+  const { performance } = await fetchJson("/api/performance");
+  const root = document.getElementById("macroControls");
+  root.innerHTML = "";
+  (performance.macros || []).forEach((macro) => {
+    const value = Number((performance.targets || {})[macro.id] ?? macro.default);
+    const wrap = document.createElement("div");
+    wrap.className = "macro";
+    const min = macro.type === "bipolar" ? -1 : 0;
+    wrap.innerHTML = `<label>${macro.label}<span class="value">${macroDisplayValue(macro, value)}</span></label><small>${macro.description || ""}</small>`;
+    const input = document.createElement("input");
+    input.type = "range"; input.min = min; input.max = 1; input.step = "0.01"; input.value = value;
+    input.addEventListener("input", () => { wrap.querySelector(".value").textContent = macroDisplayValue(macro, Number(input.value)); });
+    input.addEventListener("change", () => runAction(async () => { await fetchJson("/api/performance", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ values: { [macro.id]: Number(input.value) } }) }); await refreshPerformance(); await refreshCurves(); }));
+    wrap.appendChild(input); root.appendChild(wrap);
+  });
+}
+
+async function refreshRecipeCards() {
+  const { recipes } = await fetchJson("/api/recipes");
+  const { state } = await fetchJson("/api/state");
+  const root = document.getElementById("recipeCards"); root.innerHTML = "";
+  recipes.forEach((recipe) => {
+    const card = document.createElement("button"); card.className = `recipe-card ${state.active_recipe === recipe.id ? "active" : ""}`;
+    card.innerHTML = `<strong>${recipe.name}</strong><small>${recipe.intent || recipe.description || "A versioned scene."}</small>`;
+    card.addEventListener("click", () => runAction(async () => { await fetchJson("/api/recipe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ recipe: recipe.id }) }); await Promise.all([refreshState(), refreshRecipeCards(), refreshPerformance(), refreshCurves()]); }));
+    root.appendChild(card);
+  });
+}
+
+async function refreshLiveFlow() {
+  const { data } = await fetchJson("/api/live-flow"); const flow = data.flow;
+  const root = document.getElementById("signalFlow");
+  if (!data.available || !flow) { root.textContent = "Waiting for trainer telemetry…"; return; }
+  const stages = [["Body input", flow.input], ["Intent", flow.intent], ["Safe output", flow.safe_output]];
+  root.innerHTML = stages.map(([name, values], idx) => `<div class="flow-stage ${idx === 2 && flow.limited ? "limited" : ""}"><span>${name}</span><strong>roll ${Number(values.roll || 0).toFixed(2)}</strong><br>yaw ${Number(values.yaw || 0).toFixed(2)}</div>`).join("");
+}
+
 async function refreshState() {
   const { state } = await fetchJson("/api/state");
   document.getElementById("activeRecipe").textContent = state.active_recipe;
@@ -386,24 +428,28 @@ function wireEvents() {
   document.getElementById("runPreflight").addEventListener("click", () => runAction(runPreflight));
   document.getElementById("startRehearsal").addEventListener("click", () => runAction(startRehearsal));
   document.getElementById("stopRehearsal").addEventListener("click", () => runAction(stopRehearsal));
+  document.getElementById("resetPerformance").addEventListener("click", () => runAction(async () => { await fetchJson("/api/performance/reset", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); await Promise.all([refreshPerformance(), refreshCurves()]); }));
+  document.getElementById("playExport").addEventListener("click", () => runAction(exportSession));
 }
 
 async function boot() {
   wireEvents();
   renderShowStrip();
-  await Promise.all([refreshRecipes(), refreshRehearsalProfiles()]);
+  await Promise.all([refreshRecipes(), refreshRecipeCards(), refreshPerformance(), refreshRehearsalProfiles()]);
   await Promise.all([
     refreshState(),
     refreshCurves(),
     refreshRuntimeHealth(),
     refreshSupervisor(),
     refreshRehearsalSession(),
+    refreshLiveFlow(),
   ]);
   setInterval(() => refreshState().catch(console.error), 1000);
   setInterval(() => refreshCurves().catch(console.error), 2500);
   setInterval(() => refreshRuntimeHealth().catch(console.error), 3000);
   setInterval(() => refreshSupervisor().catch(console.error), 2000);
   setInterval(() => refreshRehearsalSession().catch(console.error), 3000);
+  setInterval(() => refreshLiveFlow().catch(console.error), 500);
 }
 
 boot().catch((err) => {

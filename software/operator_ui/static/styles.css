@@ -95,6 +95,23 @@ body {
   margin-top: 0;
 }
 
+.play-panel { grid-column: 1 / -1; }
+.mode-tabs { display: flex; gap: 6px; margin: -2px 0 14px; }
+.mode-tab { padding: 5px 10px; border: 1px solid var(--line); border-radius: 999px; color: #756d60; font-size: .78rem; }
+.mode-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+.recipe-cards, .macro-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 10px; margin: 0 0 16px; }
+.recipe-card, .macro { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 11px; text-align: left; }
+.recipe-card.active { border: 2px solid var(--accent); background: #eff8f7; }
+.recipe-card strong, .macro label { display: block; margin-bottom: 5px; }
+.recipe-card small, .macro small { display: block; color: #655f55; min-height: 34px; }
+.macro input { width: 100%; padding: 0; accent-color: var(--accent); }
+.macro .value { float: right; color: var(--accent); }
+.signal-flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.flow-stage { background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 9px; }
+.flow-stage span { display: block; color: #6b6458; font-size: .75rem; text-transform: uppercase; }
+.flow-stage strong { font-size: 1.25rem; }
+.flow-stage.limited { border-color: #b4493e; background: #fdecec; }
+
 .state-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

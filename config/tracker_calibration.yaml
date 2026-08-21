@@ -1,0 +1,21 @@
+# Calibration-only model for the Processing tracker.  This is intentionally
+# separate from PLAY macros; changing participation geometry requires tracker
+# calibration state with trainer authority at zero.
+version: 1
+calibration:
+  motion_sensitivity: 35       # Processing `threshold`
+  blur: 0                      # Processing `blurRadius`
+  sample_stride: 8
+  minimum_participant_object_size: 12  # `minBlobSamples`
+  entry_stability: 3           # `consentEnterFrames`
+  exit_grace_ms: 350           # `consentHoldMs`
+  camera_timeout_ms: 500
+  camera:
+    preferred_index: -1
+    preferred_contains: ""
+  participation_zone:
+    x_ratio: 0.25
+    y_ratio: 0.25
+    width_ratio: 0.5
+    height_ratio: 0.5
+    editable_only_when: calibration_with_trainer_authority_zero

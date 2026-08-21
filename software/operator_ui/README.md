@@ -183,3 +183,8 @@ python3 -m software.operator_ui.server \
 This alpha now emits live OSC control intents, session exports, runtime health visibility, starter runtime start/stop controls, and a guided rehearsal flow, but it does not yet include:
 
 - supervised restart policies, retries, and multi-service orchestration
+## PLAY performance layer
+
+The default page now starts with PLAY: scene cards, six ephemeral performance
+macros, consent/health status, a session export action, and a read-only
+input → intent → safe-output trace. See [performance-control](../../docs/performance-control.md).

@@ -85,6 +85,8 @@ def make_handler(
             "/api/state": "_api_get_state",
             "/api/recipes": "_api_get_recipes",
             "/api/mapping/curves": "_api_get_mapping_curves",
+            "/api/performance": "_api_get_performance",
+            "/api/live-flow": "_api_get_live_flow",
             "/api/runtime/health": "_api_get_runtime_health",
             "/api/runtime/supervisor": "_api_get_runtime_supervisor",
             "/api/rehearsal/profiles": "_api_get_rehearsal_profiles",
@@ -95,6 +97,8 @@ def make_handler(
         _POST_HANDLERS = {
             "/api/recipe": "_api_post_recipe",
             "/api/consent": "_api_post_consent",
+            "/api/performance": "_api_post_performance",
+            "/api/performance/reset": "_api_post_performance_reset",
             "/api/session/export": "_api_post_session_export",
             "/api/runtime/start": "_api_post_runtime_start",
             "/api/runtime/stop": "_api_post_runtime_stop",
@@ -227,6 +231,36 @@ def make_handler(
                 _error_response(self, "invalid consent value", 400)
                 return
             _json_response(self, {"ok": True, "state": snapshot})
+
+        def _api_get_performance(self, _parsed, _query) -> None:
+            _json_response(
+                self,
+                {"ok": True, "performance": state.snapshot()["performance"]},
+            )
+
+        def _api_get_live_flow(self, _parsed, _query) -> None:
+            _json_response(
+                self, {"ok": True, "data": state.live_signal_flow()}
+            )
+
+        def _api_post_performance(self, _parsed, payload) -> None:
+            values = payload.get("values")
+            if not isinstance(values, dict):
+                _error_response(
+                    self, "'values' must be an object of named macros", 400
+                )
+                return
+            try:
+                snapshot = state.set_performance(values)
+            except ValueError as exc:
+                _error_response(self, str(exc), 400)
+                return
+            _json_response(self, {"ok": True, "state": snapshot})
+
+        def _api_post_performance_reset(self, _parsed, _payload) -> None:
+            _json_response(
+                self, {"ok": True, "state": state.reset_performance()}
+            )
 
         def _api_post_session_export(self, _parsed, payload) -> None:
             label = str(payload.get("label", "")).strip()
@@ -415,13 +449,18 @@ def parse_args() -> argparse.Namespace:
         help="OSC route for runtime consent messages.",
     )
     parser.add_argument(
+        "--performance-route",
+        default="/pd/performance",
+        help="OSC prefix for named musician-facing macro changes.",
+    )
+    parser.add_argument(
         "--session-export-dir",
         default="runtime/operator_ui_sessions",
         help="Directory where session export JSON files are written.",
     )
     parser.add_argument(
         "--telemetry-file",
-        default="runtime/swarm_latency.json",
+        default="runtime/trainer_telemetry.json",
         help="Optional telemetry snapshot JSON to include in session exports.",
     )
     parser.add_argument(
@@ -518,6 +557,7 @@ def main() -> int:
         runtime_targets=runtime_targets,
         recipe_route=args.recipe_route,
         consent_route=args.consent_route,
+        performance_route=args.performance_route,
         export_dir=Path(args.session_export_dir).resolve(),
         telemetry_snapshot_file=Path(args.telemetry_file).resolve(),
     )

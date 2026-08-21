@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import sys
 import threading
@@ -222,6 +223,7 @@ def _evaluate_frame(
         bridge_heartbeat_timestamp=backend.last_heartbeat_timestamp,
     )
     effective = backend.send(state)
+    mapper.record_flow(signals, intent, effective)
     reporter.report(effective)
     return effective
 
@@ -256,6 +258,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="OSC route for validated live recipe selection",
     )
     parser.add_argument(
+        "--performance-route",
+        default="/pd/performance",
+        help="OSC prefix for named, allowlisted performance macros",
+    )
+    parser.add_argument(
+        "--telemetry-file",
+        type=Path,
+        help=(
+            "Optional read-only JSON trace for the operator PLAY "
+            "visualization"
+        ),
+    )
+    parser.add_argument(
         "--operator-enable",
         action="store_true",
         help=(
@@ -288,6 +303,10 @@ def main(argv=None) -> int:
         parser.error("--bind must not be empty")
     if not args.recipe_route.startswith("/"):
         parser.error("--recipe-route must be an OSC path beginning with '/'")
+    if not args.performance_route.startswith("/"):
+        parser.error(
+            "--performance-route must be an OSC path beginning with '/'"
+        )
 
     audit = AuditLogger()
     envelope = SafetyEnvelope.from_path(args.aircraft_profile)
@@ -397,6 +416,33 @@ def main(argv=None) -> int:
         )
 
     osc_dispatcher.map(args.recipe_route, select_recipe)
+    for macro_id in intent_mapper.performance.macros:
+
+        def set_macro(
+            _address: str, *values: object, macro_id=macro_id
+        ) -> None:
+            if not values:
+                return
+            try:
+                intent_mapper.set_performance({macro_id: values[0]})
+            except ValueError as exc:
+                audit.write(
+                    "trainer_performance_rejected",
+                    status="warning",
+                    message=str(exc),
+                    details={"macro": macro_id},
+                )
+
+        osc_dispatcher.map(
+            f"{args.performance_route.rstrip('/')}/{macro_id}", set_macro
+        )
+
+    def reset_performance(_address: str, *_values: object) -> None:
+        intent_mapper.reset_performance()
+
+    osc_dispatcher.map(
+        f"{args.performance_route.rstrip('/')}/reset", reset_performance
+    )
     server = osc_server.ThreadingOSCUDPServer(
         (bind_host, args.osc_port), osc_dispatcher
     )
@@ -426,6 +472,17 @@ def main(argv=None) -> int:
                 now=started,
                 operator_enabled=args.operator_enable,
             )
+            if args.telemetry_file:
+                telemetry_path = args.telemetry_file.expanduser()
+                telemetry_path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = telemetry_path.with_suffix(
+                    telemetry_path.suffix + ".tmp"
+                )
+                temporary.write_text(
+                    json.dumps({"signal_flow": intent_mapper.flow_snapshot()}),
+                    encoding="utf-8",
+                )
+                temporary.replace(telemetry_path)
             frames += 1
             time.sleep(max(0.0, period - (time.monotonic() - started)))
     except KeyboardInterrupt:

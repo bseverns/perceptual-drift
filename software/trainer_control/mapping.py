@@ -15,6 +15,7 @@ from typing import Callable, Mapping, Optional
 import yaml
 
 from .intent import ControlIntent
+from .performance import PerformanceOverlay
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -193,15 +194,17 @@ class MappingController:
         recipe: Optional[str] = None,
         *,
         uniform: Callable[[float, float], float] = random.uniform,
+        performance: Optional[PerformanceOverlay] = None,
     ) -> None:
         self.base_path = base_path
         self.recipes_dir = recipes_dir
         self.uniform = uniform
         self._lock = threading.Lock()
+        self.performance = performance or PerformanceOverlay()
         self.active_recipe = "base"
-        self._mapper = IntentMapper(
-            load_mapping_config(base_path), uniform=self.uniform
-        )
+        self._last_flow: dict = {}
+        self._base_config = load_mapping_config(base_path)
+        self._mapper = IntentMapper(self._base_config, uniform=self.uniform)
         if recipe and recipe != "base":
             self.select(recipe)
 
@@ -221,13 +224,64 @@ class MappingController:
                 self.base_path, self._recipe_path(normalized)
             )
             active = normalized
-        replacement = IntentMapper(config, uniform=self.uniform)
         with self._lock:
-            self._mapper = replacement
+            self._base_config = config
+            self.performance.reset()
+            self._mapper = IntentMapper(config, uniform=self.uniform)
             self.active_recipe = active
         return active
 
     def map(self, signals: TrackerSignals) -> ControlIntent:
         with self._lock:
-            mapper = self._mapper
+            config = self.performance.apply(
+                self._base_config, now=signals.timestamp
+            )
+            mapper = IntentMapper(config, uniform=self.uniform)
         return mapper.map(signals)
+
+    def set_performance(self, values: Mapping[str, object]) -> dict:
+        return self.performance.set(values)
+
+    def reset_performance(self) -> dict:
+        return self.performance.reset()
+
+    def performance_snapshot(self) -> dict:
+        return self.performance.snapshot()
+
+    def record_flow(
+        self,
+        signals: Optional[TrackerSignals],
+        intent: Optional[ControlIntent],
+        safe_state,
+    ) -> None:
+        """Keep a read-only pedagogical trace; it cannot affect mapping."""
+        with self._lock:
+            self._last_flow = {
+                "recipe": self.active_recipe,
+                "input": (
+                    {"roll": signals.lateral, "yaw": signals.yaw}
+                    if signals
+                    else {}
+                ),
+                "intent": (
+                    {"roll": intent.roll, "yaw": intent.yaw} if intent else {}
+                ),
+                "safe_output": {
+                    "roll": safe_state.roll,
+                    "yaw": safe_state.yaw,
+                },
+                "active": bool(safe_state.active),
+                "limited": bool(
+                    intent
+                    and safe_state.active
+                    and (
+                        abs(intent.roll - safe_state.roll) > 1e-9
+                        or abs(intent.yaw - safe_state.yaw) > 1e-9
+                    )
+                ),
+                "neutral_reason": safe_state.neutral_reason,
+            }
+
+    def flow_snapshot(self) -> dict:
+        with self._lock:
+            return copy.deepcopy(self._last_flow)

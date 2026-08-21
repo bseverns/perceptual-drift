@@ -1,0 +1,20 @@
+# New performance MIDI layer.  Unlike legacy midi.yaml, these bindings never
+# address flight axes, consent, ARM, throttle, flight mode, or trainer enable.
+version: 1
+bindings:
+  - name: drift_knob
+    type: cc
+    cc_number: 24
+    target: macro:drift
+  - name: touch_knob
+    type: cc
+    cc_number: 25
+    target: macro:touch
+  - name: turn_knob
+    type: cc
+    cc_number: 26
+    target: macro:turn
+  - name: ambient_scene
+    type: note
+    note_number: 36
+    target: recipe:ambient

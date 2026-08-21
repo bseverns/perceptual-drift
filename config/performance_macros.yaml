@@ -1,0 +1,62 @@
+# Musician-facing controls.  These are deliberately the only paths a live
+# performance overlay may affect.  Values are applied in memory only.
+version: 1
+slew_ms: 220
+macros:
+  drift:
+    label: Drift
+    type: unipolar
+    default: 0.5
+    description: Spatial breadth of lateral movement.
+    targets:
+      - path: mapping.lateral.gain
+        min: 0.15
+        max: 0.85
+  touch:
+    label: Touch
+    type: unipolar
+    default: 0.5
+    description: From soft and forgiving to immediate response.
+    targets:
+      - path: mapping.lateral.deadzone
+        min: 0.18
+        max: 0.02
+      - path: mapping.lateral.expo_strength
+        min: 0.8
+        max: 0.0
+  turn:
+    label: Turn
+    type: bipolar
+    default: 0.0
+    description: A gentle left/right yaw tendency.
+    targets:
+      - path: mapping.yaw_bias.bias
+        min: -0.20
+        max: 0.20
+  nervousness:
+    label: Nervousness
+    type: unipolar
+    default: 0.0
+    description: Adds bounded instability to yaw.
+    targets:
+      - path: mapping.yaw_bias.jitter
+        min: 0.0
+        max: 0.25
+  crowd_fx:
+    label: Crowd FX
+    type: unipolar
+    default: 0.35
+    description: Visual and lighting intensity for crowd energy.
+    targets:
+      - path: mapping.glitch_intensity.base
+        min: 0.05
+        max: 0.70
+  visual_memory:
+    label: Visual Memory
+    type: unipolar
+    default: 0.25
+    description: Feedback persistence where the selected visual pipeline supports it.
+    targets:
+      - path: mapping.glitch_intensity.max
+        min: 0.35
+        max: 1.0

@@ -9,8 +9,8 @@
   <body>
     <main class="layout">
       <header class="hero">
-        <h1>Operator UI</h1>
-        <p>Recipe load, consent monitor, and live mapping curves.</p>
+        <h1>Perceptual Drift — PLAY</h1>
+        <p>A six-knob instrument. Safety and transmitter authority stay downstream.</p>
         <div class="show-strip" id="showStrip">
           <span class="show-chip" id="showPreflight">Preflight: n/a</span>
           <span class="show-chip" id="showProfile">Profile: n/a</span>
@@ -20,8 +20,21 @@
         </div>
       </header>
 
+      <section class="panel play-panel">
+        <div class="mode-tabs" aria-label="Operator modes">
+          <span class="mode-tab active">PLAY</span><span class="mode-tab">CALIBRATE</span><span class="mode-tab">MAINTAIN</span>
+        </div>
+        <h2>Choose a scene</h2>
+        <div id="recipeCards" class="recipe-cards" aria-live="polite"></div>
+        <h2>Play the character</h2>
+        <div id="macroControls" class="macro-controls" aria-live="polite"></div>
+        <div class="row"><button id="resetPerformance">Reset scene feel</button><button id="playExport">Export session</button></div>
+        <h2>What the instrument is doing</h2>
+        <div id="signalFlow" class="signal-flow">Waiting for trainer telemetry…</div>
+      </section>
+
       <section class="panel">
-        <h2>Runtime State</h2>
+        <h2>MAINTAIN — Runtime State</h2>
         <div class="state-grid">
           <div><span class="k">Active recipe</span><span id="activeRecipe">-</span></div>
           <div><span class="k">Consent</span><span id="consentState">-</span></div>
@@ -35,8 +48,8 @@
       </section>
 
       <section class="panel controls">
-        <h2>Controls</h2>
-        <h3>Rehearsal Guide</h3>
+        <h2>CALIBRATE / REHEARSE</h2>
+        <h3>Preflight and rehearsal guide</h3>
         <label for="rehearsalProfile">Start profile</label>
         <div class="row">
           <select id="rehearsalProfile"></select>

@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 import yaml
 from pythonosc import udp_client
 
+from software.trainer_control.performance import PerformanceOverlay
+
 from software.swarm.mapping_loader import load_mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -84,6 +86,7 @@ class OperatorState:
         runtime_targets: Optional[Sequence[Tuple[str, int]]] = None,
         recipe_route: str = "/pd/patch",
         consent_route: str = "/pd/consent",
+        performance_route: str = "/pd/performance",
         export_dir: Optional[Path] = None,
         telemetry_snapshot_file: Optional[Path] = None,
         dispatch_history_limit: int = 50,
@@ -94,6 +97,7 @@ class OperatorState:
         self.runtime_targets = list(runtime_targets or [])
         self.recipe_route = recipe_route
         self.consent_route = consent_route
+        self.performance_route = performance_route.rstrip("/")
         self.export_dir = (
             export_dir
             if export_dir is not None
@@ -153,6 +157,7 @@ class OperatorState:
         }
         self._recipes_cache: Dict[Path, Tuple[float, Dict[str, str]]] = {}
         self._mapping = load_mapping(base_path=str(self.base_mapping_path))
+        self._performance = PerformanceOverlay()
         CONTROL_BRIDGE_VALIDATOR.validate_mapping_config(
             self._mapping, str(self.base_mapping_path)
         )
@@ -163,6 +168,7 @@ class OperatorState:
                 "id": "base",
                 "name": "Base Mapping",
                 "description": "Use config/mapping.yaml without recipe overlay.",
+                "intent": "The reference character before a scene overlay.",
             }
         ]
 
@@ -187,7 +193,12 @@ class OperatorState:
                     recipes.append(dict(self._recipes_cache[path][1]))
                     continue
 
-                entry = {"id": path.stem, "name": path.stem, "description": ""}
+                entry = {
+                    "id": path.stem,
+                    "name": path.stem,
+                    "description": "",
+                    "intent": "",
+                }
                 try:
                     parsed = yaml.safe_load(path.read_text()) or {}
                 except Exception:
@@ -200,6 +211,7 @@ class OperatorState:
                     entry["description"] = str(
                         parsed.get("description", "")
                     ).strip()
+                    entry["intent"] = str(parsed.get("intent", "")).strip()
 
                 self._recipes_cache[path] = (mtime, entry)
                 recipes.append(dict(entry))
@@ -229,11 +241,48 @@ class OperatorState:
         with self._lock:
             self._mapping = mapping
             self._active_recipe = active
+            self._performance.reset()
             self._updated_at = time.time()
             self._last_dispatch = self._emit_runtime(
                 action="recipe",
                 route=self.recipe_route,
                 payload=normalized or "base",
+            )
+            self._record_dispatch(self._last_dispatch)
+            return self.snapshot_unlocked()
+
+    def set_performance(self, values: Dict[str, Any]) -> Dict[str, Any]:
+        """Update only validated named artistic macros and relay them to runtime."""
+        with self._lock:
+            self._performance.set(values)
+            results = []
+            for macro_id, value in values.items():
+                event = self._emit_runtime(
+                    action="performance",
+                    route=f"{self.performance_route}/{macro_id}",
+                    payload=value,
+                )
+                results.extend(event["results"])
+            self._updated_at = time.time()
+            self._last_dispatch = {
+                "action": "performance",
+                "route": self.performance_route,
+                "payload": dict(values),
+                "results": results,
+                "targets": len(self.runtime_targets),
+                "sent_at": time.time(),
+            }
+            self._record_dispatch(self._last_dispatch)
+            return self.snapshot_unlocked()
+
+    def reset_performance(self) -> Dict[str, Any]:
+        with self._lock:
+            self._performance.reset()
+            self._updated_at = time.time()
+            self._last_dispatch = self._emit_runtime(
+                action="performance_reset",
+                route=f"{self.performance_route}/reset",
+                payload=1,
             )
             self._record_dispatch(self._last_dispatch)
             return self.snapshot_unlocked()
@@ -298,6 +347,16 @@ class OperatorState:
                 "error": str(exc),
             }
         return {"ok": True, "path": str(path), "data": data}
+
+    def live_signal_flow(self) -> Dict[str, Any]:
+        telemetry = self._load_telemetry_snapshot()
+        if not telemetry.get("ok"):
+            return {
+                "available": False,
+                "reason": telemetry.get("reason", "unavailable"),
+            }
+        flow = telemetry.get("data", {}).get("signal_flow", {})
+        return {"available": bool(flow), "flow": flow}
 
     def export_session(
         self, *, label: str = "", notes: str = ""
@@ -551,7 +610,8 @@ class OperatorState:
     def mapping_curves(self, points: int = 101) -> Dict[str, Any]:
         points = int(_clamp(points, 5, 401))
         with self._lock:
-            mapping = dict(self._mapping.get("mapping", {}))
+            effective = self._performance.apply(self._mapping)
+            mapping = dict(effective.get("mapping", {}))
         return self._mapping_curves_from_mapping(mapping, points)
 
     def _mapping_curves_from_mapping(
@@ -625,4 +685,5 @@ class OperatorState:
                     self._rehearsal.get("last_preflight", {}).get("ok", False)
                 ),
             },
+            "performance": self._performance.snapshot(),
         }

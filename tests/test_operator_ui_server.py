@@ -157,6 +157,28 @@ def test_post_endpoint_requires_auth_token():
     assert payload["state"]["consent_state"] == 1
 
 
+def test_performance_api_only_accepts_named_safe_macros():
+    with _serve(api_token="secret-token") as base_url:
+        status, payload = _request_json(
+            base_url,
+            "/api/performance",
+            method="POST",
+            token="secret-token",
+            payload={"values": {"drift": 0.8}},
+        )
+        assert status == 200
+        assert payload["state"]["performance"]["targets"]["drift"] == 0.8
+        status, payload = _request_json(
+            base_url,
+            "/api/performance",
+            method="POST",
+            token="secret-token",
+            payload={"values": {"aircraft_profile": 0.8}},
+        )
+    assert status == 400
+    assert payload["ok"] is False
+
+
 def test_static_path_resolution_rejects_sibling_prefix_escape(tmp_path):
     root = tmp_path / "static"
     sibling = tmp_path / "static_evil"

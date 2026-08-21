@@ -27,11 +27,11 @@ import netP5.*;
 // -----------------------------------------------------------------------------
 // TUNABLE PARAMETERS — tweak up here so the rest of the sketch stays readable.
 // -----------------------------------------------------------------------------
-int threshold = 35;          // frame-diff brightness cutoff; lower = more sensitive
-int blurRadius = 0;          // optional blur applied to the working frame (0 = off)
-int sampleStride = 8;        // pixel sampling step when estimating the centroid
-int minBlobSamples = 12;     // reject isolated foreground/noise in the sampled mask
-int consentEnterFrames = 3;  // consecutive fresh frames required to opt in
+int threshold = 35;          // Motion sensitivity: lower = more sensitive
+int blurRadius = 0;          // Blur (calibration only; 0 = off)
+int sampleStride = 8;        // Sampling detail (calibration only)
+int minBlobSamples = 12;     // Minimum participant/object size
+int consentEnterFrames = 3;  // Entry stability: fresh frames required to opt in
 int cameraTimeoutMs = 500;   // force safe output after this long without a fresh frame
 
 // Set either value to pin an overhead camera. Index wins when both are set.
@@ -48,7 +48,7 @@ float consentHRatio = 0.5;
 
 // Opt-in is frame-debounced; opt-out uses wall-clock time so camera FPS cannot
 // stretch the grace period.
-int consentHoldMs = 350;
+int consentHoldMs = 350;     // Exit grace
 
 // -----------------------------------------------------------------------------
 // END TUNABLES
