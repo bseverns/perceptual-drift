@@ -100,6 +100,29 @@ Treat these as regression-blocking rules:
 - Physical swarm service calls require fresh consent independently of visual idle-posture mapping; stale consent must transition through the same Land/Stop path as an explicit OFF packet.
 - Smoke-harness and UI tests should fail if any subsystem stops honoring these defaults.
 
+## Reference trainer safety decision
+
+```mermaid
+flowchart TD
+    Start[Tracker sample arrives] --> Fresh{Roll, yaw, and consent fresh?}
+    Fresh -->|No| Neutral[Neutral trainer contribution]
+    Fresh -->|Yes| Consent{Consent ON?}
+    Consent -->|No| Neutral
+    Consent -->|Yes| Operator{Operator gate enabled?}
+    Operator -->|No| Neutral
+    Operator -->|Yes| Heartbeat{Bridge heartbeat fresh?}
+    Heartbeat -->|No| Neutral
+    Heartbeat -->|Yes| Profile{Safety profile valid?}
+    Profile -->|No| Neutral
+    Profile -->|Yes| Intent[IntentMapper artistic intent]
+    Intent --> Bound[SafetyEnvelope bounds roll/yaw]
+    Bound --> Active[Bounded trainer contribution]
+    Neutral --> Reason[Expose neutral reason\nconsent_off · stale_input ·\nheartbeat_lost · safety fault]
+```
+
+Every neutral branch is immediate; the artistic performance slew is never in
+this decision path.
+
 ## `mapping`
 
 Defines control shaping.

@@ -11,6 +11,19 @@ Think of a recipe as a field briefing: *what mood are we summoning, what knobs
 move, and how should the visuals behave?* This document shows how to author new
 recipes without spelunking through code.
 
+```mermaid
+flowchart LR
+    Base[Base mapping] --> Merge[Effective artistic mapping]
+    Recipe[Recipe control_bridge overlay] --> Merge
+    Performance[Ephemeral performance overlay] --> Merge
+    Merge --> Mapper[IntentMapper]
+    Recipe --> Visuals[Video and LED recipe metadata]
+    Mapper --> Safety[SafetyEnvelope\nnot recipe-editable]
+```
+
+The recipe is the versioned creative artifact. The performance overlay changes
+its character for a session without writing the recipe back to disk.
+
 For canonical field definitions of `control_bridge` keys, use
 [`docs/mapping-contract.md`](mapping-contract.md). This page focuses on recipe
 authoring workflow and examples.
