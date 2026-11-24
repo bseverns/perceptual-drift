@@ -185,4 +185,18 @@ def validate_transmitter_profile(path: Path) -> Mapping[str, object]:
             raise ProfileError(
                 f"transmitter.trainer.{axis} must be OFF with zero weight"
             )
+    authority = _mapping(raw.get("authority"), "transmitter.authority")
+    expected_sources = {
+        "arm": "physical transmitter switch only",
+        "flight_mode": "physical transmitter switch only",
+        "perceptual_drift_enable": "dedicated physical transmitter trainer-enable switch",
+    }
+    for key, expected in expected_sources.items():
+        declaration = _mapping(
+            authority.get(key), f"transmitter.authority.{key}"
+        )
+        if declaration.get("source") != expected:
+            raise ProfileError(
+                f"transmitter.authority.{key}.source must be {expected!r}"
+            )
     return raw

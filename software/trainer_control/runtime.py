@@ -43,6 +43,7 @@ class LiveOscIntentSource:
             "throttle": 0.0,
             "crowd": 0.0,
             "consent": False,
+            "operator_paused": False,
         }
         self._timestamps: Dict[str, Optional[float]] = {
             key: None for key in self.REQUIRED_FRESH_AXES
@@ -88,6 +89,17 @@ class LiveOscIntentSource:
         with self._lock:
             self._values["consent"] = value >= 0.5
             self._timestamps["consent"] = self.clock()
+
+    def on_operator_pause(self, _address: str, *values: object) -> None:
+        value = self._finite_first(values)
+        if value is None:
+            return
+        with self._lock:
+            self._values["operator_paused"] = value >= 0.5
+
+    def operator_paused(self) -> bool:
+        with self._lock:
+            return bool(self._values["operator_paused"])
 
     def snapshot(self) -> Optional[TrackerSignals]:
         with self._lock:
@@ -226,6 +238,30 @@ def _evaluate_frame(
     mapper.record_flow(signals, intent, effective)
     reporter.report(effective)
     return effective
+
+
+def _run_control_frame(
+    *,
+    serial_port,
+    backend: TrainerBackend,
+    heartbeat_buffer: HeartbeatLineBuffer,
+    source: LiveOscIntentSource,
+    mapper: MappingController,
+    envelope: SafetyEnvelope,
+    reporter: StateTransitionReporter,
+    clock: Callable[[], float] = time.monotonic,
+    operator_enabled: bool,
+) -> SafetyState:
+    _drain_heartbeats(serial_port, backend, heartbeat_buffer)
+    return _evaluate_frame(
+        source=source,
+        mapper=mapper,
+        envelope=envelope,
+        backend=backend,
+        reporter=reporter,
+        now=clock(),
+        operator_enabled=operator_enabled and not source.operator_paused(),
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -378,6 +414,7 @@ def main(argv=None) -> int:
     osc_dispatcher.map(routes["yaw"], source.on_yaw)
     osc_dispatcher.map(routes["crowd"], source.on_crowd)
     osc_dispatcher.map(routes["consent"], source.on_consent)
+    osc_dispatcher.map("/pd/operator_pause", source.on_operator_pause)
 
     def select_recipe(_address: str, *values: object) -> None:
         if not values or not isinstance(values[0], str):
@@ -463,14 +500,14 @@ def main(argv=None) -> int:
     try:
         while args.max_frames == 0 or frames < args.max_frames:
             started = time.monotonic()
-            _drain_heartbeats(serial_port, backend, heartbeat_buffer)
-            _evaluate_frame(
+            _run_control_frame(
+                serial_port=serial_port,
+                backend=backend,
+                heartbeat_buffer=heartbeat_buffer,
                 source=source,
                 mapper=intent_mapper,
                 envelope=envelope,
-                backend=backend,
                 reporter=reporter,
-                now=started,
                 operator_enabled=args.operator_enable,
             )
             if args.telemetry_file and started - last_telemetry_write >= 0.1:

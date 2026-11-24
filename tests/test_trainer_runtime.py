@@ -76,6 +76,44 @@ def test_heartbeat_reader_retains_split_nonblocking_lines():
     assert backend.last_heartbeat_timestamp == 12.5
 
 
+def test_control_frame_samples_time_after_receiving_heartbeat():
+    now = [100.0]
+    source = runtime.LiveOscIntentSource(clock=lambda: now[0])
+    source.on_lateral("/pd/lat", 0.08)
+    source.on_yaw("/pd/yaw", -0.04)
+    source.on_consent("/pd/consent", 1)
+    mapper = MappingController(Path("config/mapping.yaml"), uniform=lambda *_: 0.0)
+    serial_port = FakeSerial((b"HB,1\n", b""))
+    backend = runtime.TrainerBackend(serial_port, clock=lambda: now[0])
+    envelope = SafetyEnvelope.from_path(Path("config/aircraft/ez_pilot_pro.yaml"))
+
+    class Reporter:
+        def report(self, state):
+            return state
+
+    original_readline = serial_port.readline
+
+    def advance_during_receipt():
+        now[0] = 100.1
+        return original_readline()
+
+    serial_port.readline = advance_during_receipt
+
+    state = runtime._run_control_frame(
+        serial_port=serial_port,
+        backend=backend,
+        heartbeat_buffer=runtime.HeartbeatLineBuffer(),
+        source=source,
+        mapper=mapper,
+        envelope=envelope,
+        reporter=Reporter(),
+        clock=lambda: now[0],
+        operator_enabled=True,
+    )
+
+    assert state.active is True
+
+
 def test_artistic_mapping_applies_deadzone_gain_bias_and_recipe():
     base = MappingController(
         Path("config/mapping.yaml"), uniform=lambda _a, _b: 0.0

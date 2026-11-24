@@ -480,10 +480,10 @@ def _start(args: argparse.Namespace) -> int:
         )
         _api_request(
             base_url,
-            "/api/consent",
+            "/api/participation-pause",
             token=token,
             method="POST",
-            payload={"consent": 0},
+            payload={"paused": True},
         )
     except Exception as exc:
         _signal_process(proc.pid, signal.SIGINT)

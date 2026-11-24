@@ -40,7 +40,7 @@ def test_consent_default_startup_state_is_off_across_subsystems():
         base_mapping_path=ROOT / "config" / "mapping.yaml",
         recipes_dir=ROOT / "config" / "recipes",
     )
-    assert operator_state.snapshot()["consent_state"] == 0
+    assert operator_state.snapshot()["participation_paused"] is False
 
     swarm_default = swarm_demo.SwarmNode._get_default_consent_state(
         SimpleNamespace(), cfg

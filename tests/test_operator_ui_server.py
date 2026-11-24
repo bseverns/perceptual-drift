@@ -138,23 +138,23 @@ def test_post_endpoint_requires_auth_token():
     with _serve(api_token="secret-token") as base_url:
         status, payload = _request_json(
             base_url,
-            "/api/consent",
+            "/api/participation-pause",
             method="POST",
-            payload={"consent": 1},
+            payload={"paused": True},
         )
         assert status == 401
         assert payload["ok"] is False
 
         status, payload = _request_json(
             base_url,
-            "/api/consent",
+            "/api/participation-pause",
             method="POST",
             token="secret-token",
-            payload={"consent": 1},
+            payload={"paused": True},
         )
     assert status == 200
     assert payload["ok"] is True
-    assert payload["state"]["consent_state"] == 1
+    assert payload["state"]["participation_paused"] is True
 
 
 def test_performance_api_only_accepts_named_safe_macros():

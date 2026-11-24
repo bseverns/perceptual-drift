@@ -133,6 +133,19 @@ def test_legacy_msp_backend_neutralizes_states_outside_limits(unsafe_state):
     assert channels[:4] == (1500, 1500, 1000, 1500)
 
 
+def test_transmitter_profile_rejects_missing_physical_enable_declaration(tmp_path):
+    profile = Path("config/transmitters/tx16s_pd.yaml")
+    unsafe = tmp_path / "unsafe_tx.yaml"
+    unsafe.write_text(
+        profile.read_text().replace(
+            "source: dedicated physical transmitter trainer-enable switch",
+            "source: software",
+        )
+    )
+    with pytest.raises(ProfileError, match="perceptual_drift_enable.source"):
+        validate_transmitter_profile(unsafe)
+
+
 def test_transmitter_profile_cannot_raise_trainer_weight(tmp_path):
     profile = Path("config/transmitters/tx16s_pd.yaml")
     unsafe = tmp_path / "unsafe_tx.yaml"

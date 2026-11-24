@@ -96,7 +96,7 @@ def make_handler(
 
         _POST_HANDLERS = {
             "/api/recipe": "_api_post_recipe",
-            "/api/consent": "_api_post_consent",
+            "/api/participation-pause": "_api_post_participation_pause",
             "/api/performance": "_api_post_performance",
             "/api/performance/reset": "_api_post_performance_reset",
             "/api/session/export": "_api_post_session_export",
@@ -221,15 +221,14 @@ def make_handler(
                 return
             _json_response(self, {"ok": True, "state": snapshot})
 
-        def _api_post_consent(self, _parsed, payload) -> None:
-            if "consent" not in payload:
-                _error_response(self, "missing 'consent' field", 400)
+        def _api_post_participation_pause(self, _parsed, payload) -> None:
+            if "paused" not in payload:
+                _error_response(self, "missing 'paused' field", 400)
                 return
-            try:
-                snapshot = state.set_consent(payload["consent"])
-            except Exception:
-                _error_response(self, "invalid consent value", 400)
+            if not isinstance(payload["paused"], bool):
+                _error_response(self, "'paused' must be boolean", 400)
                 return
+            snapshot = state.set_participation_pause(payload["paused"])
             _json_response(self, {"ok": True, "state": snapshot})
 
         def _api_get_performance(self, _parsed, _query) -> None:

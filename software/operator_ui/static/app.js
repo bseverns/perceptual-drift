@@ -278,7 +278,7 @@ function selectMode(mode) {
 async function refreshState() {
   const { state } = await fetchJson("/api/state");
   document.getElementById("activeRecipe").textContent = state.active_recipe;
-  document.getElementById("consentState").textContent = state.consent_state ? "ON" : "OFF";
+  document.getElementById("consentState").textContent = state.participation_paused ? "PAUSED" : "AVAILABLE";
   document.getElementById("oscPort").textContent = state.osc_port;
   document.getElementById("consentMode").textContent = state.consent_mode;
   document.getElementById("runtimeTargets").textContent = state.runtime_targets.join(", ") || "none";
@@ -290,7 +290,7 @@ async function refreshState() {
     : "none";
   document.getElementById("lastDispatch").textContent = status;
   document.getElementById("latestSession").textContent = state.last_export || "none";
-  showModeState.consentOn = !!state.consent_state;
+  showModeState.consentOn = !state.participation_paused;
   showModeState.latestExport = state.last_export || "";
   const rehearsal = state.rehearsal || {};
   showModeState.rehearsalActive = !!rehearsal.active;
@@ -402,11 +402,11 @@ async function applyRecipe() {
   await refreshCurves();
 }
 
-async function setConsent(value) {
-  await fetchJson("/api/consent", {
+async function setParticipationPause(paused) {
+  await fetchJson("/api/participation-pause", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ consent: value }),
+    body: JSON.stringify({ paused }),
   });
   await refreshState();
 }
@@ -509,8 +509,8 @@ function wireEvents() {
     tab.addEventListener("click", () => selectMode(tab.dataset.mode));
   });
   document.getElementById("applyRecipe").addEventListener("click", () => runAction(applyRecipe));
-  document.getElementById("consentOn").addEventListener("click", () => runAction(() => setConsent(1)));
-  document.getElementById("consentOff").addEventListener("click", () => runAction(() => setConsent(0)));
+  document.getElementById("consentOn").addEventListener("click", () => runAction(() => setParticipationPause(true)));
+  document.getElementById("consentOff").addEventListener("click", () => runAction(() => setParticipationPause(false)));
   document.getElementById("startRuntime").addEventListener("click", () => runAction(startRuntime));
   document.getElementById("stopRuntime").addEventListener("click", () => runAction(stopRuntime));
   document.getElementById("exportSession").addEventListener("click", () => runAction(exportSession));

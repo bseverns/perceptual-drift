@@ -54,8 +54,8 @@ def test_safe_rehearsal_start_boots_ui_and_runtime(
     assert meta["base_url"] == "http://127.0.0.1:8088"
     assert calls[0][1] == "/api/runtime/start"
     assert calls[0][2]["payload"] == rehearsal.DEFAULT_START_OPTIONS
-    assert calls[1][1] == "/api/consent"
-    assert calls[1][2]["payload"] == {"consent": 0}
+    assert calls[1][1] == "/api/participation-pause"
+    assert calls[1][2]["payload"] == {"paused": True}
 
 
 def test_safe_rehearsal_status_reports_running_state(

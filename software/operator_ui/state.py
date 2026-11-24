@@ -140,7 +140,7 @@ class OperatorState:
         ]
         self._lock = threading.Lock()
         self._active_recipe: Optional[str] = None
-        self._consent: int = 0
+        self._participation_paused = False
         self._updated_at: float = time.time()
         self._last_dispatch: Dict[str, Any] = {"action": "none", "results": []}
         self._dispatch_history: List[Dict[str, Any]] = []
@@ -287,15 +287,15 @@ class OperatorState:
             self._record_dispatch(self._last_dispatch)
             return self.snapshot_unlocked()
 
-    def set_consent(self, consent_value: Any) -> Dict[str, Any]:
-        consent = 1 if float(consent_value) >= 0.5 else 0
+    def set_participation_pause(self, paused_value: Any) -> Dict[str, Any]:
+        paused = bool(paused_value)
         with self._lock:
-            self._consent = consent
+            self._participation_paused = paused
             self._updated_at = time.time()
             self._last_dispatch = self._emit_runtime(
-                action="consent",
-                route=self.consent_route,
-                payload=consent,
+                action="participation_pause",
+                route="/pd/operator_pause",
+                payload=int(paused),
             )
             self._record_dispatch(self._last_dispatch)
             return self.snapshot_unlocked()
@@ -676,7 +676,7 @@ class OperatorState:
         )
         return {
             "active_recipe": self._active_recipe or "base",
-            "consent_state": self._consent,
+            "participation_paused": self._participation_paused,
             "updated_at": self._updated_at,
             "osc_port": int(osc_cfg.get("port", 9000)),
             "consent_mode": str(consent_cfg.get("mode", "binary")),

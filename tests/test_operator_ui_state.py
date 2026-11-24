@@ -69,27 +69,30 @@ mapping:
     assert state.mapping_curves(points=5)["curves"]["altitude"]["series"]
 
 
-def test_operator_state_consent_toggle():
-    state = OperatorState(
-        base_mapping_path=ROOT / "config" / "mapping.yaml",
-        recipes_dir=ROOT / "config" / "recipes",
-    )
-    on = state.set_consent(1)
-    assert on["consent_state"] == 1
-    off = state.set_consent(0)
-    assert off["consent_state"] == 0
+def test_operator_state_can_pause_participation_without_publishing_consent():
+    sent = []
 
+    class DummyClient:
+        def __init__(self, *_args):
+            pass
 
-def test_operator_state_consent_normalizes_consistently():
-    state = OperatorState(
-        base_mapping_path=ROOT / "config" / "mapping.yaml",
-        recipes_dir=ROOT / "config" / "recipes",
-    )
-    assert state.snapshot()["consent_state"] == 0
-    assert state.set_consent(0.49)["consent_state"] == 0
-    assert state.set_consent(False)["consent_state"] == 0
-    assert state.set_consent(0.5)["consent_state"] == 1
-    assert state.set_consent(True)["consent_state"] == 1
+        def send_message(self, route, payload):
+            sent.append((route, payload))
+
+    with patch(
+        "software.operator_ui.state.udp_client.SimpleUDPClient", DummyClient
+    ):
+        state = OperatorState(
+            base_mapping_path=ROOT / "config" / "mapping.yaml",
+            recipes_dir=ROOT / "config" / "recipes",
+            runtime_targets=[("127.0.0.1", 9000)],
+        )
+        paused = state.set_participation_pause(True)
+        resumed = state.set_participation_pause(False)
+
+    assert paused["participation_paused"] is True
+    assert resumed["participation_paused"] is False
+    assert sent == [("/pd/operator_pause", 1), ("/pd/operator_pause", 0)]
 
 
 def test_operator_state_curve_payload_shape():
@@ -103,7 +106,7 @@ def test_operator_state_curve_payload_shape():
     assert len(curves["curves"]["altitude"]["series"]) == 31
 
 
-def test_operator_state_dispatches_consent_to_runtime_targets():
+def test_operator_state_dispatches_participation_pause_to_runtime_targets():
     sent = []
 
     class DummyClient:
@@ -122,12 +125,12 @@ def test_operator_state_dispatches_consent_to_runtime_targets():
             recipes_dir=ROOT / "config" / "recipes",
             runtime_targets=[("127.0.0.1", 9000), ("127.0.0.1", 9010)],
         )
-        snapshot = state.set_consent(1)
-        assert snapshot["last_dispatch"]["action"] == "consent"
+        snapshot = state.set_participation_pause(True)
+        assert snapshot["last_dispatch"]["action"] == "participation_pause"
         assert len(snapshot["last_dispatch"]["results"]) == 2
         assert sent == [
-            ("127.0.0.1", 9000, "/pd/consent", 1),
-            ("127.0.0.1", 9010, "/pd/consent", 1),
+            ("127.0.0.1", 9000, "/pd/operator_pause", 1),
+            ("127.0.0.1", 9010, "/pd/operator_pause", 1),
         ]
 
 
@@ -162,7 +165,7 @@ def test_operator_state_session_export_includes_state_and_telemetry(tmp_path):
     )
 
     state.set_recipe("ambient")
-    state.set_consent(1)
+    state.set_participation_pause(True)
     session = state.export_session(label="rehearsal_01", notes="dry run")
 
     out_path = Path(session["path"])
@@ -174,9 +177,9 @@ def test_operator_state_session_export_includes_state_and_telemetry(tmp_path):
     assert exported["label"] == "rehearsal_01"
     assert exported["notes"] == "dry run"
     assert exported["state"]["active_recipe"] == "ambient"
-    assert exported["state"]["consent_state"] == 1
+    assert exported["state"]["participation_paused"] is True
     assert "rehearsal" in exported
-    assert exported["dispatch_history"][-1]["action"] == "consent"
+    assert exported["dispatch_history"][-1]["action"] == "participation_pause"
     assert exported["telemetry_snapshot"]["ok"] is True
     assert exported["telemetry_snapshot"]["data"]["p95_ms"] == 37.2
     assert "altitude" in exported["curves"]["curves"]
